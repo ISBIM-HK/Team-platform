@@ -1,0 +1,65 @@
+# ─── Spec / design docs（团队约定不入库） ───
+docs/specs/
+
+# ─── Secrets ───
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+crypto_key*
+
+# ─── Runtime data ───
+data/
+logs/
+uploads/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+.tox/
+
+# ─── Node / Frontend ───
+node_modules/
+.next/
+.nuxt/
+.vite/
+.cache/
+dist/
+build/
+*.tsbuildinfo
+.pnpm-store/
+
+# ─── IDE / OS ───
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Docker / Local infra ───
+docker-compose.override.yml
+.docker/
+
+# ─── AI eval runs ───
+tests/ai_eval/runs/
