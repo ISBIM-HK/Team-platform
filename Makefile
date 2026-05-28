@@ -9,7 +9,7 @@ setup:
 	@echo "✅ Setup complete. Run 'make dev' to start."
 
 dev:
-	conda run -n team-platform uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000
+	conda run -n team-platform uvicorn src.api.app:app --reload --host 0.0.0.0 --port 3137
 
 test:
 	conda run -n team-platform pytest -v

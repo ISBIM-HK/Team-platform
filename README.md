@@ -65,7 +65,7 @@ docker start teamplat-postgres   # 或 docker compose up -d postgres
 alembic upgrade head
 
 # 日常开发
-make dev       # uvicorn --reload :8000
+make dev       # uvicorn --reload :3137
 make test      # pytest
 make migrate name=add_xxx   # 新迁移
 make lint      # ruff + mypy
@@ -74,7 +74,7 @@ make lint      # ruff + mypy
 - **拆解功能需配置**：`.env` 里填 `LLM_API_KEY`（DeepSeek）；自助注册需设 `ALLOWED_EMAIL_DOMAINS=你们公司域名`（留空=关闭注册）。
 - **出网走代理的同学**：DeepSeek 调用经 SOCKS 代理时需 `pip install socksio`。
 
-Swagger UI: http://localhost:8000/docs
+Swagger UI: http://localhost:3137/docs
 
 ## 部署
 

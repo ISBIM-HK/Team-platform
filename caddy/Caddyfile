@@ -1,12 +1,12 @@
 # Local/dev reverse proxy in front of the FastAPI app.
-# For a real domain, replace the :443 block with `team.example.com { reverse_proxy app:8000 }`
+# For a real domain, replace the :443 block with `team.example.com { reverse_proxy app:3137 }`
 # and Caddy will provision a real Let's Encrypt cert automatically.
 
 :80 {
-	reverse_proxy app:8000
+	reverse_proxy app:3137
 }
 
 :443 {
 	tls internal
-	reverse_proxy app:8000
+	reverse_proxy app:3137
 }

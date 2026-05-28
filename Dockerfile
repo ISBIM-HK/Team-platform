@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir .
 COPY alembic.ini ./
 COPY frontend ./frontend
 
-EXPOSE 8000
+EXPOSE 3137
 
 # Apply migrations then serve. (single worker; scale via replicas — see appendix D)
-CMD ["sh", "-c", "alembic upgrade head && uvicorn src.api.app:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn src.api.app:app --host 0.0.0.0 --port 3137"]
