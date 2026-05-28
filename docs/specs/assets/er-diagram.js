@@ -70,10 +70,11 @@ var ERDiagram = (function() {
     {
       name: 'Task',
       pk: 'id',
-      fk: ['tenant_id', 'owner_user_id', 'source_event_id', 'parent_task_id'],
+      fk: ['tenant_id', 'project_id', 'owner_user_id', 'source_event_id', 'parent_task_id'],
       fields: [
         { name: 'id', type: 'UUID', isPK: true },
         { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'project_id', type: 'UUID', isFK: true },
         { name: 'title', type: 'TEXT' },
         { name: 'description', type: 'TEXT' },
         { name: 'status', type: 'TEXT' },
@@ -227,6 +228,20 @@ var ERDiagram = (function() {
         { name: 'status', type: 'TEXT' },
         { name: 'created_at', type: 'TIMESTAMPTZ' }
       ]
+    },
+    {
+      name: 'Project',
+      pk: 'id',
+      fk: ['tenant_id', 'created_by'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'name', type: 'TEXT' },
+        { name: 'description', type: 'TEXT' },
+        { name: 'status', type: 'TEXT' },
+        { name: 'created_by', type: 'UUID', isFK: true },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
+      ]
     }
   ];
 
@@ -247,7 +262,9 @@ var ERDiagram = (function() {
     { from: 'User', to: 'Notification', label: '1 → N', fromCard: '1', toCard: 'N' },
     { from: 'ScheduledJob', to: 'Notification', label: '1 → N', fromCard: '1', toCard: 'N' },
     { from: 'User', to: 'AuditLog', label: '1 → N', fromCard: '1', toCard: 'N' },
-    { from: 'User', to: 'LLMCall', label: '1 → N', fromCard: '1', toCard: 'N' }
+    { from: 'User', to: 'LLMCall', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'Tenant', to: 'Project', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'Project', to: 'Task', label: '1 → N', fromCard: '1', toCard: 'N' }
   ];
 
   const FIELD_H = 20;

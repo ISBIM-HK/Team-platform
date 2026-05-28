@@ -693,6 +693,7 @@ tr.risk-critical:hover { background: #f8514922; }
     <a href="#appendix-evolution">附录 D：A → B 演进</a>
     <a href="#appendix-testing">附录 E：测试策略</a>
     <a href="#appendix-schedule">附录 F：调度与通知</a>
+    <a href="#appendix-projects">附录 G：项目维度 + 前端 IA</a>
 
   </nav>
 </aside>
@@ -786,7 +787,7 @@ tr.risk-critical:hover { background: #f8514922; }
 <!-- § 三 -->
 <section id="er-diagram">
   <h2>§ 三、模块级 ER 图</h2>
-  <p class="section-desc">核心实体关系，覆盖用户、任务、事件缓存、AI 建议、聊天会话、定时任务、通知、审计、LLM 调用等 15 个实体（12 可见框 + ChatMessage/TaskHistory/TaskLink 3 个子实体）。</p>
+  <p class="section-desc">核心实体关系，覆盖项目、用户、任务、事件缓存、AI 建议、聊天会话、定时任务、通知、审计、LLM 调用等 16 个实体（13 可见框 + ChatMessage/TaskHistory/TaskLink 3 个子实体）。</p>
   <div id="er-diagram-container">
     <span>加载中…</span>
   </div>
@@ -801,7 +802,7 @@ tr.risk-critical:hover { background: #f8514922; }
 <!-- § 四 -->
 <section id="ddd">
   <h2>§ 四、DDD 聚合设计</h2>
-  <p class="section-desc">12 个聚合，点击展开查看字段详情和不变量。</p>
+  <p class="section-desc">13 个聚合，点击展开查看字段详情和不变量。</p>
 
   <!-- Agg 1: Tenant -->
   <div class="collapse-card">
@@ -945,6 +946,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <tbody>
             <tr><td>id</td><td>UUID</td><td>主键</td></tr>
             <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>project_id</td><td>UUID (required)</td><td>所属项目（每个任务必属一个项目；兜底"未分类"项目）</td></tr>
             <tr><td>title</td><td>String (required)</td><td>任务标题</td></tr>
             <tr><td>description</td><td>Text (markdown)</td><td>任务描述</td></tr>
             <tr><td>status</td><td>Enum</td><td>todo / in_progress / blocked / review / done / archived</td></tr>
@@ -964,6 +966,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <li>状态流转必须遵循状态机：todo → in_progress → review → done；review 可退回 in_progress；blocked 仅从 in_progress 进入，仅能退回 in_progress（不直接跳 done，避免"绕过 review"）</li>
           <li>owner_user_id 为空时任务处于"未认领"状态；pull 模式认领走乐观锁（UPDATE ... WHERE owner_user_id IS NULL，affected rows=0 时返 409 Conflict）</li>
           <li>created_by 为 'ai_auto' 时需有对应的 ai_suggestions 记录</li>
+          <li>project_id 必填——decompose 落地时建/选项目；手动/历史任务进租户"未分类"项目</li>
         </ul>
       </div>
     </div>
@@ -1213,6 +1216,37 @@ tr.risk-critical:hover { background: #f8514922; }
           <li>应用内 inbox 与外部 webhook 推送共用本表，pushed_channels 防重复推送</li>
           <li>webhook 即时事件（被 @ / PR review）直接入 Notification，<strong>不入 events_cache 主流程</strong>（呼应附录 A 按需拉取边界）</li>
           <li>通知仅接收者可见，PM 不能看别人的通知</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 13: Project -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">Project（项目）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">任务的组织维度——每个任务必属一个项目;项目页内置该项目专属看板。详见附录 G。</p>
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>name</td><td>String</td><td>项目名</td></tr>
+            <tr><td>description</td><td>Text</td><td>项目描述</td></tr>
+            <tr><td>status</td><td>Enum (VARCHAR)</td><td>active / archived（应用层枚举校验，不用 PG 原生枚举）</td></tr>
+            <tr><td>created_by</td><td>UUID</td><td>创建人</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>每租户有一个"未分类(Inbox)"默认项目兜底，保证 tasks.project_id 非空</li>
+          <li>项目由右侧助手"AI 提议→人确认"创建（复用 decompose 建议），或手建空项目</li>
+          <li>团队内全可见（同租户成员均可看项目及其进度页）；不做项目级 ACL</li>
         </ul>
       </div>
     </div>
@@ -1886,6 +1920,94 @@ Notification 产生 → 入应用内 inbox（Notification 表）
   <p style="font-size: 13px; color: var(--warning); margin: 8px 0;">
     ⚠️ 进程内调度器在当前规模够用。<strong>真正撑不住的信号</strong>：后台 job 变多 + 高并发，定时任务拖累 web 响应（呼应附录 D 的 P95 &gt; 1s 信号）。届时抽 capture/AI worker 出独立容器 + 上真正的任务队列（Arq / Celery / NATS），scheduled_jobs 表与触发流不变。现在别预建，留好 handler 函数边界即可。
   </p>
+</section>
+
+<!-- 附录 G -->
+<section id="appendix-projects">
+  <h2>附录 G：项目维度 + 前端信息架构</h2>
+  <p class="section-desc">引入"项目(Project)"维度,前端重构为项目中心的三栏工作区。来源:2026-05-28 brainstorm（任务原扁平挂租户 → 归属项目,解决"所有任务挤一个看板"的混乱）。</p>
+
+  <h3>G.1 三栏布局</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>┌─────────┬───────────────────────────────┬────────┐
+│ 左:项目栏 │ 中:项目工作区                  │ 右:助手 │
+│ · Tender │ [项目名]  看板 | AI方案 | 进度分享│ (固定)  │
+│ · 飞书   │ ───────────────────────────── │ 💬 对话 │
+│ +新建项目 │  〔当前标签内容〕             │ 工具    │
+│ ───      │                               │ [输入]  │
+│ 待处理建议│                               │         │
+│ 成本(PM) │                               │ (窄屏收)│
+└─────────┴───────────────────────────────┴────────┘</code></pre>
+  </div>
+  <ul class="rules-list">
+    <li><strong>左 · 项目栏</strong> <span class="rule-desc">项目列表 + 全局入口(待处理建议、成本/PM)+ "新建项目"。</span></li>
+    <li><strong>中 · 项目工作区</strong> <span class="rule-desc">选中项目后三个标签:看板 / AI 方案 / 进度分享(见 G.4)。无选中项目时显示空态引导。</span></li>
+    <li><strong>右 · 助手</strong> <span class="rule-desc">个人 AI 助手常驻,跨标签/页面始终可见,也是创建项目的入口;窄屏(&lt;1100px)收起为浮球。</span></li>
+  </ul>
+
+  <h3>G.2 数据模型变更</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>新增 projects(id, tenant_id, name, description,
+              status[active|archived, VARCHAR], created_by, created_at)
+tasks 新增 project_id UUID NOT NULL → projects   # 每个任务必属一个项目
+每租户一个"未分类(Inbox)"默认项目兜底；status 用 VARCHAR+应用层枚举(不引入新 PG 原生枚举)</code></pre>
+  </div>
+
+  <h3>G.3 项目创建流（走右侧助手,沿用"AI 建议→人确认"）</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>你在右侧助手描述目标("做一个 Tender AI 合规校验功能")
+   → 助手调拆解 → 提议项目 { 项目名, 描述, 子任务[] }
+   → 中区/卡片展示,可改名 / 增删改子任务
+   → 「确认创建」→ 新建 Project + 其父/子任务(project_id=新项目)
+
+· 复用现有 decompose 建议类型(不新增 PG 枚举):accept 时 target_ref 带
+  project_name → 建新项目；带 project_id → 加入已有项目
+· 也保留 "+ 新建空项目"(手填名字建空壳,之后再加任务/拆解)</code></pre>
+  </div>
+
+  <h3>G.4 项目工作区三标签</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>标签</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td>看板</td><td>本项目专属看板(5 列,认领 + 状态机流转)——不同项目互不混杂</td></tr>
+      <tr><td>AI 方案</td><td>本项目范围的智能方案推荐:拆解计划(可重生成/改/采纳)、分发建议、重复检测、下一步;全走 ai_suggestions(仅建议),confidence&lt;0.6 不展示,调用记 llm_calls</td></tr>
+      <tr><td>进度分享</td><td>面向同事的只读页:状态分布 / 完成度% / 各成员负责 / 拆解流程图;团队内成员可看(<code>/projects/{id}/share</code>)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>G.5 访问模型</h3>
+  <ul class="rules-list">
+    <li><strong>团队内全可见</strong> <span class="rule-desc">同租户成员登录后可看所有项目及其进度页(延续"团队看板共享")。</span></li>
+    <li><strong>团队外的人</strong> <span class="rule-desc">不做对外公开链接;需要看就给他建团队账号拉进来。</span></li>
+    <li><strong>不做项目级 ACL</strong> <span class="rule-desc">项目成员/隔离留待未来真有跨团队隔离需求时再加。</span></li>
+  </ul>
+
+  <h3>G.6 API 变更</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>端点</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>GET /projects</td><td>列租户项目(含任务计数/完成度概要)</td></tr>
+      <tr><td>POST /projects</td><td>手建空项目 {name, description}</td></tr>
+      <tr><td>GET /projects/{id} · PATCH /projects/{id}</td><td>详情 / 改名·描述·归档</td></tr>
+      <tr><td>GET /projects/{id}/tasks</td><td>该项目看板数据</td></tr>
+      <tr><td>GET /projects/{id}/share</td><td>进度/流程只读聚合</td></tr>
+      <tr><td>POST /decompose</td><td>accept 在项目上下文落地(target_ref 含 project_name 建新 / project_id 加入已有)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>G.7 迁移 + 范围边界</h3>
+  <ul class="rules-list">
+    <li><strong>迁移</strong> <span class="rule-desc">每租户建"未分类"项目;tasks.project_id 分步:加可空列 → 回填到"未分类" → 改非空+外键(无破坏迁移)。</span></li>
+    <li><strong>本轮做</strong> <span class="rule-desc">projects 实体 + 任务归属、三栏前端、工作区三标签、AI 方案(项目内)、进度分享(团队内只读)、创建流、迁移。</span></li>
+    <li><strong>本轮不做</strong> <span class="rule-desc">enum→TEXT 全量重构、报告管线、项目级 ACL、对外公开分享链接、时间戳 tz。</span></li>
+  </ul>
 </section>
 
 
