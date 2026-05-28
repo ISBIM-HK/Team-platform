@@ -26,9 +26,14 @@
 - **PAT 认证**(设计 §5.5,未实现):本地工具无浏览器登录态,用个人令牌。`GET/POST/DELETE /me/tokens` 管理;`Authorization: Bearer pat_xxx`。
 - **投送端点**:`POST /me/contributions`
   ```
-  body: { summary: str, project_id?: UUID, kind?: str }   # kind: 'work' | 'commit' | 'note'…
-  → 落 events_cache(source 标来源,actor=本人,occurred_at=now)
+  body: { summary, project_id?, kind?, client_id? }   # kind: 'work' | 'commit' | 'note'
+  映射到 events_cache:
+    event_type  = (kind=='commit' ? commit : manual_log)   # kind 决定 event_type(EventCache 无独立 kind 字段)
+    payload     = { content: summary, kind }                # summary 存 payload.content
+    source=agent, actor=本人, occurred_at=now, project_id=可空
+    external_id = client_id(可选幂等键),默认 null
   ```
+  **去重**:`external_id` 为 null 时 PG 唯一约束不去重——每次投送视为独立(预期:人工投送不天然幂等)。客户端(如重跑的 hook)若需去重,自行传稳定 `client_id` 作 `external_id`。
 - **`events_cache` 加 `project_id`(nullable)**:工作痕迹可绑到项目(按项目汇进度的前提);未指定则留空(走"未分类"或仅个人可见)。
 - **source 扩展**:`EventSource` 增 `agent`(泛指本地 AI 投送);保持 VARCHAR + 应用层枚举(不新增 PG 原生枚举)。
 
