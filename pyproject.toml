@@ -1,0 +1,48 @@
+[project]
+name = "team-platform"
+version = "0.1.0"
+description = "团队内部 AI 原生协作平台"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlmodel>=0.0.24",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "psycopg2-binary>=2.9",
+    "alembic>=1.14",
+    "pydantic-settings>=2.7",
+    "python-multipart>=0.0.20",
+    "bcrypt>=4.0",
+    "itsdangerous>=2.2",
+    "httpx>=0.28",
+    "structlog>=25.1",
+    "pydantic-ai>=0.0.14",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

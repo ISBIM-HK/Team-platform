@@ -1,0 +1,166 @@
+"""WebSocket chat endpoint.
+
+Protocol (matches design doc §B.3):
+  Client → Server:
+    {"type": "user_message", "content": "今天干了啥"}
+    {"type": "abort"}
+    {"type": "ping"}
+
+  Server → Client:
+    {"type": "assistant_token", "delta": "今"}
+    {"type": "tool_call", "tool": "query_my_activity", "args": {...}}
+    {"type": "tool_result", "call_id": "c1", "result": {...}}
+    {"type": "assistant_done", "message_id": "uuid", "tokens": {...}}
+    {"type": "suggestion_created", "suggestion": {...}}
+    {"type": "error", "message": "..."}
+"""
+
+import json
+import uuid
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
+
+from src.ai.assistant import AssistantDeps, chat_turn
+from src.core.security import read_session_token
+from src.core.database import async_session_factory
+from src.models.common import ChatRole
+from src.repositories.chat_repo import ChatRepository
+from src.repositories.user_repo import UserRepository
+
+router = APIRouter(tags=["ws"])
+
+
+async def _authenticate_ws(websocket: WebSocket) -> tuple | None:
+    """Extract user from session cookie in WebSocket handshake. Returns (user, session) or None."""
+    token = websocket.cookies.get("session_token")
+    if not token:
+        return None
+
+    user_id_str = read_session_token(token)
+    if not user_id_str:
+        return None
+
+    async with async_session_factory() as session:
+        repo = UserRepository(session)
+        user = await repo.get_by_id(uuid.UUID(user_id_str))
+        if not user:
+            return None
+        return user
+
+
+@router.websocket("/ws/chat/{session_id}")
+async def ws_chat(websocket: WebSocket, session_id: uuid.UUID):
+    """WebSocket endpoint for real-time chat with the personal AI assistant."""
+    await websocket.accept()
+
+    # Authenticate
+    user = await _authenticate_ws(websocket)
+    if not user:
+        await websocket.send_json({"type": "error", "message": "Not authenticated"})
+        await websocket.close()
+        return
+
+    # Verify session ownership
+    async with async_session_factory() as db:
+        chat_repo = ChatRepository(db)
+        cs = await chat_repo.get_session(session_id)
+        if not cs or cs.user_id != user.id:
+            await websocket.send_json({"type": "error", "message": "Session not found"})
+            await websocket.close()
+            return
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json({"type": "error", "message": "Invalid JSON"})
+                continue
+
+            msg_type = data.get("type")
+
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            if msg_type == "abort":
+                # TODO: implement abort signal for in-flight generation
+                await websocket.send_json({"type": "aborted"})
+                continue
+
+            if msg_type != "user_message":
+                await websocket.send_json({"type": "error", "message": f"Unknown type: {msg_type}"})
+                continue
+
+            content = data.get("content", "").strip()
+            if not content:
+                continue
+
+            # Process the message
+            await _handle_user_message(websocket, session_id, user, content)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+
+
+async def _handle_user_message(
+    websocket: WebSocket,
+    session_id: uuid.UUID,
+    user,
+    content: str,
+):
+    """Process one user message: save → call AI → stream response → save."""
+    async with async_session_factory() as db:
+        chat_repo = ChatRepository(db)
+
+        # Save user message
+        await chat_repo.add_message(
+            session_id=session_id,
+            tenant_id=user.tenant_id,
+            role=ChatRole.user,
+            content=content,
+        )
+
+        # Get conversation history for context
+        history = await chat_repo.get_context_messages(session_id, limit=20)
+
+        # Prepare deps
+        deps = AssistantDeps(
+            session=db,
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+        )
+
+        # Call AI
+        try:
+            response_text = await chat_turn(content, history, deps)
+        except Exception as e:
+            await websocket.send_json({"type": "error", "message": f"AI error: {e}"})
+            return
+
+        # Save assistant message
+        msg = await chat_repo.add_message(
+            session_id=session_id,
+            tenant_id=user.tenant_id,
+            role=ChatRole.assistant,
+            content=response_text,
+        )
+
+        # Persist everything (user msg + tool side-effects + assistant msg).
+        # async_session_factory() does NOT auto-commit on exit, so commit explicitly.
+        await db.commit()
+
+        # Send response to client
+        await websocket.send_json({
+            "type": "assistant_done",
+            "message_id": str(msg.id),
+            "content": response_text,
+        })

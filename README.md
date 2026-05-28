@@ -15,12 +15,12 @@
 
 ## 当前状态
 
-🚧 **P0 完成，进入 P1 开发** — 后端骨架已跑通（FastAPI + Postgres + Alembic + 邮箱密码登录 + 任务 CRUD + 状态机）。
+🚧 **P1 进行中 — 拆解核心引擎已端到端跑通** — 后端骨架完成（FastAPI + Postgres + Alembic + 邮箱密码登录 + 任务 CRUD + 状态机），且 AI 拆解链路已用 DeepSeek 实测验证：`目标 → AI 拆解子任务（带建议负责人+估时） → ai_suggestions → accept → 落地父+子任务`。
 
 | Phase | 目标 | 状态 |
 |---|---|---|
 | P0 | 项目骨架 + 登录 + 空看板 | ✅ 完成 |
-| P1 | **核心引擎**：任务拆解 pipeline（目标→子任务+建议负责人）+ 建议确认 UI | 🔜 下一步 |
+| P1 | **核心引擎**：任务拆解 pipeline（目标→子任务+建议负责人）+ 建议确认 UI | 🚧 进行中（后端引擎已通，待助手工具 + 确认 UI） |
 | P2 | **团队协作**：6 人 + 未认领任务分发建议 + pull 认领 + 团队负载视图 + GitLab | — |
 | P3 | 报告自动化：自动日/周报 + 重复检测 + 飞书/钉钉择一 | — |
 | P4 | 完善：剩余集成 + 会议纪要 + 调度通知 + PM 对外汇总 | — |
@@ -60,6 +60,7 @@
 conda create -n team-platform python=3.12 -y
 conda activate team-platform
 pip install -e ".[dev]"
+cp .env.example .env          # 然后填 LLM_API_KEY + ALLOWED_EMAIL_DOMAINS
 docker start teamplat-postgres   # 或 docker compose up -d postgres
 alembic upgrade head
 
@@ -69,6 +70,9 @@ make test      # pytest
 make migrate name=add_xxx   # 新迁移
 make lint      # ruff + mypy
 ```
+
+- **拆解功能需配置**：`.env` 里填 `LLM_API_KEY`（DeepSeek）；自助注册需设 `ALLOWED_EMAIL_DOMAINS=你们公司域名`（留空=关闭注册）。
+- **出网走代理的同学**：DeepSeek 调用经 SOCKS 代理时需 `pip install socksio`。
 
 Swagger UI: http://localhost:8000/docs
 
