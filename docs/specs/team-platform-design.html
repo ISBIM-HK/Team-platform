@@ -804,7 +804,7 @@ tr.risk-critical:hover { background: #f8514922; }
 <!-- § 四 -->
 <section id="ddd">
   <h2>§ 四、DDD 聚合设计</h2>
-  <p class="section-desc">13 个聚合，点击展开查看字段详情和不变量。</p>
+  <p class="section-desc">13 个聚合，点击展开查看字段详情和不变量。<br><strong>枚举策略(过渡期)</strong>:新表(Project 的 status)用 <code>VARCHAR + 应用层 Enum 校验</code>(避免 PG 原生枚举加值的迁移痛);既有原生 PG 枚举(Task.status / suggestion_type 等)是已知技术债,统一留待 enum→TEXT 重构(本轮范围外)。目标态:全部 VARCHAR。</p>
 
   <!-- Agg 1: Tenant -->
   <div class="collapse-card">
@@ -969,6 +969,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <li>owner_user_id 为空时任务处于"未认领"状态；pull 模式认领走乐观锁（UPDATE ... WHERE owner_user_id IS NULL，affected rows=0 时返 409 Conflict）</li>
           <li>created_by 为 'ai_auto' 时需有对应的 ai_suggestions 记录</li>
           <li>project_id 必填——decompose 落地时建/选项目；手动/历史任务进租户"未分类"项目</li>
+          <li>Task 聚合内含两个子实体（经聚合根访问）：<strong>TaskHistory</strong>（状态/字段变更流水，审计）与 <strong>TaskLink</strong>（任务关联：blocks / relates_to / duplicate_of）</li>
         </ul>
       </div>
     </div>
@@ -1033,7 +1034,7 @@ tr.risk-critical:hover { background: #f8514922; }
             <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
             <tr><td>suggestion_type</td><td>Enum</td><td>create_task / decompose / assign / merge_duplicates / archive / flag_blocked</td></tr>
             <tr><td>target_user_id</td><td>UUID (nullable)</td><td>建议指向的用户</td></tr>
-            <tr><td>target_ref</td><td>JSONB</td><td>涉及的 task_id / user_id 等</td></tr>
+            <tr><td>target_ref</td><td>JSONB</td><td>按 suggestion_type 定 schema:create_task→{title,desc,priority};decompose→{project_name 或 project_id, subtasks:[{title,desc,priority,estimated_hours,suggested_owner_hint}]};assign→{task_id}(+target_user_id)</td></tr>
             <tr><td>rationale</td><td>Text (required)</td><td>AI 给出的理由</td></tr>
             <tr><td>confidence</td><td>Numeric (0~1)</td><td>置信度</td></tr>
             <tr><td>based_on_events</td><td>UUID[]</td><td>基于哪些事件</td></tr>
@@ -1067,7 +1068,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <tbody>
             <tr><td>id</td><td>UUID</td><td>主键</td></tr>
             <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
-            <tr><td>user_id</td><td>UUID</td><td>报告所属用户</td></tr>
+            <tr><td>user_id</td><td>UUID (nullable)</td><td>报告所属:个人日报=该用户;团队周报/月报=null(团队级)</td></tr>
             <tr><td>kind</td><td>Enum</td><td>daily / weekly / monthly</td></tr>
             <tr><td>report_date</td><td>Date</td><td>报告日期（字段名用 report_date,避开 SQLModel 的 date 类型/字段名冲突）</td></tr>
             <tr><td>content</td><td>JSONB</td><td>报告内容（done/in_progress/blocked/tomorrow_plan）</td></tr>
@@ -1170,7 +1171,7 @@ tr.risk-critical:hover { background: #f8514922; }
             <tr><td>job_type</td><td>Enum</td><td>daily_report / weekly_report / reminder / meeting_notice / custom</td></tr>
             <tr><td>schedule</td><td>String</td><td>cron 表达式（循环）或 ISO 时间戳（一次性）</td></tr>
             <tr><td>target_ref</td><td>JSONB</td><td>作用对象：user_id / task_id / 提醒文本等</td></tr>
-            <tr><td>created_by</td><td>UUID</td><td>创建人（用户或系统）</td></tr>
+            <tr><td>created_by</td><td>UUID (nullable)</td><td>创建人;系统内建的默认 cron(如日/周报)填 null 表示系统创建</td></tr>
             <tr><td>enabled</td><td>Boolean</td><td>是否启用</td></tr>
             <tr><td>last_run_at</td><td>DateTime (nullable)</td><td>最近一次执行时间</td></tr>
             <tr><td>next_run_at</td><td>DateTime (nullable)</td><td>下次触发时间（调度器算）</td></tr>
@@ -1208,7 +1209,7 @@ tr.risk-critical:hover { background: #f8514922; }
             <tr><td>kind</td><td>Enum</td><td>reminder / meeting_notice / report_ready / mentioned / pr_reviewed / system</td></tr>
             <tr><td>title</td><td>String</td><td>通知标题</td></tr>
             <tr><td>body</td><td>Text</td><td>通知正文</td></tr>
-            <tr><td>source_ref</td><td>JSONB (nullable)</td><td>来源：scheduled_job_id / task_id / event_id 等</td></tr>
+            <tr><td>source_ref</td><td>JSONB (nullable)</td><td>来源,按 kind:reminder→{scheduled_job_id};mentioned/pr_reviewed→{event_id};report_ready→{report_id};system→{reason, detail}(如集成失败/预算超)</td></tr>
             <tr><td>read_at</td><td>DateTime (nullable)</td><td>已读时间，null=未读</td></tr>
             <tr><td>pushed_channels</td><td>JSONB</td><td>已外推的通道（如 ["lark"]），用于去重</td></tr>
             <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
@@ -1311,6 +1312,14 @@ tr.risk-critical:hover { background: #f8514922; }
     <div id="sm-ai-suggestion" class="sm-container"></div>
     <div id="sm-integration" class="sm-container"></div>
   </div>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code># 文字版(JS 渲染不出时的兜底,与 assets/state-machines.js 一致)
+Task:      todo → in_progress;  in_progress → {review, done, blocked};
+           review → {done, in_progress};  blocked → in_progress(仅此);  done → archived
+AISuggestion: pending → {accepted, rejected, expired}（终态）
+Integration:  active ⇄ error;  active/error → disabled;  any → expired(凭据过期)</code></pre>
+  </div>
 
   <h3>6.2 操作限制规则</h3>
   <div class="table-wrap">
@@ -1382,7 +1391,9 @@ expires_at = ingested_at + INTERVAL '90 days'
 cache_ttl = 5 minutes per (user_id, time_window)
 
 # 降级策略（在 llm_calls 中按 triggered_by 分桶累计）
-if user_batch_tokens_today  >= BATCH_BUDGET  → Pro → Flash，影响该用户当天后续批处理
+# batch 桶 = 该用户当天所有"非对话"AI(日/周报、归一化、抽取、拆解、分发)的累计
+# 是当天的安全总帽,不是单次限制;超了 → 当天后续"非对话"调用降级(再拆解/再分发等)
+if user_batch_tokens_today  >= BATCH_BUDGET  → Pro → Flash，影响该用户当天后续非对话 AI
 if user_chat_tokens_today   >= CHAT_BUDGET   → Pro → Flash，仅影响该用户对话
 if team_monthly_cost_usd    >= 500           → 暂停非必要批处理（周报顺延次日）；个人助手保留</code></pre>
   </div>
@@ -1889,6 +1900,7 @@ expectations:
   <h3>F.1 调度器选型</h3>
   <ul class="rules-list">
     <li><strong>APScheduler（进程内）</strong> <span class="rule-desc">FastAPI 同进程起一个 AsyncIOScheduler，启动时读 scheduled_jobs 表注册触发，不另起常驻进程。</span></li>
+    <li><strong>cron ≠ 持续轮询</strong> <span class="rule-desc">cron 只触发<strong>内部</strong>计算/报告生成(定时产出);它不是对外部系统(GitLab/飞书)的持续轮询——外部数据仍按需拉取(§2.1)。"不持续轮询"针对的是外部 API,定时产出不违反该原则。</span></li>
     <li><strong>不上 Celery / Arq</strong> <span class="rule-desc">6 人 / 1 PM 规模过度——独立 broker + worker 容器是 A→B 的事（见附录 D）。</span></li>
     <li><strong>状态即 DB 行</strong> <span class="rule-desc">"谁有哪些待发提醒 / job 跑到哪了 / 去重" 全是 scheduled_jobs + notifications 表的行，不用文件、不用 agent 内存。</span></li>
   </ul>
