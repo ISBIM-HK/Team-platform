@@ -57,6 +57,7 @@ build/
 .vscode/
 .idea/
 .claude/
+.superpowers/
 *.swp
 *.swo
 .DS_Store
