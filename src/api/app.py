@@ -34,6 +34,15 @@ app = FastAPI(
 )
 
 
+# Don't let the browser cache the SPA assets (so frontend edits show on refresh).
+@app.middleware("http")
+async def _no_cache_spa(request: Request, call_next):
+    resp = await call_next(request)
+    if request.url.path in ("/", "/index.html", "/app.js", "/styles.css"):
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
+
+
 # ─── RFC 7807 Problem Details error format (设计 §6.1) ───
 
 def _problem(status: int, title: str, detail: str, instance: str) -> JSONResponse:
