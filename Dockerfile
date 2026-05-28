@@ -12,6 +12,7 @@ COPY src ./src
 RUN pip install --no-cache-dir .
 
 COPY alembic.ini ./
+COPY frontend ./frontend
 
 EXPOSE 8000
 

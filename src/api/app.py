@@ -1,10 +1,12 @@
 """FastAPI application factory."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.api.routes import (
@@ -64,3 +66,9 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(pm.router, prefix="/api/v1")
 app.include_router(integrations.router, prefix="/api/v1")
 app.include_router(ws_chat.router)
+
+# Serve the bundled SPA last (same-origin → cookies work, no CORS).
+# Explicit API/docs/ws routes above are matched first.
+_FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+if _FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
