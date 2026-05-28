@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Platform — 系统设计文档</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-secondary: #8b949e;
+  --accent: #58a6ff;
+  --accent-hover: #79c0ff;
+  --code-bg: #0d1117;
+  --code-border: #30363d;
+  --code-text: #e6edf3;
+  --danger: #f85149;
+ --warning: #d29922;
+  --success: #3fb950;
+  --highlight: #388bfd22;
+  --sidebar-w: 220px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* Sidebar */
+#sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  z-index: 100;
+  transition: transform 0.3s ease;
+}
+
+#sidebar .sidebar-header {
+  padding: 20px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+#sidebar .sidebar-header h1 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+#sidebar .sidebar-header .meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+#sidebar nav { padding: 8px 0; }
+
+#sidebar nav a {
+  display: block;
+  padding: 6px 16px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+}
+
+#sidebar nav a:hover { color: var(--text); background: var(--highlight); }
+#sidebar nav a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--highlight);
+}
+
+#sidebar nav .nav-section {
+  padding: 10px 16px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* Main */
+#main {
+  margin-left: var(--sidebar-w);
+  padding: 40px 48px 80px;
+  max-width: 1100px;
+}
+
+/* Section */
+section {
+  margin-bottom: 56px;
+  scroll-margin-top: 24px;
+}
+
+section > h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+section > .section-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+section > h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 28px 0 12px;
+}
+
+section > h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 20px 0 8px;
+}
+
+/* Cards */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.story-card, .question-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.story-card:hover, .question-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.story-card .badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge.member { background: #23863633; color: #3fb950; }
+.badge.pm { background: #1f6feb33; color: #58a6ff; }
+
+.story-card .story-text {
+  font-size: 13.5px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.story-card .story-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.story-card .story-value::before {
+  content: "💡 ";
+}
+
+/* Timeline */
+.timeline {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 8px 0 16px;
+  scrollbar-width: thin;
+}
+
+.timeline-card {
+  min-width: 220px;
+  max-width: 260px;
+  flex: 0 0 auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  position: relative;
+}
+
+.timeline-card .phase-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.timeline-card .phase-goal {
+  font-size: 12.5px;
+  margin-bottom: 8px;
+}
+
+.timeline-card .phase-deliver {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.timeline-card .phase-deliver ul {
+  margin: 4px 0 0 14px;
+}
+
+.timeline-card .phase-time {
+  font-size: 12px;
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.timeline-card .phase-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+/* Tables */
+.table-wrap {
+  overflow-x: auto;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+thead th:hover { color: var(--accent); }
+thead th .sort-arrow { margin-left: 4px; opacity: 0.4; font-size: 10px; }
+thead th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+tbody tr:hover { background: var(--highlight); }
+tbody tr:last-child { border-bottom: none; }
+
+tbody td {
+  padding: 8px 12px;
+  vertical-align: top;
+}
+
+/* Tag pills */
+.pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.pill-high { background: #f8514933; color: #f85149; }
+.pill-med  { background: #d2992233; color: #d29922; }
+.pill-low  { background: #3fb95033; color: #3fb950; }
+
+/* Risk highlight */
+tr.risk-critical { background: #f8514911; }
+tr.risk-critical:hover { background: #f8514922; }
+
+/* Collapsible */
+.collapse-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.collapse-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.collapse-header:hover { background: var(--highlight); }
+
+.collapse-header .arrow {
+  margin-right: 10px;
+  transition: transform 0.25s;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.collapse-header.open .arrow { transform: rotate(90deg); }
+
+.collapse-header .agg-name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+
+.collapse-header .agg-type {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  background: #1f6feb33;
+  color: #58a6ff;
+}
+
+.collapse-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  border-top: 1px solid transparent;
+}
+
+.collapse-body.open {
+  border-top-color: var(--border);
+}
+
+.collapse-body-inner { padding: 14px 16px; }
+
+.collapse-body-inner table {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.collapse-body-inner table th {
+  background: var(--bg);
+  padding: 6px 10px;
+  font-size: 11.5px;
+}
+
+.collapse-body-inner table td {
+  padding: 6px 10px;
+}
+
+.invariant-list {
+  list-style: none;
+  margin-top: 10px;
+}
+
+.invariant-list li {
+  font-size: 12.5px;
+  padding: 4px 0;
+  padding-left: 16px;
+  position: relative;
+}
+
+.invariant-list li::before {
+  content: "⚡";
+  position: absolute;
+  left: 0;
+  font-size: 10px;
+}
+
+/* Search */
+.search-box {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-box:focus { border-color: var(--accent); }
+.search-box::placeholder { color: var(--text-secondary); }
+
+/* Code blocks */
+.code-block {
+  position: relative;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 8px;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.code-block pre {
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--code-text);
+}
+
+.copy-btn {
+  position: absolute;
+  top: 8px; right: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.code-block:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+/* Rules */
+.rules-list {
+  list-style: none;
+  counter-reset: rules;
+}
+
+.rules-list li {
+  counter-increment: rules;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.rules-list li::before {
+  content: counter(rules) ". ";
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.rules-list li strong { color: var(--text); }
+.rules-list li .rule-desc { color: var(--text-secondary); }
+
+/* State machine container */
+.sm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.sm-container {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.sm-container .sm-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sm-states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sm-state {
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #21262d;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.sm-transitions {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.sm-transitions .tr {
+  padding: 3px 0;
+}
+
+.sm-transitions .tr-arrow { color: var(--accent); margin: 0 4px; }
+
+/* Question cards */
+.question-card .q-num {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.question-card .q-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.question-card .q-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Cut list */
+.cut-list {
+  list-style: none;
+  margin: 16px 0;
+}
+
+.cut-list li {
+  font-size: 13px;
+  padding: 6px 0;
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.cut-list li::before {
+  content: "✂️ ";
+  margin-right: 4px;
+  text-decoration: none;
+}
+
+/* Permission matrix checkmark */
+.check { color: var(--success); font-weight: 700; }
+.cross { color: var(--danger); font-weight: 700; }
+
+/* ER diagram placeholder */
+#er-diagram-container {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 32px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Hamburger */
+#hamburger {
+  display: none;
+  position: fixed;
+  top: 12px; left: 12px;
+  z-index: 200;
+  width: 36px; height: 36px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+#overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+}
+
+#overlay.show { display: block; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  #sidebar { transform: translateX(-100%); }
+  #sidebar.open { transform: translateX(0); }
+  #main { margin-left: 0; padding: 56px 16px 40px; }
+  #hamburger { display: flex; }
+  .card-grid { grid-template-columns: 1fr; }
+  .sm-grid { grid-template-columns: 1fr; }
+
+  .table-wrap { border: none; }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  table tr {
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: var(--card);
+  }
+  table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border: none;
+    font-size: 12.5px;
+  }
+  table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+  tr.risk-critical { border-color: #f8514933 !important; }
+}
+
+.sub-section { margin-bottom: 28px; }
+</style>
+</head>
+<body>
+<!-- Hamburger + Overlay -->
+<button id="hamburger" onclick="toggleSidebar()">☰</button>
+<div id="overlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <h1>Team Platform<br>系统设计文档</h1>
+    <div class="meta">v0.1 · 2026-05-27</div>
+  </div>
+  <nav id="nav">
+    <a href="#user-stories">§ 一、用户故事</a>
+    <a href="#glossary">§ 二、统一语言词典</a>
+    <a href="#er-diagram">§ 三、ER 图</a>
+    <a href="#ddd">§ 四、DDD 聚合设计</a>
+    <a href="#commands-events">§ 五、命令与领域事件</a>
+    <a href="#business-rules">§ 六、业务边界与规则</a>
+    <a href="#mvp">§ 七、MVP 分期计划</a>
+    <a href="#risks">§ 八、风险登记</a>
+    <a href="#open-questions">§ 九、开放问题</a>
+    <a href="#decisions">§ 十、决策日志</a>
+  
+    <div class="nav-section">附录</div>
+    <a href="#appendix-capture">附录 A：捕获层细节</a>
+    <a href="#appendix-api">附录 B：API 契约</a>
+    <a href="#appendix-deploy">附录 C：部署 & 运维</a>
+    <a href="#appendix-evolution">附录 D：A → B 演进</a>
+    <a href="#appendix-testing">附录 E：测试策略</a>
+
+  </nav>
+</aside>
+
+<!-- Main -->
+<div id="main">
+
+<!-- § 一 -->
+<section id="user-stories">
+  <h2>§ 一、用户故事</h2>
+  <p class="section-desc">7 个核心用户故事，覆盖团队成员和 PM 两类角色。</p>
+  <div class="card-grid">
+
+    <div class="story-card">
+      <span class="badge member">团队成员</span>
+      <div class="story-text">作为团队成员，我希望平台能自动从 GitLab、飞书等工具拉取我的日常工作痕迹，这样我就不用手动记录每天做了什么。</div>
+      <div class="story-value">消除手动上传工作的行政开销，让成员专注在真正有价值的事情上。</div>
+    </div>
+
+    <div class="story-card">
+      <span class="badge member">团队成员</span>
+      <div class="story-text">作为团队成员，我希望 AI 能根据我的工作痕迹自动生成日报和周报，我只需审阅确认即可。</div>
+      <div class="story-value">将写周报的时间从 30 分钟压缩到 2 分钟审阅，提升团队效率。</div>
+    </div>
+
+    <div class="story-card">
+      <span class="badge member">团队成员</span>
+      <div class="story-text">作为团队成员，我希望有一个个人 AI 助手，能帮我查任务、记手动工作、搜文档，像一个随时在线的工作伙伴。</div>
+      <div class="story-value">降低上下文切换成本，所有工作信息一个入口获取。</div>
+    </div>
+
+    <div class="story-card">
+      <span class="badge member">团队成员</span>
+      <div class="story-text">作为团队成员，我希望在 Kanban 上看到全团队的任务状态，了解同事在做什么，方便我 pull 模式认领任务。</div>
+      <div class="story-value">透明化团队工作状态，促进自主任务认领和协作。</div>
+    </div>
+
+    <div class="story-card">
+      <span class="badge pm">PM</span>
+      <div class="story-text">作为 PM，我希望看到团队聚合的工作负载视图，了解每个人的任务分布和进度，无需逐一询问。</div>
+      <div class="story-value">从"逐一问进度"变为"看面板决策"，节省 PM 和团队双方的时间。</div>
+    </div>
+
+    <div class="story-card">
+      <span class="badge pm">PM</span>
+      <div class="story-text">作为 PM，我希望 AI 能智能推荐任务分发给合适的成员，并给出理由，我确认后执行。</div>
+      <div class="story-value">提升任务分发效率，让 PM 从"派活"转向"审核 AI 建议"。</div>
+    </div>
+
+    <div class="story-card">
+      <span class="badge pm">PM</span>
+      <div class="story-text">作为 PM，我希望一键生成对外汇报摘要，将多个周报和关键任务自动整合为面向客户的简报。</div>
+      <div class="story-value">将对外汇报准备时间从 1 小时压缩到 5 分钟，提升客户沟通效率。</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- § 二 -->
+<section id="glossary">
+  <h2>§ 二、统一语言词典</h2>
+  <p class="section-desc">12 个核心术语，团队内统一理解。</p>
+  <input class="search-box" type="text" placeholder="🔍 搜索术语...">
+  <div class="table-wrap">
+    <table id="glossary-table">
+      <thead>
+        <tr>
+          <th>术语 <span class="sort-arrow">⇅</span></th>
+          <th>英文 <span class="sort-arrow">⇅</span></th>
+          <th>定义 <span class="sort-arrow">⇅</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td data-label="术语">工作痕迹</td><td data-label="英文">Work Trace</td><td data-label="定义">从 GitLab、飞书、Notion 等外部系统拉取的用户活动原始记录，存入 events_cache。</td></tr>
+        <tr><td data-label="术语">事件缓存</td><td data-label="英文">Events Cache</td><td data-label="定义">按需拉取并缓存的工作痕迹事件表，TTL 90 天，append-only，用于报告生成和 AI 处理。</td></tr>
+        <tr><td data-label="术语">Kanban 任务</td><td data-label="英文">Task</td><td data-label="定义">看板上的工作卡片，有状态流转（todo → in_progress → review → done），支持 pull 模式认领。</td></tr>
+        <tr><td data-label="术语">AI 建议</td><td data-label="英文">AI Suggestion</td><td data-label="定义">AI 给出的操作建议（创建任务、分配、合并等），不直接执行，需用户 accept/reject。</td></tr>
+        <tr><td data-label="术语">按需拉取</td><td data-label="英文">On-demand Fetch</td><td data-label="定义">捕获层架构模式：不持续轮询，仅在用户操作/定时报告/对话触发时拉取外部数据。</td></tr>
+        <tr><td data-label="术语">个人 AI 助手</td><td data-label="英文">Personal AI Assistant</td><td data-label="定义">每个用户的长期 AI 对话助手，具备读写 Kanban、查活动、记手动工作等工具能力。</td></tr>
+        <tr><td data-label="术语">Pull 模式</td><td data-label="英文">Pull Mode</td><td data-label="定义">任务分发方式：任务先进入公共池，成员自主认领，而非 PM 指派。</td></tr>
+        <tr><td data-label="术语">聚合</td><td data-label="英文">Aggregate</td><td data-label="定义">DDD 概念：一组相关实体和值对象的边界，通过聚合根访问，维护内部一致性。</td></tr>
+        <tr><td data-label="术语">不变量</td><td data-label="英文">Invariant</td><td data-label="定义">聚合内始终为真的业务规则，任何状态变更后必须满足。</td></tr>
+        <tr><td data-label="术语">租户</td><td data-label="英文">Tenant</td><td data-label="定义">团队/组织隔离单元，所有数据表都有 tenant_id，为多团队扩张预留。</td></tr>
+        <tr><td data-label="术语">捕获适配器</td><td data-label="英文">Capture Adapter</td><td data-label="定义">统一接口的外部系统集成模块，每个数据源（GitLab、飞书等）实现一个适配器。</td></tr>
+        <tr><td data-label="术语">完成定义</td><td data-label="英文">Definition of Done</td><td data-label="定义">每个 MVP 阶段必须达成的验收标准，不达成绝不进入下一阶段。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- § 三 -->
+<section id="er-diagram">
+  <h2>§ 三、模块级 ER 图</h2>
+  <p class="section-desc">核心实体关系，覆盖用户、任务、事件缓存、AI 建议、聊天会话等 11 个实体。</p>
+  <div id="er-diagram-container">
+    <span>加载中…</span>
+  </div>
+  <p class="section-desc" style="margin-top:12px">
+    <strong>关系说明：</strong>
+    Tenant 1→N User，User 1→N Integration，User 1→N Task（owner），User 1→N ChatSession 1→N ChatMessage，
+    Task 1→N TaskLink，Task 1→N TaskHistory，User 1→N EventCache（actor），
+    Task N→1 EventCache（source），AI Suggestion N→1 User（target），Report N→1 User。
+  </p>
+</section>
+
+<!-- § 四 -->
+<section id="ddd">
+  <h2>§ 四、DDD 聚合设计</h2>
+  <p class="section-desc">8 个聚合，点击展开查看字段详情和不变量。</p>
+
+  <!-- Agg 1: Tenant -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">Tenant（租户）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键，UUID v7</td></tr>
+            <tr><td>name</td><td>String</td><td>团队/组织名称</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>Tenant name 在同一系统内唯一</li>
+          <li>删除 Tenant 级联删除其下所有 User、Task、Event 数据</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 2: User -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">User（用户）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>email</td><td>String (unique)</td><td>邮箱，唯一</td></tr>
+            <tr><td>display_name</td><td>String</td><td>显示名称</td></tr>
+            <tr><td>password_hash</td><td>String (nullable)</td><td>bcrypt 哈希，SSO 用户可空</td></tr>
+            <tr><td>sso_subject</td><td>String (nullable)</td><td>OIDC sub</td></tr>
+            <tr><td>is_pm</td><td>Boolean</td><td>是否为 PM 角色</td></tr>
+            <tr><td>capture_preferences</td><td>JSONB</td><td>隐私开关配置</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+            <tr><td>last_seen_at</td><td>DateTime (nullable)</td><td>最后活跃时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>email 全局唯一</li>
+          <li>用户必须属于一个 Tenant</li>
+          <li>is_pm 支持多 PM、轮换 PM</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 3: Integration -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">Integration（集成）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>user_id</td><td>UUID</td><td>所属用户</td></tr>
+            <tr><td>provider</td><td>Enum</td><td>gitlab / lark / dingtalk / notion / wecom_mail</td></tr>
+            <tr><td>credential</td><td>JSONB (加密)</td><td>Fernet 加密的 OAuth/Token 凭据</td></tr>
+            <tr><td>scope</td><td>String</td><td>授权范围</td></tr>
+            <tr><td>expires_at</td><td>DateTime (nullable)</td><td>凭据过期时间</td></tr>
+            <tr><td>last_synced_at</td><td>DateTime (nullable)</td><td>最后成功拉取时间</td></tr>
+            <tr><td>last_error</td><td>String (nullable)</td><td>最近一次拉取错误</td></tr>
+            <tr><td>consecutive_failures</td><td>Int</td><td>连续失败次数，达 3 自动禁用</td></tr>
+            <tr><td>sync_cursor</td><td>JSONB</td><td>增量拉取游标</td></tr>
+            <tr><td>enabled</td><td>Boolean</td><td>是否启用</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>(user_id, provider) 唯一，每人每平台一个集成</li>
+          <li>consecutive_failures ≥ 3 时自动设 enabled=False</li>
+          <li>credential 必须用 CRYPTO_KEY 加密存储</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 4: EventCache -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">EventCache（事件缓存）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键，UUID v7</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>source</td><td>Enum</td><td>gitlab / lark / dingtalk / notion / wecom_mail / meeting / user_chat</td></tr>
+            <tr><td>event_type</td><td>Enum</td><td>commit / pr_opened / pr_reviewed / message / doc_edited / meeting_summary / manual_log ...</td></tr>
+            <tr><td>actor_user_id</td><td>UUID (nullable)</td><td>关联的团队成员</td></tr>
+            <tr><td>external_id</td><td>String (nullable)</td><td>外部系统唯一标识，用于去重</td></tr>
+            <tr><td>payload</td><td>JSONB</td><td>标准化后的负载</td></tr>
+            <tr><td>occurred_at</td><td>DateTime</td><td>事件发生时间</td></tr>
+            <tr><td>ingested_at</td><td>DateTime</td><td>入库时间</td></tr>
+            <tr><td>expires_at</td><td>DateTime</td><td>过期时间，默认 90 天</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>append-only：任何修改通过新事件追加</li>
+          <li>(source, external_id) 唯一，防止重复入库</li>
+          <li>过期事件自动清理，需要可从原系统重新拉取</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 5: Task -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">Task（任务）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>title</td><td>String (required)</td><td>任务标题</td></tr>
+            <tr><td>description</td><td>Text (markdown)</td><td>任务描述</td></tr>
+            <tr><td>status</td><td>Enum</td><td>todo / in_progress / blocked / review / done / archived</td></tr>
+            <tr><td>priority</td><td>Int</td><td>0=low, 1=normal, 2=high, 3=urgent</td></tr>
+            <tr><td>owner_user_id</td><td>UUID (nullable)</td><td>负责人，可空（pull 模式未认领）</td></tr>
+            <tr><td>created_by</td><td>String</td><td>'user:&lt;uuid&gt;' 或 'ai_auto:&lt;reason&gt;'</td></tr>
+            <tr><td>source_event_id</td><td>UUID (nullable)</td><td>关联的 events_cache 记录</td></tr>
+            <tr><td>parent_task_id</td><td>UUID (nullable)</td><td>父任务，支持子任务</td></tr>
+            <tr><td>tags</td><td>JSONB</td><td>标签数组</td></tr>
+            <tr><td>due_date</td><td>Date (nullable)</td><td>截止日期</td></tr>
+            <tr><td>estimated_hours</td><td>Numeric (nullable)</td><td>预估工时</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+            <tr><td>updated_at</td><td>DateTime</td><td>更新时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>状态流转必须遵循状态机：todo → in_progress → review → done，blocked 可从 in_progress 进入</li>
+          <li>owner_user_id 为空时任务处于"未认领"状态</li>
+          <li>created_by 为 'ai_auto' 时需有对应的 ai_suggestions 记录</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 6: ChatSession / ChatMessage -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">ChatSession / ChatMessage（聊天会话）</span>
+      <span class="agg-type">聚合根 + 实体</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">ChatSession 为聚合根，ChatMessage 为实体。</p>
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td colspan="3" style="color:var(--accent);font-weight:600;">ChatSession</td></tr>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>user_id</td><td>UUID</td><td>所属用户</td></tr>
+            <tr><td>title</td><td>String (nullable)</td><td>AI 自动生成或用户修改</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+            <tr><td>last_active_at</td><td>DateTime</td><td>最后活跃时间</td></tr>
+            <tr><td>archived_at</td><td>DateTime (nullable)</td><td>软归档时间</td></tr>
+            <tr><td colspan="3" style="color:var(--accent);font-weight:600;padding-top:8px;">ChatMessage</td></tr>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>session_id</td><td>UUID</td><td>所属会话</td></tr>
+            <tr><td>role</td><td>Enum</td><td>user / assistant / tool / system</td></tr>
+            <tr><td>content</td><td>Text</td><td>消息内容</td></tr>
+            <tr><td>tool_calls</td><td>JSONB (nullable)</td><td>assistant 触发的工具调用</td></tr>
+            <tr><td>model</td><td>String (nullable)</td><td>使用的 LLM 模型</td></tr>
+            <tr><td>tokens_in / tokens_out</td><td>Int</td><td>token 用量</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>ChatMessage 仅属于一个 ChatSession</li>
+          <li>chat 内容仅本人可见，PM 不可查看</li>
+          <li>删除会话 = 软删，30 天后硬删</li>
+          <li>超 7 天未活跃自动归档</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 7: AISuggestion -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">AISuggestion（AI 建议）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>suggestion_type</td><td>Enum</td><td>create_task / assign / merge_duplicates / archive / flag_blocked</td></tr>
+            <tr><td>target_user_id</td><td>UUID (nullable)</td><td>建议指向的用户</td></tr>
+            <tr><td>target_ref</td><td>JSONB</td><td>涉及的 task_id / user_id 等</td></tr>
+            <tr><td>rationale</td><td>Text (required)</td><td>AI 给出的理由</td></tr>
+            <tr><td>confidence</td><td>Numeric (0~1)</td><td>置信度</td></tr>
+            <tr><td>based_on_events</td><td>UUID[]</td><td>基于哪些事件</td></tr>
+            <tr><td>status</td><td>Enum</td><td>pending / accepted / rejected / expired</td></tr>
+            <tr><td>handled_by</td><td>UUID (nullable)</td><td>处理人</td></tr>
+            <tr><td>handled_at</td><td>DateTime (nullable)</td><td>处理时间</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>confidence &lt; 0.6 的建议不展示给用户</li>
+          <li>AI 不直接修改 Kanban，所有产出都生成 ai_suggestions</li>
+          <li>accepted 后执行实际操作，rejected 记录原因供 prompt 优化</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 8: Report -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">Report（报告）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>user_id</td><td>UUID</td><td>报告所属用户</td></tr>
+            <tr><td>kind</td><td>Enum</td><td>daily / weekly / monthly</td></tr>
+            <tr><td>date</td><td>Date</td><td>报告日期</td></tr>
+            <tr><td>content</td><td>JSONB</td><td>报告内容（done/in_progress/blocked/tomorrow_plan）</td></tr>
+            <tr><td>raw_activities</td><td>JSONB</td><td>原始活动条目</td></tr>
+            <tr><td>model_used</td><td>String</td><td>生成使用的 LLM 模型</td></tr>
+            <tr><td>generated_at</td><td>DateTime</td><td>生成时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>日报每天 18:00 cron 自动生成，也可手动触发</li>
+          <li>周报每周五 17:00 cron 自动生成，基于本周 daily reports 汇总</li>
+          <li>报告归档后不可修改</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+
+  <!-- Agg 9: AuditLog -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">AuditLog（审计日志）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>action</td><td>Enum</td><td>操作类型</td></tr>
+            <tr><td>actor_id</td><td>UUID</td><td>操作人</td></tr>
+            <tr><td>target_type</td><td>String</td><td>目标资源类型</td></tr>
+            <tr><td>target_id</td><td>UUID</td><td>目标资源 ID</td></tr>
+            <tr><td>detail</td><td>JSONB</td><td>操作详情</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>操作时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>只记录写操作，不记录读操作</li>
+          <li>30 天滚动保留，PM 可查</li>
+          <li>append-only，不可修改删除</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 10: LLMCall -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">LLMCall（LLM 调用记录）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>triggered_by</td><td>Enum</td><td>触发源：chat / daily_report / normalize / dispatch</td></tr>
+            <tr><td>triggered_by_id</td><td>UUID</td><td>关联的 session / report ID</td></tr>
+            <tr><td>user_id</td><td>UUID</td><td>触发用户</td></tr>
+            <tr><td>model</td><td>String</td><td>使用的 LLM 模型</td></tr>
+            <tr><td>tokens_in</td><td>Int</td><td>输入 token 数</td></tr>
+            <tr><td>tokens_out</td><td>Int</td><td>输出 token 数</td></tr>
+            <tr><td>cost_usd</td><td>Numeric</td><td>实际计费（美元）</td></tr>
+            <tr><td>latency_ms</td><td>Int</td><td>调用延迟（毫秒）</td></tr>
+            <tr><td>status</td><td>Enum</td><td>ok / error / budget_exceeded</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>调用时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li><strong>不存 prompt/response 原文</strong>——这是与 chat_messages 的关键边界</li>
+          <li>chat_messages.content 存对话原文（应用功能），llm_calls 只存成本/性能元数据（审计）</li>
+          <li>PM 可见（用于成本审计）；chat 原文仅本人可见</li>
+          <li>用于累计日 token 预算和月成本上限</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+<!-- § 五 -->
+<section id="commands-events">
+  <h2>§ 五、命令与领域事件</h2>
+  <p class="section-desc">8 个 AI 命令触发点 + 对应的领域事件，确保触发 → Command → Domain Event 三层映射完整。</p>
+
+  <h3>5.1 命令表</h3>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>#</th><th>命令</th><th>触发条件</th><th>输入</th><th>输出</th><th>模型</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>事件归一化</td><td>报告/对话/看板请求时</td><td>一批 raw events</td><td>list[ActivityItem]</td><td>Haiku 4.5 / GPT-4o-mini</td></tr>
+      <tr><td>2</td><td>任务抽取</td><td>归一化后顺带</td><td>activity item</td><td>TaskSuggestion?（可空）</td><td>同上</td></tr>
+      <tr><td>3</td><td>重复任务检测</td><td>抽到新任务时</td><td>新任务 + 现有任务</td><td>DuplicateMatch?</td><td>同上 + embedding 预筛</td></tr>
+      <tr><td>4</td><td>日报生成</td><td>每天 18:00 cron + 手动</td><td>当天 activities</td><td>DailyReport</td><td>Sonnet 4.5</td></tr>
+      <tr><td>5</td><td>周报生成</td><td>每周五 17:00 cron + 手动</td><td>本周 daily reports</td><td>WeeklyReport</td><td>Sonnet 4.5</td></tr>
+      <tr><td>6</td><td>智能分发建议</td><td>PM 点击"AI 推荐"</td><td>任务 + 团队负载/专长</td><td>list[AssignmentSuggestion]</td><td>Sonnet 4.5</td></tr>
+      <tr><td>7</td><td>PM 对外汇总</td><td>PM 手动触发</td><td>多周报 + 关键任务</td><td>ExecutiveBrief</td><td>Sonnet 4.5</td></tr>
+      <tr><td>8</td><td>个人 AI 助手</td><td>用户开聊</td><td>多轮 + 工具</td><td>多轮 + tool_calls</td><td>Sonnet 4.5</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>5.2 领域事件表</h3>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>领域事件</th><th>发布聚合</th><th>消费者</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>EventsNormalized</td><td>EventCache</td><td>TaskExtractor, ReportGenerator</td><td>原始事件被标准化为 ActivityItem 列表</td></tr>
+      <tr><td>TaskExtracted</td><td>EventCache</td><td>AiSuggestion, Task Aggregate</td><td>从活动流中识别出潜在任务</td></tr>
+      <tr><td>DuplicateDetected</td><td>EventCache</td><td>AiSuggestion</td><td>检测到疑似重复任务</td></tr>
+      <tr><td>DailyReportGenerated</td><td>Report</td><td>User, PM</td><td>日报已生成可供查看</td></tr>
+      <tr><td>WeeklyReportGenerated</td><td>Report</td><td>User, PM</td><td>周报已生成可供查看</td></tr>
+      <tr><td>AssignmentSuggested</td><td>AiSuggestion</td><td>PM</td><td>AI 建议任务分配方案</td></tr>
+      <tr><td>ExecBriefGenerated</td><td>Report</td><td>PM</td><td>对外简报已生成</td></tr>
+      <tr><td>ManualWorkLogged</td><td>EventCache</td><td>TaskExtractor</td><td>用户通过助手手动登记工作内容</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- § 六 -->
+<section id="business-rules">
+  <h2>§ 六、业务边界与规则</h2>
+  <p class="section-desc">状态机、操作限制、权限矩阵、计算规则、业务规则汇总。</p>
+
+  <h3>6.1 状态机</h3>
+  <div class="sm-grid">
+    <div id="sm-task" class="sm-container"></div>
+    <div id="sm-ai-suggestion" class="sm-container"></div>
+    <div id="sm-integration" class="sm-container"></div>
+  </div>
+
+  <h3>6.2 操作限制规则</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>资源</th><th>member 查看</th><th>member 修改</th><th>pm 额外能力</th></tr></thead>
+    <tbody>
+      <tr><td>tasks</td><td>同租户全可见（受隐私过滤）</td><td>仅 owner 或 created_by</td><td><span class="check">✓</span> 全部改</td></tr>
+      <tr><td>events_cache</td><td>仅自己的</td><td><span class="cross">✗</span></td><td>同租户全部（受用户隐私限制）</td></tr>
+      <tr><td>ai_suggestions</td><td>仅指向自己的</td><td>accept / reject</td><td><span class="check">✓</span> 全部可见</td></tr>
+      <tr><td>chat_sessions</td><td>仅自己</td><td>仅自己</td><td><span class="cross">✗</span> PM 也不能看别人 chat</td></tr>
+      <tr><td>integrations</td><td>仅自己</td><td>仅自己</td><td><span class="cross">✗</span></td></tr>
+      <tr><td>reports</td><td>自己日报 + 全队周报</td><td><span class="cross">✗</span></td><td><span class="check">✓</span> 全部</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>6.3 权限矩阵</h3>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>操作</th><th>member</th><th>pm</th><th>admin</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td>创建任务</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td></td></tr>
+      <tr><td>修改自己的任务</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td></td></tr>
+      <tr><td>修改他人任务</td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td>PM 可全局操作</td></tr>
+      <tr><td>查看团队 Kanban</td><td><span class="check">✓</span>（受隐私过滤）</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td></td></tr>
+      <tr><td>查看他人 chat</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td>PM 也不能看</td></tr>
+      <tr><td>查看团队负载</td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td></td></tr>
+      <tr><td>生成对外简报</td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td></td></tr>
+      <tr><td>AI 分配建议</td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td></td></tr>
+      <tr><td>处理 ai_suggestions</td><td><span class="check">✓</span>（仅自己的）</td><td><span class="check">✓</span>（全部）</td><td><span class="check">✓</span>（全部）</td><td></td></tr>
+      <tr><td>管理集成</td><td><span class="check">✓</span>（仅自己的）</td><td><span class="check">✓</span>（仅自己的）</td><td><span class="check">✓</span>（仅自己的）</td><td>每人独立管理</td></tr>
+      <tr><td>查看审计日志</td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td>30天滚动</td></tr>
+      <tr><td>授/撤 PM</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td>仅 admin 可操作</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>6.4 计算规则</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code># 每日 LLM Token 预算（每人，按 token 数量计，非价格）
+DAILY_TOKEN_BUDGET_PER_USER = 200_000  tokens/天/人
+
+# 每月硬上限（团队级，按美元计）
+MONTHLY_HARD_CAP_USD = 500  USD/月
+
+# AI 建议置信度阈值
+if confidence &lt; 0.6 → 不展示给用户
+if confidence ≥ 0.6 → 展示在"待处理建议"列表
+
+# 事件缓存 TTL
+expires_at = ingested_at + INTERVAL '90 days'
+
+# 按需拉取缓存窗口
+cache_ttl = 5 minutes per (user_id, time_window)
+
+# 超预算降级策略（在 llm_calls 中累计 token → 算价）
+if daily_tokens_used >= 200,000 → 降级模型（Sonnet → Haiku）
+if monthly_cost_usd    >= 500     → 暂停非必要 AI + 保留个人助手</code></pre>
+  </div>
+
+  <h3>6.5 业务规则汇总</h3>
+  <ol class="rules-list">
+    <li><strong>AI 不直接修改 Kanban</strong> <span class="rule-desc">所有 AI 产出都生成 ai_suggestions，等用户 accept/reject。半年观察期后再讨论自动通道。</span></li>
+    <li><strong>低置信度过滤</strong> <span class="rule-desc">confidence &lt; 0.6 的建议不展示给用户，减少噪音。</span></li>
+    <li><strong>事件缓存 append-only</strong> <span class="rule-desc">events_cache 只追加不修改，TTL 90 天自动清理。</span></li>
+    <li><strong>凭据加密存储</strong> <span class="rule-desc">第三方 token 用 Fernet 对称加密，主密钥 CRYPTO_KEY 从环境变量读，不入库不入仓库。</span></li>
+    <li><strong>聊天内容绝对隐私</strong> <span class="rule-desc">chat 内容仅本人可见，PM 也不能看别人 chat 原文。</span></li>
+    <li><strong>资源不存在返回 404</strong> <span class="rule-desc">不返回 403，避免泄露资源存在性信息。</span></li>
+    <li><strong>写操作需 CSRF Token</strong> <span class="rule-desc">所有非 GET 请求需要 X-CSRF-Token Header。</span></li>
+    <li><strong>超预算降级</strong> <span class="rule-desc">日预算超→降级模型（Sonnet→Haiku）；月硬顶→暂停非必要 AI，保留个人助手。</span></li>
+    <li><strong>迁移禁止破坏性操作</strong> <span class="rule-desc">必须"加新列 → 双写过渡 → 删老列"分多次迁移。</span></li>
+    <li><strong>阶段门槛不可逾越</strong> <span class="rule-desc">每阶段 DoD 不达成绝不上线；用 2 周没人用的功能立刻砍。</span></li>
+  </ol>
+</section>
+
+<!-- § 七 -->
+<section id="mvp">
+  <h2>§ 七、MVP 分期计划</h2>
+  <p class="section-desc">按"先验证 → 再扩功能"，每阶段独立可上线试用。总计 3~4 个月（业余）/ 5~7 周（全职）。</p>
+
+  <h3>7.1 阶段时间线</h3>
+  <div class="timeline">
+    <div class="timeline-card">
+      <div class="phase-label">P0 · 骨架</div>
+      <div class="phase-name">跑得起来</div>
+      <div class="phase-deliver">脚手架 / docker compose / 邮箱密码登录 / DB 迁移 / 空 Kanban + 空助手 UI 占位</div>
+      <div class="phase-time">3~5 天</div>
+    </div>
+    <div class="timeline-card">
+      <div class="phase-label">P1 · 核心可用</div>
+      <div class="phase-name">1 人能用</div>
+      <div class="phase-deliver">任务 CRUD / 助手基础工具 / GitLab 集成 / 手动日报生成</div>
+      <div class="phase-time">1.5~2 周</div>
+    </div>
+    <div class="timeline-card">
+      <div class="phase-label">P2 · 团队可用</div>
+      <div class="phase-name">6 人能用</div>
+      <div class="phase-deliver">多用户 / 看板共享 / 飞书或钉钉接入 / AI 自动日报 / ai_suggestions accept/reject UI</div>
+      <div class="phase-time">2~3 周</div>
+    </div>
+    <div class="timeline-card">
+      <div class="phase-label">P3 · PM 价值</div>
+      <div class="phase-name">PM 真受益</div>
+      <div class="phase-deliver">周报自动 / 智能分发建议 / 团队负载视图 / 重复任务检测</div>
+      <div class="phase-time">2 周</div>
+    </div>
+    <div class="timeline-card">
+      <div class="phase-label">P4 · 完善</div>
+      <div class="phase-name">试用稳定</div>
+      <div class="phase-deliver">剩余集成 / 会议纪要 / capture preferences UI / 通知 webhook</div>
+      <div class="phase-time">2~3 周</div>
+    </div>
+    <div class="timeline-card">
+      <div class="phase-label">P5 · 扩张准备</div>
+      <div class="phase-name">准备扩张</div>
+      <div class="phase-deliver">OIDC SSO / 第二个 tenant 试装 / 监控强化 / 文档教程</div>
+      <div class="phase-time">1~2 周</div>
+    </div>
+  </div>
+
+  <h3>7.2 完成定义 (DoD)</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>阶段</th><th>不达成绝不上</th></tr></thead>
+    <tbody>
+      <tr><td><strong>P0</strong></td><td>干净机器 <code>make setup && make dev</code> 一次成功 / 能登录 / Alembic 正常 / /health 返 200</td></tr>
+      <tr><td><strong>P1</strong></td><td>用户能：创建任务、改状态、跟助手对话让它建任务、连 GitLab 看到 commit 摘要、手动生成今日日报</td></tr>
+      <tr><td><strong>P2</strong></td><td>6 人同时在线无卡 / 后台定时跑出日报无错 / ≥ 5 个 ai_suggestions 被实际处理 / 一周自动捕获率 > 50%</td></tr>
+      <tr><td><strong>P3</strong></td><td>≥ 2 期自动周报质量过关 / 智能分发被采纳率 > 30%</td></tr>
+      <tr><td><strong>P4</strong></td><td>6 人中 ≥ 4 人主动连接 ≥ 3 个集成 / 通知到达率 > 95%</td></tr>
+      <tr><td><strong>P5</strong></td><td>第二个团队（≥ 3 人）独立 tenant 跑通 / SSO 一次成功</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>7.3 砍掉的功能</h3>
+  <ul class="cut-list">
+    <li>自定义角色权限矩阵</li>
+    <li>复杂工作流引擎（5 个状态够用）</li>
+    <li>甘特图 / 燃尽图 / 高级报表</li>
+    <li>客户工单集成（需求未定）</li>
+    <li>移动 App（响应式 Web 够用）</li>
+    <li>离线模式</li>
+    <li>多语言（中文优先）</li>
+    <li>AI"高置信度自动执行"（先全走 suggestions，半年观察）</li>
+    <li>跨租户协作 / 外部成员</li>
+    <li>计费/订阅功能</li>
+  </ul>
+</section>
+
+<!-- § 八 -->
+<section id="risks">
+  <h2>§ 八、风险登记</h2>
+  <p class="section-desc">14 条已识别风险，R5/R6/R7 为最关键，day 1 建机制。</p>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>#</th><th>风险</th><th>概率</th><th>影响</th><th>缓解措施</th></tr></thead>
+    <tbody>
+      <tr><td>R1</td><td>LLM 摘要/抽取质量不达预期，团队不信任</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-high">高</span></td><td>AI 评估集 + 建议不直接执行 + accept/reject 跟踪 + 用 Sonnet 不省钱</td></tr>
+      <tr><td>R2</td><td>LLM API 成本失控</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-med">中</span></td><td>预算+硬上限 + 缓存 + 模型分层 + 每月看账单</td></tr>
+      <tr><td>R3</td><td>集成 token 过期/被撤销，静默失败</td><td><span class="pill pill-high">高</span></td><td><span class="pill pill-med">中</span></td><td>连续失败自动通知 + 监控页显"上次成功"时间</td></tr>
+      <tr><td>R4</td><td>服务器（某人电脑）宕机</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-med">中</span></td><td>早期影响小；P3 后迁闲置 mini PC + UPS + 每周检查</td></tr>
+      <tr class="risk-critical"><td>R5</td><td>主密钥 CRYPTO_KEY 丢失</td><td><span class="pill pill-low">低</span></td><td><span class="pill pill-high">高</span></td><td>密钥纸质 + 密码管理器双备份；季度演练恢复</td></tr>
+      <tr class="risk-critical"><td>R6</td><td>备份没演练，恢复时发现坏的</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-high">高</span></td><td>每季度真演练恢复到测试环境，签字确认</td></tr>
+      <tr class="risk-critical"><td>R7</td><td>团队不真用</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-high">高</span></td><td>P1 后强制每周回顾；用 2 周没人开的功能立刻砍</td></tr>
+      <tr><td>R8</td><td>隐私担忧（被监控感）</td><td><span class="pill pill-high">高</span></td><td><span class="pill pill-med">中</span></td><td>day 1 有暂停开关+关键词屏蔽；透明沟通</td></tr>
+      <tr><td>R9</td><td>公司 SSO 一直接不上</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-low">低</span></td><td>MVP 用邮箱密码，SSO 移到 P5</td></tr>
+      <tr><td>R10</td><td>飞书/钉钉应用审批被卡</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-high">高</span></td><td>提前一周走流程；卡住改用个人 access token 过渡</td></tr>
+      <tr><td>R11</td><td>同事前端用了未公开 API</td><td><span class="pill pill-high">高</span></td><td><span class="pill pill-med">中</span></td><td>OpenAPI 强制约定 + 改动入 CHANGELOG + 前后端同步 review</td></tr>
+      <tr><td>R12</td><td>切 B 时发现 A 阶段偷工要大改</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-high">高</span></td><td>B-ready 纪律 day 1 严格执行，code review 把关</td></tr>
+      <tr><td>R13</td><td>个人 chat 内容审计/合规要求出现</td><td><span class="pill pill-low">低</span></td><td><span class="pill pill-med">中</span></td><td>day 1 不留原文到日志；可加租户级审计开关（默认关）</td></tr>
+      <tr><td>R14</td><td>维护者支持中断（换工具/版本变化）</td><td><span class="pill pill-low">低</span></td><td><span class="pill pill-med">中</span></td><td>设计文档+spec 完整保存，任何懂 Python 的人/AI 可接手</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- § 九 -->
+<section id="open-questions">
+  <h2>§ 九、开放问题</h2>
+  <p class="section-desc">P0 启动前需要确认的 8 个关键决策点。</p>
+  <div class="card-grid">
+    <div class="question-card"><div class="q-num">Q1</div><div class="q-text">公司 IM 选哪个先接入？</div><div class="q-note">飞书/钉钉都用——MVP 期建议选一个常用度高的先接。</div></div>
+    <div class="question-card"><div class="q-num">Q2</div><div class="q-text">企微邮箱是否开了 IMAP？</div><div class="q-note">还是只能走企微 API？需要查一下公司配置。</div></div>
+    <div class="question-card"><div class="q-num">Q3</div><div class="q-text">客户工单系统叫什么？</div><div class="q-note">暂时不接 OK 吗？</div></div>
+    <div class="question-card"><div class="q-num">Q4</div><div class="q-text">公司 SSO 走哪家？</div><div class="q-note">飞书/钉钉/Authing/Azure AD？还是 P0~P5 完全用邮箱密码？</div></div>
+    <div class="question-card"><div class="q-num">Q5</div><div class="q-text">本地服务器迁移目标？</div><div class="q-note">P0 期跑在你机器上，P3 后迁到哪？已有闲置设备还是需采购？</div></div>
+    <div class="question-card"><div class="q-num">Q6</div><div class="q-text">6 人试用承诺？</div><div class="q-note">P1 一上线就能跟 5 个同事承诺试用 ≥ 2 周吗？这是 R7 的命门。</div></div>
+    <div class="question-card"><div class="q-num">Q7</div><div class="q-text">AI 评估集谁维护？</div><div class="q-note">你？团队轮流？这是 AI 质量命门，不能 day 1 就放弃。</div></div>
+    <div class="question-card"><div class="q-num">Q8</div><div class="q-text">每月 LLM 预算？</div><div class="q-note">$500 上限合理吗？还是需要更紧（如 $100）或更宽？</div></div>
+  </div>
+</section>
+
+<!-- § 十 -->
+<section id="decisions">
+  <h2>§ 十、决策日志</h2>
+  <p class="section-desc">11 条关键架构决策，记录选择与理由。</p>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>决策</th><th>选择</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td>架构形态</td><td>A（单体）+ B-ready 纪律</td><td>6 人足够，未来扩张时可分步演进</td></tr>
+      <tr><td>捕获模式</td><td>按需拉取（不持续轮询）</td><td>6 人无任何场景需要近实时；省 API + LLM 成本 95%</td></tr>
+      <tr><td>后端语言</td><td>Python</td><td>AI 生态最完整；用户与团队熟悉度可接受</td></tr>
+      <tr><td>Agent 框架</td><td>PydanticAI</td><td>结构化输出 + 类型安全 + 轻量，适配按需架构</td></tr>
+      <tr><td>LLM 模型</td><td>Haiku 4.5（便宜活）+ Sonnet 4.5（重活）</td><td>量大窄任务便宜，决策/写作要强模型</td></tr>
+      <tr><td>数据库</td><td>Postgres 16（不用 SQLite）</td><td>docker 一行起，扩张时零迁移</td></tr>
+      <tr><td>部署方式</td><td>docker compose + Caddy</td><td>一条命令起全部；TLS 自动</td></tr>
+      <tr><td>前端框架</td><td>同事决定</td><td>不在本文档范围；OpenAPI 契约稳定即可</td></tr>
+      <tr><td>多租户</td><td>day 1 加 tenant_id，UI 延后</td><td>数据层就位，扩张时不大改</td></tr>
+      <tr><td>AI 执行权限</td><td>全走 ai_suggestions，不直接做</td><td>信任度建立前的保险栏；半年后再讨论</td></tr>
+      <tr><td>隐私基线</td><td>PM 不能看别人 chat 原文</td><td>内部工具的基本底线</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+
+<!-- 附录 A -->
+<section id="appendix-capture">
+  <h2>附录 A：捕获层细节</h2>
+  <p class="section-desc">按需拉取架构的命脉——适配器接口、编排逻辑、各集成能力矩阵。</p>
+
+  <h3>A.1 统一适配器接口</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>class CaptureAdapter(ABC):
+    provider: str           # 'gitlab' | 'lark' | 'dingtalk' | ...
+    supports_webhook: bool = False
+
+    async def authenticate(self, credential: dict) -> bool: ...
+    async def fetch(self, user_id, since, cursor=None) -> AsyncIterator[RawEvent]: ...
+    def get_next_cursor(self, last_event: RawEvent) -> dict: ...
+    async def register_webhook(self, callback_url: str) -> str | None: ...</code></pre>
+  </div>
+
+  <h3>A.2 按需拉取编排</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>async def fetch_user_activity(user_id, window, sources=None):
+    cache_key = (user_id, window, tuple(sources or "all"))
+    if cached := cache.get(cache_key, max_age=300):  # 5 分钟缓存
+        return cached
+
+    adapters = [load_adapter(s) for s in sources or ALL_SOURCES]
+    results = await asyncio.gather(
+        *[a.fetch(user_id, since=now - window) for a in adapters],
+        return_exceptions=True,  # 单源失败不影响其他
+    )
+    events = flatten_and_dedupe(results)
+    upsert_events_cache(events)
+    cache.set(cache_key, events)
+    return events</code></pre>
+  </div>
+  <p style="font-size: 13px; color: var(--text-secondary); margin-top: 8px;">
+    触发器：用户操作 / 定时报告 / AI 助手对话开始 → Capture Orchestrator → asyncio.gather 并行拉各源 → events_cache → AI 处理。
+    不再有持续轮询：API 调用量下降 95%，LLM 成本只在实际需要产出时发生。
+  </p>
+
+  <h3>A.3 各集成能力矩阵</h3>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>来源</th><th>拉取内容</th><th>协议</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td>GitLab（内网）</td><td>commits / MR 开关、review 评论、issue 变更</td><td>REST + PAT，since= 增量；支持 webhook</td><td><span class="pill pill-low">简单</span></td></tr>
+      <tr><td>飞书</td><td>文档编辑、群消息（仅自己）、日历、待办</td><td>开放平台 + 用户 OAuth；消息 webhook，文档轮询</td><td><span class="pill pill-med">中</span></td></tr>
+      <tr><td>钉钉</td><td>同上</td><td>套件应用 + 用户授权</td><td><span class="pill pill-med">中</span></td></tr>
+      <tr><td>Notion</td><td>页面创建/编辑（按 user 过滤）</td><td>API + integration token，轮询 /search</td><td><span class="pill pill-low">简单</span></td></tr>
+      <tr><td>企微邮箱</td><td>发出邮件主题/收件人/摘要（不存正文）</td><td>IMAP 或企微 API</td><td><span class="pill pill-med">未知</span></td></tr>
+      <tr><td>客户工单</td><td>待定</td><td>待定</td><td>暂不实现</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>A.4 失败处理策略</h3>
+  <ul class="rules-list">
+    <li><strong>单次 fetch 异常</strong> <span class="rule-desc">log warning，跳过该 source，其他 source 不受影响（asyncio.gather(return_exceptions=True)）。</span></li>
+    <li><strong>连续 3 次失败</strong> <span class="rule-desc">integrations.enabled = False + 通知用户重新授权。</span></li>
+    <li><strong>全部 source 都挂</strong> <span class="rule-desc">报告生成时明确说明"今天没拉到任何数据"，不脑补。</span></li>
+  </ul>
+
+  <h3>A.5 隐私与权限开关</h3>
+  <p style="font-size: 13px; margin: 8px 0;">每用户的 <code>capture_preferences JSONB</code> 控制：总开关（请假/敏感期暂停所有捕获）、单源开关（暂停某集成）、关键词屏蔽（含某些词的事件不入库）、数据可见性（仅本人 vs PM 可聚合）。每次写 events_cache 时检查。</p>
+</section>
+
+<!-- 附录 B -->
+<section id="appendix-api">
+  <h2>附录 B：API 契约</h2>
+  <p class="section-desc">前端同事的交付依据——REST/WS/SSE 端点表、错误格式、分页、鉴权约定。</p>
+
+  <h3>B.1 通用约定</h3>
+  <ul class="rules-list">
+    <li><strong>基路径</strong> <span class="rule-desc">/api/v1/...（带版本）</span></li>
+    <li><strong>传输</strong> <span class="rule-desc">JSON over HTTPS；聊天 WebSocket；AI 流式 SSE</span></li>
+    <li><strong>鉴权</strong> <span class="rule-desc">Cookie（httpOnly + Secure + SameSite=Lax）或 Bearer PAT</span></li>
+    <li><strong>CSRF</strong> <span class="rule-desc">写操作需 X-CSRF-Token Header</span></li>
+    <li><strong>错误格式</strong> <span class="rule-desc">RFC 7807 Problem Details（type / title / status / detail / instance）</span></li>
+    <li><strong>分页</strong> <span class="rule-desc">高频用 cursor（?cursor=&limit=），常规用 offset（?page=&page_size=）</span></li>
+    <li><strong>时间</strong> <span class="rule-desc">ISO 8601 UTC</span></li>
+    <li><strong>ID</strong> <span class="rule-desc">UUID v7（有序，天然时间排序）</span></li>
+  </ul>
+
+  <h3>B.2 核心端点</h3>
+  <div class="table-wrap">
+  <table class="data-table sortable">
+    <thead><tr><th>资源域</th><th>端点</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Auth</td><td>POST /auth/login<br>GET /auth/sso/callback<br>POST /auth/logout<br>GET /auth/me</td><td>邮箱密码 / SSO / 登出 / 当前用户</td></tr>
+      <tr><td>Users</td><td>GET /users<br>PATCH /users/me/preferences</td><td>同租户成员列表 / 改隐私设置</td></tr>
+      <tr><td>Tasks</td><td>GET /tasks?status=&owner=<br>POST /tasks<br>PATCH /tasks/{id}<br>GET /tasks/{id}/history</td><td>列表筛选 / 创建 / 更新 / 状态流水</td></tr>
+      <tr><td>Suggestions</td><td>GET /suggestions?status=pending<br>POST /suggestions/{id}/accept<br>POST /suggestions/{id}/reject</td><td>待处理列表 / 接受 / 拒绝</td></tr>
+      <tr><td>Events</td><td>GET /events?user=&source=&since=<br>POST /events/manual</td><td>查事件缓存 / 手动登记</td></tr>
+      <tr><td>Reports</td><td>GET /reports?kind=&user=<br>POST /reports/generate</td><td>列报告 / 手动触发（SSE 流式）</td></tr>
+      <tr><td>Chat</td><td>GET /chat/sessions<br>POST /chat/sessions<br>WS /ws/chat/{session_id}</td><td>列会话 / 新建 / WebSocket 实时对话</td></tr>
+      <tr><td>PM</td><td>GET /pm/workload<br>POST /pm/exec-brief<br>POST /pm/assign-suggest</td><td>团队负载 / 对外简报 / AI 分配建议</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>B.3 WebSocket 聊天协议</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>Client → Server:
+  {"type": "user_message", "content": "今天干了啥"}
+  {"type": "abort"}                        // 中止当前生成
+  {"type": "ping"}                         // 30s 保活
+
+Server → Client:
+  {"type": "assistant_token", "delta": "今"}  // 流式 token
+  {"type": "tool_call", "tool": "query_my_activity", "args": {...}}
+  {"type": "tool_result", "call_id": "c1", "result": {...}}
+  {"type": "assistant_done", "message_id": "uuid", "tokens": {...}}
+  {"type": "suggestion_created", "suggestion": {...}}</code></pre>
+  </div>
+
+  <h3>B.4 给前端同事的交付物</h3>
+  <ul class="rules-list">
+    <li><strong>OpenAPI 3.1 spec</strong> <span class="rule-desc">FastAPI 自动生成 /openapi.json，导出 yaml 入仓库。</span></li>
+    <li><strong>TypeScript 类型</strong> <span class="rule-desc">openapi-typescript 一行生成，CI 校对同步。这是 R11（前端用未公开 API）的核心防御。</span></li>
+    <li><strong>Mock server</strong> <span class="rule-desc">prism mock openapi.yaml，前端不等后端就能联调。</span></li>
+  </ul>
+</section>
+
+<!-- 附录 C -->
+<section id="appendix-deploy">
+  <h2>附录 C：部署 & 运维</h2>
+  <p class="section-desc">R5/R6 的缓解措施执行细节——docker-compose 骨架、密钥层级、备份恢复、升级回滚。</p>
+
+  <h3>C.1 部署形态</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>某台电脑 (Win/Mac/Linux)
+  └── docker compose
+       ├── caddy   (TLS 反代，配置 3 行)
+       ├── app     (FastAPI + 静态前端，同源无 CORS)
+       └── postgres (16-alpine)
+       volumes: ./data/postgres, ./data/uploads, ./data/backups, ./logs</code></pre>
+  </div>
+  <p style="font-size: 13px; color: var(--text-secondary); margin: 8px 0;">
+    先在主设计者机器跑（P0~P1），稳定后迁闲置设备（mini PC 或专机）。docker compose 迁移基本无痛：导出 data/ + 改 caddy 域名即可。
+  </p>
+
+  <h3>C.2 密钥层级</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>类型</th><th>存放位置</th><th>示例</th></tr></thead>
+    <tbody>
+      <tr><td>非敏感配置</td><td>.env（仓库有 .env.example）</td><td>LOG_LEVEL, LLM_MODEL_CHEAP, LLM_MODEL_STRONG</td></tr>
+      <tr><td>密码/Token</td><td>secrets/*.json + .gitignore</td><td>LLM API key, OIDC secret, DB password</td></tr>
+      <tr><td>主密钥</td><td>系统级环境变量</td><td>CRYPTO_KEY（Fernet，不入库不入仓库）</td></tr>
+      <tr><td>用户级 token</td><td>DB（CRYPTO_KEY 加密）</td><td>GitLab PAT, 飞书 access token</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>C.3 备份策略</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code># scripts/backup.sh，cron 每天 02:00
+docker compose exec -T postgres pg_dump -U app teamplat | gzip >   ./data/backups/teamplat-$(date +%Y%m%d).sql.gz
+find ./data/backups -mtime +30 -delete
+rsync -a ./data/backups/ user@nas:/backups/teamplat/</code></pre>
+  </div>
+  <p style="font-size: 13px; color: var(--warning); margin: 8px 0;">
+    ⚠️ 容灾原则：DB 日备 + 附件周 rsync；加密主密钥额外备份（密码管理器 + 纸质双备份）；<strong>每季度真演练一次恢复</strong>——不演练的备份都是骗自己。
+  </p>
+
+  <h3>C.4 升级与回滚</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code># 升级
+./scripts/backup.sh              # 升级前自动备份
+docker compose pull
+docker compose up -d             # alembic 自动迁移
+
+# 回滚
+docker compose down
+gunzip < ./data/backups/teamplat-YYYYMMDD.sql.gz |   docker compose run --rm postgres psql -U app teamplat
+VERSION=v0.x.y docker compose up -d</code></pre>
+  </div>
+
+  <h3>C.5 关键技术决策</h3>
+  <ul class="rules-list">
+    <li><strong>Postgres 不用 SQLite</strong> <span class="rule-desc">docker 一行命令起 Postgres，扩张时零迁移。</span></li>
+    <li><strong>Caddy 不用 Nginx</strong> <span class="rule-desc">TLS 自动，配置 3 行。</span></li>
+    <li><strong>前端打包后由 FastAPI 静态托管</strong> <span class="rule-desc">少一容器，同源无 CORS。</span></li>
+    <li><strong>不上 Prometheus/Grafana</strong> <span class="rule-desc">6 人项目过度——结构化 JSON 日志 + /health + /metrics 即可。</span></li>
+    <li><strong>日志</strong> <span class="rule-desc">structlog 结构化 JSON → ./logs/app-YYYY-MM-DD.jsonl；关键错误推送到飞书/钉钉 webhook。</span></li>
+  </ul>
+</section>
+
+<!-- 附录 D -->
+<section id="appendix-evolution">
+  <h2>附录 D：A → B 演进路径</h2>
+  <p class="section-desc">决策日志里提了"B-ready 纪律"——这里展开具体是什么，以及什么时候切、怎么切。</p>
+
+  <h3>D.1 切换触发信号</h3>
+  <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">不基于用户数，基于以下<strong>真实压力信号</strong>（任一触发）：</p>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>信号</th><th>阈值</th></tr></thead>
+    <tbody>
+      <tr><td>单进程 CPU 持续高负载</td><td>CPU > 70% 持续 1 周</td></tr>
+      <tr><td>AI 批处理拖累 web 响应</td><td>P95 web 响应 > 1s</td></tr>
+      <tr><td>多团队接入需硬隔离</td><td>2~3 个独立团队</td></tr>
+      <tr><td>需异地灾备</td><td>出现明确需求</td></tr>
+      <tr><td>events_cache 数据量大</td><td>超 100GB</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>D.2 迁移顺序</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>A → 1. PG 升云托管/主从
+  → 2. API 副本化 + LB + session 切 Redis
+  → 3. 抽 capture workers 出独立容器
+  → 4. events_cache 改 NATS JetStream + PG 归档（双写 1~2 周 → 切单写）
+  → 5. 抽 AI processor 出独立容器
+  → B 完成
+
+每步独立上线 + 可独立回滚，绝不一次性大重构。</code></pre>
+  </div>
+
+  <h3>D.3 拆什么、不拆什么</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>模块</th><th>A 阶段</th><th>B 阶段</th><th>改造成本</th></tr></thead>
+    <tbody>
+      <tr><td>API + 前端</td><td>单进程 FastAPI</td><td>多副本 + LB</td><td><span class="pill pill-low">几乎零</span></td></tr>
+      <tr><td>events_cache</td><td>PG 一张表</td><td>NATS JetStream + PG 归档</td><td><span class="pill pill-med">中</span></td></tr>
+      <tr><td>Capture workers</td><td>同进程函数</td><td>独立 worker 容器 + 工作队列</td><td><span class="pill pill-med">中</span></td></tr>
+      <tr><td>AI processor</td><td>同步函数</td><td>独立 worker + 任务队列</td><td><span class="pill pill-med">中</span></td></tr>
+      <tr><td>DB</td><td>单 PG</td><td>主从/云托管</td><td><span class="pill pill-low">几乎零</span></td></tr>
+      <tr><td>WebSocket</td><td>内存路由</td><td>Redis Pub/Sub 跨副本</td><td><span class="pill pill-low">小</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size: 13px; color: var(--text-secondary); margin: 8px 0;">
+    不拆的部分：数据模型、API 契约、前端、Auth、AI 业务逻辑——B 对前端完全透明。
+  </p>
+
+  <h3>D.4 B-ready 纪律（A 阶段 day 1 执行）</h3>
+  <ol class="rules-list">
+    <li><strong>所有 capture adapter 实现统一接口</strong> <span class="rule-desc">Abstract base class CaptureAdapter，每个源一个实现。</span></li>
+    <li><strong>AI 函数是纯函数</strong> <span class="rule-desc">输入事件 → 输出结构化结果，无副作用。</span></li>
+    <li><strong>events_cache schema 严格 + 按时间分区</strong> <span class="rule-desc">schema 不随实现变。</span></li>
+    <li><strong>DB 访问全经 repository 层</strong> <span class="rule-desc">不直接在业务代码里写 SQL。</span></li>
+    <li><strong>Session 不依赖进程内存</strong> <span class="rule-desc">先内存，接口预留 Redis。</span></li>
+    <li><strong>配置驱动</strong> <span class="rule-desc">config.yaml 管理阈值/模型/集成，可不重启切换。</span></li>
+  </ol>
+</section>
+
+<!-- 附录 E -->
+<section id="appendix-testing">
+  <h2>附录 E：测试策略</h2>
+  <p class="section-desc">Q7（AI 评估谁维护）的解决方案——金字塔分层、AI 评估集、CI 流水线。</p>
+
+  <h3>E.1 测试金字塔</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>                  手动验收 (每阶段)     ~10%
+              E2E (关键流程)             ~10%
+        集成测试 (DB / 适配器 / API)    ~30%
+   单元测试 (纯函数 / 模型 / 业务规则)  ~40%
+   AI 评估 (独立维护)                   ~10%</code></pre>
+  </div>
+
+  <h3>E.2 各层策略</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>层次</th><th>工具</th><th>覆盖内容</th></tr></thead>
+    <tbody>
+      <tr><td>单元</td><td>pytest（无外部依赖，毫秒级）</td><td>Pydantic 模型验证 / 权限判断 / 状态机 / AI prompt 构造器</td></tr>
+      <tr><td>集成</td><td>pytest + 临时 PG container</td><td>DB CRUD + 迁移 / 每个 adapter vcrpy 录回放 / API httpx.AsyncClient / 鉴权链路</td></tr>
+      <tr><td>E2E</td><td>playwright（10 个以内关键流程）</td><td>登录→创建任务→看 Kanban / 助手对话→建任务 / GitLab 集成→events_cache / 生成日报 / AI 建议 accept</td></tr>
+      <tr><td>AI 评估</td><td>pytest + YAML 案例集 + LLM-as-judge</td><td>归一化质量 / 日报生成质量 / 分发建议质量（周跑 + 改 prompt 时跑，全套 ~$1）</td></tr>
+      <tr><td>手动验收</td><td>每阶段 DoD 真人走一遍</td><td>docs/manual-test-checklist.md 每 release 签字确认</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>E.3 AI 评估集案例</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code># tests/ai_eval/normalize/cases/001_gitlab_commits.yaml
+input:
+  events:
+    - type: gitlab.commit
+      message: "fix: OAuth callback bug in login page"
+      occurred_at: 2026-05-27T10:30:00Z
+    - type: gitlab.commit
+      message: "test: add test for OAuth callback"
+      occurred_at: 2026-05-27T11:00:00Z
+
+expectations:
+  - activities_count: 1
+  - activities[0].category: code
+  - activities[0].summary_contains: [OAuth, 登录]
+  - activities[0].source_event_ids.length: 2</code></pre>
+  </div>
+
+  <h3>E.4 CI 流水线</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>jobs:
+  lint:       ruff + mypy + sqlfluff
+  unit:       pytest tests/unit
+  integration: pytest tests/integration (含临时 PG)
+  e2e:        playwright (仅 main 分支)
+  ai_eval:    weekly cron + 手动触发（改 prompt 时）</code></pre>
+  </div>
+  <p style="font-size: 13px; color: var(--text-secondary); margin: 8px 0;">
+    每 PR &lt; 5 分钟完成 lint+unit+integration。测试数据用 factory 函数（make_user(), make_task()），每用例自建自清（transaction rollback）。
+  </p>
+
+  <h3>E.5 AI 评估维护</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>tests/ai_eval/
+├── normalize/cases/*.yaml     # 归一化质量案例
+├── daily_report/cases/*.yaml  # 日报生成案例
+└── dispatch/cases/*.yaml      # 分发建议案例
+
+维护规则：
+- 数值/分类用硬断言，模糊评价用 LLM-as-judge（强模型评弱模型输出）
+- 维护 baseline 分数，新 prompt 必须不低于 baseline
+- 流程：accept/reject 记录 → 每周分析误判 → 补充案例 → 跑 eval → 改 prompt</code></pre>
+  </div>
+</section>
+
+
+</div>
+
+<script src="assets/state-machines.js"></script>
+<script src="assets/er-diagram.js"></script>
+<script>
+/* ===== Core Interactivity ===== */
+
+// ---- Toggle Sidebar (mobile) ----
+function toggleSidebar() {
+  var s = document.getElementById('sidebar');
+  var o = document.getElementById('overlay');
+  s.classList.toggle('open');
+  o.classList.toggle('show');
+}
+
+// ---- Table Sorting ----
+document.querySelectorAll('table thead th').forEach(function(th, ci) {
+  th.addEventListener('click', function() {
+    var table = th.closest('table');
+    var tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    var rows = Array.from(tbody.querySelectorAll('tr'));
+    var asc = !th.classList.contains('asc');
+    // Reset all headers in this table
+    table.querySelectorAll('th').forEach(function(h) {
+      h.classList.remove('asc', 'desc', 'sorted');
+    });
+    th.classList.add('sorted', asc ? 'asc' : 'desc');
+
+    rows.sort(function(a, b) {
+      var ca = (a.cells[ci] || {}).textContent || '';
+      var cb = (b.cells[ci] || {}).textContent || '';
+      var na = parseFloat(ca), nb = parseFloat(cb);
+      if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+      return asc ? ca.localeCompare(cb, 'zh') : cb.localeCompare(ca, 'zh');
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
+  });
+});
+
+// ---- Collapse Cards ----
+function toggleCollapse(header) {
+  header.classList.toggle('open');
+  var body = header.nextElementSibling;
+  if (body && body.classList.contains('collapse-body')) {
+    body.classList.toggle('open');
+    if (body.classList.contains('open')) {
+      body.style.maxHeight = body.scrollHeight + 'px';
+    } else {
+      body.style.maxHeight = '0';
+    }
+  }
+}
+
+// ---- Glossary Search ----
+var searchBox = document.querySelector('#glossary .search-box');
+if (searchBox) {
+  searchBox.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    var rows = document.querySelectorAll('#glossary tbody tr');
+    rows.forEach(function(r) {
+      r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+
+// ---- Scroll Spy ----
+var navLinks = document.querySelectorAll('#nav a');
+var sections = [];
+navLinks.forEach(function(a) {
+  var id = a.getAttribute('href').slice(1);
+  var el = document.getElementById(id);
+  if (el) sections.push({ id: id, link: a, el: el });
+});
+
+window.addEventListener('scroll', function() {
+  var st = window.scrollY + 120;
+  var active = null;
+  sections.forEach(function(s) {
+    if (s.el.offsetTop <= st) active = s;
+  });
+  navLinks.forEach(function(a) { a.classList.remove('active'); });
+  if (active) active.link.classList.add('active');
+});
+
+// ---- Code Copy ----
+function copyCode(btn) {
+  var pre = btn.parentElement.querySelector('pre');
+  if (!pre) return;
+  var text = pre.textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = '已复制';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = '复制';
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// ---- Init collapse cards (set initial state) ----
+document.querySelectorAll('.collapse-card').forEach(function(card) {
+  var body = card.querySelector('.collapse-body');
+  if (body) body.style.maxHeight = '0';
+});
+
+// ---- Init Sidebar first link active ----
+if (sections.length > 0) {
+  sections[0].link.classList.add('active');
+}
+
+// ---- Init state machines and ER diagram ----
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof renderStateMachine === 'function') {
+    renderStateMachine('sm-task', 'task');
+    renderStateMachine('sm-ai-suggestion', 'aiSuggestion');
+    renderStateMachine('sm-integration', 'integration');
+  }
+  if (typeof ERDiagram !== 'undefined' && ERDiagram.render) {
+    ERDiagram.render('er-diagram-container');
+  }
+});
+</script>
+</body>
+</html>

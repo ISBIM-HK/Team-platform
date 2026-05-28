@@ -1,5 +1,9 @@
-# ─── Spec / design docs（团队约定不入库） ───
-docs/specs/
+# ─── Spec / design docs（团队约定不入库，仅 HTML 视图与其 assets 例外） ───
+docs/specs/*
+!docs/specs/team-platform-design.html
+!docs/specs/assets/
+!docs/specs/assets/*.js
+CLAUDE.md
 
 # ─── Secrets ───
 .env
