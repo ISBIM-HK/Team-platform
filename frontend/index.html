@@ -14,9 +14,7 @@
     <div class="brand-mark">T</div>
     <h1 id="loginTitle">欢迎回来</h1>
     <p class="sub" id="loginSub">登录到 Team Platform</p>
-    <div class="field" id="nameField" style="display:none">
-      <label>显示名称</label><input id="dispName" type="text" placeholder="你的名字" />
-    </div>
+    <div class="field" id="nameField" style="display:none"><label>显示名称</label><input id="dispName" type="text" placeholder="你的名字" /></div>
     <div class="field"><label>邮箱</label><input id="email" type="email" placeholder="you@example.com" autocomplete="username" /></div>
     <div class="field"><label>密码</label><input id="password" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
     <button class="btn btn-primary" id="loginBtn">登 录</button>
@@ -35,24 +33,26 @@
     <button class="btn btn-primary new-proj" id="newProjectBtn">＋ 新建项目</button>
     <div class="side-label">项目</div>
     <div class="project-list" id="projectList"></div>
-    <div class="side-divider"></div>
-    <button class="nav-item" id="openDrawer"><span>待处理建议</span><span class="badge" id="sugBadge" style="display:none">0</span></button>
-    <button class="nav-item" id="navCost" style="display:none"><span>LLM 成本</span></button>
+
+    <div class="side-global">
+      <button class="nav-item" id="navSuggestions"><span>📥 待处理建议</span><span class="badge" id="sugBadge" style="display:none">0</span></button>
+      <button class="nav-item" id="navCost" style="display:none"><span>💲 LLM 成本</span></button>
+    </div>
     <div class="side-foot">
       <div class="who"><span class="avatar" id="meAvatar">?</span><span><b id="whoName">—</b><span class="pill-pm" id="pmPill" style="display:none">PM</span></span></div>
       <button class="iconbtn" id="logoutBtn" title="退出">⏻</button>
     </div>
   </aside>
 
-  <!-- CENTER: project workspace -->
+  <!-- CENTER: switchable views -->
   <main class="workspace" id="workspace">
-    <div class="empty-state" id="emptyState">
-      <div class="es-mark">◇</div>
-      <h2>选一个项目开始</h2>
-      <p>从左侧选项目,或点「＋ 新建项目」让 AI 把一个目标拆成分好工的子任务。</p>
+    <!-- empty -->
+    <div class="center-view" id="emptyState">
+      <div class="empty-state"><div class="es-mark">◇</div><h2>选一个项目开始</h2><p>从左侧选项目,或点「＋ 新建项目」让 AI 把一个目标拆成分好工的子任务。</p></div>
     </div>
 
-    <div class="project-view" id="projectView" style="display:none">
+    <!-- project workspace -->
+    <div class="center-view" id="projectView" style="display:none">
       <div class="ws-header">
         <div class="ws-title"><h1 id="pvName">—</h1><span class="ws-meta" id="pvMeta"></span></div>
         <div class="tabs">
@@ -65,26 +65,32 @@
       <div class="tab-panel" id="tab-plan" style="display:none">
         <div class="plan-composer">
           <div class="eyebrow">向本项目补充任务</div>
-          <div class="row">
-            <textarea id="planGoal" rows="1" placeholder="描述一个子目标,AI 拆成子任务加进这个项目…"></textarea>
-            <button class="btn btn-primary" id="planDecomposeBtn">拆解</button>
-          </div>
+          <div class="row"><textarea id="planGoal" rows="1" placeholder="描述一个子目标,AI 拆成子任务加进这个项目…"></textarea><button class="btn btn-primary" id="planDecomposeBtn">拆解</button></div>
         </div>
-        <div class="plan-hint" id="planTabHint">这里汇总本项目的 AI 拆解与建议。补充拆解会进"待处理建议",确认后加入看板。</div>
+        <div class="section-title" style="font-size:15px;margin:6px 0 10px">本项目的 AI 建议</div>
+        <div id="planSuggestions"></div>
       </div>
       <div class="tab-panel" id="tab-share" style="display:none"><div id="shareBody"></div></div>
+    </div>
+
+    <!-- suggestions inbox -->
+    <div class="center-view" id="suggestionsView" style="display:none">
+      <div class="ws-header"><div class="ws-title"><h1>待处理建议</h1><span class="ws-meta" id="sugMeta"></span></div></div>
+      <div id="suggestionsBody" class="sug-grid"></div>
+    </div>
+
+    <!-- LLM cost -->
+    <div class="center-view" id="costView" style="display:none">
+      <div class="ws-header"><div class="ws-title"><h1>LLM 成本</h1><span class="ws-meta">今日(UTC) · 团队</span></div></div>
+      <div id="costBody"></div>
     </div>
   </main>
 
   <!-- RIGHT: fixed assistant -->
   <aside class="assistant" id="assistant">
-    <div class="ahead"><span class="pulse"></span><b>个人助手</b><span id="aStatus">在线</span>
-      <button class="iconbtn collapse-asst" id="collapseAsst" title="收起">›</button></div>
+    <div class="ahead"><span class="pulse"></span><b>个人助手</b><span id="aStatus">在线</span><button class="iconbtn collapse-asst" id="collapseAsst" title="收起">›</button></div>
     <div class="msgs" id="msgs"></div>
-    <div class="composer-chat">
-      <input id="chatInput" type="text" placeholder="问我,或让我记录工作…" />
-      <button class="send" id="chatSend" title="发送">➤</button>
-    </div>
+    <div class="composer-chat"><input id="chatInput" type="text" placeholder="问我,或让我记录工作…" /><button class="send" id="chatSend" title="发送">➤</button></div>
   </aside>
   <button id="asstToggle" class="floating-toggle" title="助手" style="right:14px;display:none">💬</button>
 </div>
@@ -92,17 +98,13 @@
 <!-- ─── New project modal ─── -->
 <div class="overlay" id="projectOverlay">
   <div class="modal">
-    <div class="mhead"><div class="eyebrow">新建项目</div><h3>用一个目标,让 AI 拆成项目</h3>
-      <div class="rationale">描述你要做的事,AI 提议项目名 + 子任务;你确认后创建。</div></div>
+    <div class="mhead"><div class="eyebrow">新建项目</div><h3>用一个目标,让 AI 拆成项目</h3><div class="rationale">描述你要做的事,AI 提议项目名 + 子任务;你确认后创建。</div></div>
     <div class="mbody">
       <textarea id="npGoal" rows="3" class="np-goal" placeholder="例如:做一个客户工单自动分类的功能…"></textarea>
       <div class="np-or">或</div>
       <input id="npName" type="text" class="np-name" placeholder="手建空项目:直接填项目名" />
     </div>
-    <div class="mfoot">
-      <button class="btn btn-ghost" id="npManualBtn">建空项目</button>
-      <button class="btn btn-primary" id="npDecomposeBtn">AI 拆解 →</button>
-    </div>
+    <div class="mfoot"><button class="btn btn-ghost" id="npManualBtn">建空项目</button><button class="btn btn-primary" id="npDecomposeBtn">AI 拆解 →</button></div>
   </div>
 </div>
 
@@ -111,16 +113,17 @@
   <div class="modal">
     <div class="mhead"><div class="eyebrow" id="planEyebrow">拆解建议 · 待确认</div><h3 id="planTitle">—</h3><div class="rationale" id="planRationale"></div></div>
     <div class="mbody" id="planBody"></div>
-    <div class="mfoot"><span class="conf" id="planConf"></span>
-      <button class="btn btn-ghost" id="planReject">忽略</button>
-      <button class="btn btn-primary" id="planAccept">接受并创建</button></div>
+    <div class="mfoot"><span class="conf" id="planConf"></span><button class="btn btn-ghost" id="planReject">忽略</button><button class="btn btn-primary" id="planAccept">接受并创建</button></div>
   </div>
 </div>
 
-<!-- ─── Suggestions drawer ─── -->
-<div class="drawer" id="drawer">
-  <div class="dhead"><h3>待处理建议</h3><button class="close-x" id="closeDrawer">✕</button></div>
-  <div class="dbody" id="drawerBody"></div>
+<!-- ─── Task detail modal ─── -->
+<div class="overlay" id="taskOverlay">
+  <div class="modal">
+    <div class="mhead"><div class="eyebrow" id="tdStatus">—</div><h3 id="tdTitle">—</h3></div>
+    <div class="mbody" id="tdBody"></div>
+    <div class="mfoot" id="tdFoot"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>

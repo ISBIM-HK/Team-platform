@@ -5,41 +5,33 @@ const $ = (s) => document.querySelector(s);
 
 async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(API + path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
+    method, headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin',
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || data.title || `HTTP ${res.status}`);
   return data;
 }
-
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2600);
-}
-function escapeHtml(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2600); }
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function initials(n) { return (n || '?').trim().slice(0, 2).toUpperCase(); }
 
 // ─── state ───
-let me = null, userMap = {}, projects = [], currentProjectId = null, currentTab = 'board';
+let me = null, userMap = {}, projects = [], currentProjectId = null, allSuggestions = [], boardTasks = [];
 let chatSocket = null, chatSession = null;
 
 const STATUSES = [
   { id: 'todo', name: '待办' }, { id: 'in_progress', name: '进行中' },
   { id: 'blocked', name: '阻塞' }, { id: 'review', name: '评审' }, { id: 'done', name: '完成' },
 ];
+const STATUS_NAME = Object.fromEntries(STATUSES.map((s) => [s.id, s.name]));
+const PRIO = { 0: ['low', ''], 1: ['normal', ''], 2: ['high', '高'], 3: ['urgent', '紧急'] };
 const NEXT = {
-  todo: [['in_progress', '开始']],
-  in_progress: [['review', '提交评审'], ['done', '完成'], ['blocked', '阻塞']],
-  blocked: [['in_progress', '解除阻塞']],
-  review: [['done', '完成'], ['in_progress', '退回']],
-  done: [['archived', '归档']], archived: [],
+  todo: [['in_progress', '开始']], in_progress: [['review', '提交评审'], ['done', '完成'], ['blocked', '阻塞']],
+  blocked: [['in_progress', '解除阻塞']], review: [['done', '完成'], ['in_progress', '退回']], done: [['archived', '归档']], archived: [],
 };
+const SUG_LABEL = { decompose: '任务拆解', create_task: '创建任务', assign: '分配建议' };
 
 // ─── auth ───
 let registerMode = false;
@@ -69,19 +61,22 @@ $('#logoutBtn').onclick = async () => { try { await api('/auth/logout', { method
 // ─── boot ───
 async function boot() {
   try { me = await api('/auth/me'); } catch { $('#login').style.display = 'grid'; $('#app').classList.remove('active'); return; }
-  $('#login').style.display = 'none';
-  $('#app').classList.add('active');
-  $('#whoName').textContent = me.display_name;
-  $('#meAvatar').textContent = initials(me.display_name);
+  $('#login').style.display = 'none'; $('#app').classList.add('active');
+  $('#whoName').textContent = me.display_name; $('#meAvatar').textContent = initials(me.display_name);
   $('#pmPill').style.display = me.is_pm ? 'inline' : 'none';
   $('#navCost').style.display = me.is_pm ? 'flex' : 'none';
-  await loadUsers();
-  await loadProjects();
-  await loadSuggestions();
-  await initChat();
+  await loadUsers(); await loadProjects(); await loadSuggestions(); await initChat();
 }
-async function loadUsers() {
-  try { const r = await api('/users'); (Array.isArray(r) ? r : r.items || []).forEach((u) => userMap[u.id] = u.display_name); } catch {}
+async function loadUsers() { try { const r = await api('/users'); (Array.isArray(r) ? r : r.items || []).forEach((u) => userMap[u.id] = u.display_name); } catch {} }
+
+// ─── center view switching ───
+const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'costView'];
+function showView(id) {
+  VIEWS.forEach((v) => $('#' + v).style.display = v === id ? 'block' : 'none');
+  $('#navSuggestions').classList.toggle('active-nav', id === 'suggestionsView');
+  $('#navCost').classList.toggle('active-nav', id === 'costView');
+  if (id !== 'projectView') { currentProjectId = null; document.querySelectorAll('.proj-item').forEach((el) => el.classList.remove('active')); }
+  if (window.innerWidth <= 760) $('#sidebar').classList.remove('open');
 }
 
 // ─── projects (sidebar) ───
@@ -97,58 +92,81 @@ async function loadProjects(selectId) {
   });
   if (selectId) selectProject(selectId);
 }
-
 function selectProject(id) {
   currentProjectId = id;
+  showView('projectView');
   document.querySelectorAll('.proj-item').forEach((el, i) => el.classList.toggle('active', projects[i] && projects[i].id === id));
-  const p = projects.find((x) => x.id === id);
-  if (!p) return;
-  $('#emptyState').style.display = 'none';
-  $('#projectView').style.display = 'block';
+  const p = projects.find((x) => x.id === id); if (!p) return;
   $('#pvName').textContent = p.name;
   $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`;
   switchTab('board');
-  if (window.innerWidth <= 760) $('#sidebar').classList.remove('open');
 }
-
 function switchTab(tab) {
-  currentTab = tab;
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
   ['board', 'plan', 'share'].forEach((t) => $(`#tab-${t}`).style.display = t === tab ? 'block' : 'none');
   if (tab === 'board') loadBoard();
   else if (tab === 'share') loadShare();
+  else if (tab === 'plan') renderPlanSuggestions();
 }
 document.querySelectorAll('.tab').forEach((t) => t.onclick = () => switchTab(t.dataset.tab));
 
 // ─── board ───
 async function loadBoard() {
-  let tasks = [];
-  try { tasks = await api(`/projects/${currentProjectId}/tasks`); } catch (e) { toast(e.message); }
+  try { boardTasks = await api(`/projects/${currentProjectId}/tasks`); } catch (e) { toast(e.message); boardTasks = []; }
+  const childCount = {};
+  boardTasks.forEach((t) => { if (t.parent_task_id) childCount[t.parent_task_id] = (childCount[t.parent_task_id] || 0) + 1; });
   const board = $('#board'); board.innerHTML = '';
   for (const col of STATUSES) {
-    const items = tasks.filter((t) => t.status === col.id);
+    const items = boardTasks.filter((t) => t.status === col.id);
     const el = document.createElement('div'); el.className = 'col';
     el.innerHTML = `<div class="col-head"><span class="dot ${col.id}"></span><span class="name">${col.name}</span><span class="count">${items.length}</span></div>`;
     if (!items.length) el.insertAdjacentHTML('beforeend', `<div class="col-empty">—</div>`);
-    items.forEach((t, i) => el.appendChild(card(t, i)));
+    items.forEach((t, i) => el.appendChild(card(t, i, childCount[t.id] || 0)));
     board.appendChild(el);
   }
 }
-function card(t, i) {
+function card(t, i, nChildren) {
   const el = document.createElement('div'); el.className = 'card'; el.style.animationDelay = (i * 0.03) + 's';
   const isAI = (t.created_by || '').startsWith('ai_auto');
   const ownerName = t.owner_user_id ? (userMap[t.owner_user_id] || '成员') : null;
-  const est = t.estimated_hours ? `<span class="est">${t.estimated_hours}h</span>` : '';
-  const ownerHtml = ownerName ? `<span class="owner"><span class="avatar">${initials(ownerName)}</span>${ownerName}</span>` : `<span>未认领</span>`;
-  el.innerHTML = `<div class="ctitle">${escapeHtml(t.title)}</div><div class="cmeta">${ownerHtml}${est}${isAI ? '<span class="ai-tag">AI</span>' : ''}</div><div class="actions"></div>`;
+  const [pcls, plabel] = PRIO[t.priority] || PRIO[1];
+  const bits = [];
+  if (ownerName) bits.push(`<span class="owner"><span class="avatar">${initials(ownerName)}</span>${escapeHtml(ownerName)}</span>`); else bits.push('<span>未认领</span>');
+  if (t.estimated_hours) bits.push(`<span class="est">${t.estimated_hours}h</span>`);
+  if (nChildren) bits.push(`<span class="subc">◧ ${nChildren} 子任务</span>`);
+  if (plabel) bits.push(`<span class="prio ${pcls}">${plabel}</span>`);
+  if (isAI) bits.push('<span class="ai-tag">AI</span>');
+  el.innerHTML = `<div class="ctitle">${escapeHtml(t.title)}</div>${t.description ? `<div class="cdesc">${escapeHtml(t.description)}</div>` : ''}<div class="cmeta">${bits.join('')}</div><div class="actions"></div>`;
   const actions = el.querySelector('.actions');
-  if (!t.owner_user_id) { const b = document.createElement('button'); b.textContent = '认领'; b.onclick = () => claim(t.id); actions.appendChild(b); }
-  (NEXT[t.status] || []).forEach(([to, label]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => move(t.id, to); actions.appendChild(b); });
+  const addBtn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; actions.appendChild(b); };
+  if (!t.owner_user_id) addBtn('认领', () => claim(t.id));
+  (NEXT[t.status] || []).forEach(([to, label]) => addBtn(label, () => move(t.id, to)));
+  el.onclick = () => openTaskDetail(t, nChildren);
   return el;
 }
-async function claim(id) { try { await api(`/tasks/${id}/claim`, { method: 'POST' }); toast('已认领'); loadBoard(); } catch (e) { toast(e.message); } }
+async function claim(id) { try { await api(`/tasks/${id}/claim`, { method: 'POST' }); toast('已认领'); loadBoard(); refreshProjMeta(); } catch (e) { toast(e.message); } }
 async function move(id, to) { try { await api(`/tasks/${id}`, { method: 'PATCH', body: { status: to } }); loadBoard(); refreshProjMeta(); } catch (e) { toast(e.message); } }
-async function refreshProjMeta() { try { const p = await api(`/projects/${currentProjectId}`); const idx = projects.findIndex((x) => x.id === p.id); if (idx >= 0) projects[idx] = p; $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`; } catch {} }
+async function refreshProjMeta() { try { const p = await api(`/projects/${currentProjectId}`); const idx = projects.findIndex((x) => x.id === p.id); if (idx >= 0) projects[idx] = p; $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`; const item = document.querySelectorAll('.proj-item')[idx]; if (item) item.querySelector('.pcount').textContent = p.task_count; } catch {} }
+
+// ─── task detail ───
+function openTaskDetail(t, nChildren) {
+  $('#tdStatus').textContent = STATUS_NAME[t.status] || t.status;
+  $('#tdTitle').textContent = t.title;
+  const owner = t.owner_user_id ? (userMap[t.owner_user_id] || '成员') : '未认领';
+  const children = boardTasks.filter((x) => x.parent_task_id === t.id);
+  const childHtml = children.length
+    ? `<div class="td-field"><div class="lbl">子任务 (${children.length})</div>${children.map((c) => `<div class="td-sub"><span class="st-status">${STATUS_NAME[c.status]}</span>${escapeHtml(c.title)}${c.estimated_hours ? ` · ${c.estimated_hours}h` : ''}</div>`).join('')}</div>` : '';
+  $('#tdBody').innerHTML = `
+    ${t.description ? `<div class="td-field"><div class="lbl">描述</div><div class="val">${escapeHtml(t.description)}</div></div>` : '<div class="td-field"><div class="lbl">描述</div><div class="val" style="color:var(--text-3)">（无）</div></div>'}
+    <div class="td-field"><div class="lbl">负责人</div><div class="val">${escapeHtml(owner)}</div></div>
+    <div class="td-field"><div class="lbl">优先级 · 估时</div><div class="val">${(PRIO[t.priority] || PRIO[1])[0]}${t.estimated_hours ? ` · ${t.estimated_hours}h` : ''}</div></div>
+    ${childHtml}`;
+  const foot = $('#tdFoot'); foot.innerHTML = '';
+  if (!t.owner_user_id) { const b = document.createElement('button'); b.className = 'btn btn-soft'; b.textContent = '认领'; b.onclick = async () => { await claim(t.id); $('#taskOverlay').classList.remove('show'); }; foot.appendChild(b); }
+  (NEXT[t.status] || []).forEach(([to, label]) => { const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = label; b.onclick = async () => { await move(t.id, to); $('#taskOverlay').classList.remove('show'); }; foot.appendChild(b); });
+  const close = document.createElement('button'); close.className = 'btn btn-primary'; close.textContent = '关闭'; close.onclick = () => $('#taskOverlay').classList.remove('show'); foot.appendChild(close);
+  $('#taskOverlay').classList.add('show');
+}
 
 // ─── share ───
 async function loadShare() {
@@ -156,52 +174,54 @@ async function loadShare() {
   let s; try { s = await api(`/projects/${currentProjectId}/share`); } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   const p = s.project, pct = Math.round(p.completion * 100);
   const chips = STATUSES.map((c) => `<span class="chip">${c.name} ${s.status_counts[c.id] || 0}</span>`).join('');
-  const byParent = {}; const roots = [];
+  const byParent = {}, roots = [];
   s.tasks.forEach((t) => { if (t.parent_task_id) (byParent[t.parent_task_id] = byParent[t.parent_task_id] || []).push(t); else roots.push(t); });
-  const taskRow = (t, child) => `<div class="share-task ${child ? 'child' : ''}"><span class="st-status">${t.status}</span><span>${escapeHtml(t.title)}</span>${t.owner_user_id ? `<span class="avatar" style="margin-left:auto">${initials(userMap[t.owner_user_id] || '·')}</span>` : ''}</div>`;
-  let flow = '';
-  roots.forEach((r) => { flow += taskRow(r, false); (byParent[r.id] || []).forEach((ch) => flow += taskRow(ch, true)); });
-  body.innerHTML = `
-    <div class="share-summary">
-      <div class="big">${pct}%</div><div class="ws-meta">完成度 · ${p.done_count}/${p.task_count} 个任务</div>
-      <div class="progress-bar"><i style="width:${pct}%"></i></div>
-      <div class="status-chips">${chips}</div>
-    </div>
-    <div class="section-title" style="font-size:15px;margin-bottom:10px">任务流程</div>
-    <div class="share-flow">${flow || '<div class="plan-hint">还没有任务。</div>'}</div>`;
+  const row = (t, child) => `<div class="share-task ${child ? 'child' : ''}"><span class="st-status">${STATUS_NAME[t.status]}</span><span>${escapeHtml(t.title)}</span>${t.owner_user_id ? `<span class="avatar" style="margin-left:auto">${initials(userMap[t.owner_user_id] || '·')}</span>` : ''}</div>`;
+  let flow = ''; roots.forEach((r) => { flow += row(r, false); (byParent[r.id] || []).forEach((ch) => flow += row(ch, true)); });
+  body.innerHTML = `<div class="share-summary"><div class="big">${pct}%</div><div class="ws-meta">完成度 · ${p.done_count}/${p.task_count} 个任务</div><div class="progress-bar"><i style="width:${pct}%"></i></div><div class="status-chips">${chips}</div></div><div class="section-title" style="font-size:15px;margin-bottom:10px">任务流程</div><div class="share-flow">${flow || '<div class="plan-hint">还没有任务。</div>'}</div>`;
 }
 
-// ─── decompose plan modal (shared by new-project & add-to-project) ───
-let currentSug = null, pendingProjectName = null;
-function openPlan(resp, { eyebrow, projectName }) {
-  currentSug = resp.suggestion_id; pendingProjectName = projectName || null;
-  const plan = resp.plan || {};
-  $('#planEyebrow').textContent = eyebrow || '拆解建议 · 待确认';
-  $('#planTitle').textContent = plan.title || '拆解结果';
-  $('#planRationale').textContent = plan.description || resp.message || '';
-  $('#planConf').textContent = (plan.subtasks || []).length + ' 个子任务';
-  const body = $('#planBody'); body.innerHTML = '';
-  (plan.subtasks || []).forEach((st, i) => {
-    const meta = [st.estimated_hours ? `${st.estimated_hours}h` : null, st.suggested_owner_hint ? `<span class="hint">建议：${escapeHtml(st.suggested_owner_hint)}</span>` : null].filter(Boolean).join(' · ');
-    const row = document.createElement('div'); row.className = 'subtask'; row.style.animationDelay = (i * 0.05) + 's';
-    row.innerHTML = `<div class="idx">${i + 1}</div><div class="st-body"><div class="st-title">${escapeHtml(st.title)}</div>${st.description ? `<div class="st-meta" style="margin-bottom:3px">${escapeHtml(st.description)}</div>` : ''}<div class="st-meta">${meta}</div></div>`;
-    body.appendChild(row);
-  });
-  $('#planOverlay').classList.add('show');
+// ─── suggestions (shared renderer) ───
+function sugCard(s, onDone) {
+  const ref = s.target_ref || {}; const text = ref.project_name || ref.title || (SUG_LABEL[s.suggestion_type] || s.suggestion_type);
+  const el = document.createElement('div'); el.className = 'sug';
+  const n = (ref.subtasks || []).length;
+  el.innerHTML = `<div class="stype">${SUG_LABEL[s.suggestion_type] || s.suggestion_type} · ${Math.round(s.confidence * 100)}%${n ? ` · ${n} 子任务` : ''}</div><div class="stext">${escapeHtml(text)}</div><div class="sration">${escapeHtml(s.rationale || '')}</div><div class="sact"><button class="btn btn-primary btn-sm">接受</button><button class="btn btn-ghost btn-sm">拒绝</button></div>`;
+  const [acc, rej] = el.querySelectorAll('button');
+  acc.onclick = async () => { try { const r = await api(`/suggestions/${s.id}/accept`, { method: 'POST' }); toast(`已创建 ${r.created_tasks.length} 个任务`); await loadProjects(); await loadSuggestions(); onDone && onDone(); } catch (e) { toast(e.message); } };
+  rej.onclick = async () => { try { await api(`/suggestions/${s.id}/reject`, { method: 'POST', body: { reason: 'rejected' } }); await loadSuggestions(); onDone && onDone(); } catch (e) { toast(e.message); } };
+  return el;
 }
-$('#planReject').onclick = async () => { $('#planOverlay').classList.remove('show'); if (currentSug) { try { await api(`/suggestions/${currentSug}/reject`, { method: 'POST', body: { reason: 'dismissed' } }); } catch {} } loadSuggestions(); };
-$('#planAccept').onclick = async () => {
-  if (!currentSug) return;
+async function loadSuggestions() {
+  try { allSuggestions = (await api('/suggestions?status=pending')).items || []; } catch { allSuggestions = []; }
+  const badge = $('#sugBadge'); badge.style.display = allSuggestions.length ? 'inline-grid' : 'none'; badge.textContent = allSuggestions.length;
+  if ($('#suggestionsView').style.display === 'block') renderSuggestionsView();
+  if ($('#tab-plan').style.display === 'block') renderPlanSuggestions();
+}
+function renderSuggestionsView() {
+  $('#sugMeta').textContent = `${allSuggestions.length} 条待处理`;
+  const body = $('#suggestionsBody'); body.innerHTML = '';
+  if (!allSuggestions.length) { body.innerHTML = '<div class="empty-hint">没有待处理的建议。</div>'; return; }
+  allSuggestions.forEach((s) => body.appendChild(sugCard(s, renderSuggestionsView)));
+}
+$('#navSuggestions').onclick = () => { showView('suggestionsView'); renderSuggestionsView(); };
+
+function renderPlanSuggestions() {
+  const mine = allSuggestions.filter((s) => (s.target_ref || {}).project_id === currentProjectId);
+  const body = $('#planSuggestions'); body.innerHTML = '';
+  if (!mine.length) { body.innerHTML = '<div class="plan-hint">本项目暂无待处理 AI 建议。补充拆解后会出现在这里。</div>'; return; }
+  mine.forEach((s) => body.appendChild(sugCard(s, () => { renderPlanSuggestions(); loadBoard(); refreshProjMeta(); })));
+}
+
+// ─── cost view ───
+$('#navCost').onclick = async () => {
+  showView('costView');
+  const body = $('#costBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
   try {
-    const r = await api(`/suggestions/${currentSug}/accept`, { method: 'POST' });
-    toast(`已创建 ${r.created_tasks.length} 个任务`);
-    $('#planOverlay').classList.remove('show');
-    const selName = pendingProjectName;
-    await loadProjects();
-    loadSuggestions();
-    if (selName) { const np = projects.find((p) => p.name === selName); if (np) selectProject(np.id); }
-    else if (currentProjectId) { selectProject(currentProjectId); }
-  } catch (e) { toast(e.message); }
+    const d = await api('/pm/llm-usage');
+    const rows = d.by_trigger.map((t) => `<div class="cost-row"><span class="ctrigger">${t.trigger}</span><span class="cnums">${t.calls} 次 · ${t.tokens_in + t.tokens_out} tokens</span><span class="ccost">$${t.cost_usd.toFixed(4)}</span></div>`).join('');
+    body.innerHTML = `<div class="cost-total"><div class="big">$${d.total_cost_usd.toFixed(4)}</div><div class="sub">${d.total_calls} 次调用 · ${d.total_tokens_in + d.total_tokens_out} tokens · 自 ${d.since.slice(0, 10)}</div></div><div class="cost-breakdown">${rows || '<div class="plan-hint">今日还没有 LLM 调用。</div>'}</div>`;
+  } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; }
 };
 
 // ─── new project ───
@@ -217,8 +237,6 @@ $('#npManualBtn').onclick = async () => {
   try { const p = await api('/projects', { method: 'POST', body: { name } }); $('#projectOverlay').classList.remove('show'); await loadProjects(p.id); toast('项目已创建'); }
   catch (e) { toast(e.message); }
 };
-
-// ─── plan tab: decompose into current project ───
 $('#planDecomposeBtn').onclick = async () => {
   const goal = $('#planGoal').value.trim(); if (!goal || !currentProjectId) { $('#planGoal').focus(); return; }
   const btn = $('#planDecomposeBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
@@ -226,24 +244,36 @@ $('#planDecomposeBtn').onclick = async () => {
   catch (e) { toast(e.message); } finally { btn.disabled = false; btn.textContent = '拆解'; }
 };
 
-// ─── suggestions drawer ───
-async function loadSuggestions() {
-  let items = []; try { items = (await api('/suggestions?status=pending')).items || []; } catch {}
-  const badge = $('#sugBadge'); badge.style.display = items.length ? 'inline-grid' : 'none'; badge.textContent = items.length;
-  const body = $('#drawerBody'); body.innerHTML = items.length ? '' : '<div class="empty-hint">没有待处理的建议。</div>';
-  const label = { decompose: '任务拆解', create_task: '创建任务', assign: '分配建议' };
-  items.forEach((s) => {
-    const ref = s.target_ref || {}; const text = ref.project_name || ref.title || (label[s.suggestion_type] || s.suggestion_type);
-    const el = document.createElement('div'); el.className = 'sug';
-    el.innerHTML = `<div class="stype">${label[s.suggestion_type] || s.suggestion_type} · ${Math.round(s.confidence * 100)}%</div><div class="stext">${escapeHtml(text)}</div><div class="sration">${escapeHtml(s.rationale || '')}</div><div class="sact"><button class="btn btn-primary btn-sm">接受</button><button class="btn btn-ghost btn-sm">拒绝</button></div>`;
-    const [acc, rej] = el.querySelectorAll('button');
-    acc.onclick = async () => { try { const r = await api(`/suggestions/${s.id}/accept`, { method: 'POST' }); toast(`已创建 ${r.created_tasks.length} 个任务`); await loadProjects(); loadSuggestions(); if (currentProjectId) selectProject(currentProjectId); } catch (e) { toast(e.message); } };
-    rej.onclick = async () => { try { await api(`/suggestions/${s.id}/reject`, { method: 'POST', body: { reason: 'rejected' } }); loadSuggestions(); } catch (e) { toast(e.message); } };
-    body.appendChild(el);
+// ─── plan confirm modal ───
+let currentSug = null, pendingProjectName = null;
+function openPlan(resp, { eyebrow, projectName }) {
+  currentSug = resp.suggestion_id; pendingProjectName = projectName || null;
+  const plan = resp.plan || {};
+  $('#planEyebrow').textContent = eyebrow || '拆解建议 · 待确认';
+  $('#planTitle').textContent = plan.title || '拆解结果';
+  $('#planRationale').textContent = plan.description || resp.message || '';
+  $('#planConf').textContent = (plan.subtasks || []).length + ' 个子任务';
+  const body = $('#planBody'); body.innerHTML = '';
+  (plan.subtasks || []).forEach((st, i) => {
+    const meta = [st.estimated_hours ? `${st.estimated_hours}h` : null, st.suggested_owner_hint ? `<span class="hint">建议：${escapeHtml(st.suggested_owner_hint)}</span>` : null].filter(Boolean).join(' · ');
+    const r = document.createElement('div'); r.className = 'subtask'; r.style.animationDelay = (i * 0.05) + 's';
+    r.innerHTML = `<div class="idx">${i + 1}</div><div class="st-body"><div class="st-title">${escapeHtml(st.title)}</div>${st.description ? `<div class="st-meta" style="margin-bottom:3px">${escapeHtml(st.description)}</div>` : ''}<div class="st-meta">${meta}</div></div>`;
+    body.appendChild(r);
   });
+  $('#planOverlay').classList.add('show');
 }
-$('#openDrawer').onclick = () => $('#drawer').classList.add('show');
-$('#closeDrawer').onclick = () => $('#drawer').classList.remove('show');
+$('#planReject').onclick = async () => { $('#planOverlay').classList.remove('show'); if (currentSug) { try { await api(`/suggestions/${currentSug}/reject`, { method: 'POST', body: { reason: 'dismissed' } }); } catch {} } loadSuggestions(); };
+$('#planAccept').onclick = async () => {
+  if (!currentSug) return;
+  try {
+    const r = await api(`/suggestions/${currentSug}/accept`, { method: 'POST' });
+    toast(`已创建 ${r.created_tasks.length} 个任务`); $('#planOverlay').classList.remove('show');
+    const selName = pendingProjectName;
+    await loadProjects(); await loadSuggestions();
+    if (selName) { const np = projects.find((p) => p.name === selName); if (np) selectProject(np.id); }
+    else if (currentProjectId) selectProject(currentProjectId);
+  } catch (e) { toast(e.message); }
+};
 
 // ─── chat ───
 function addMsg(role, text) { const m = document.createElement('div'); m.className = 'msg ' + role; m.textContent = text; $('#msgs').appendChild(m); $('#msgs').scrollTop = $('#msgs').scrollHeight; return m; }
@@ -263,7 +293,7 @@ function connectWS() {
   chatSocket = new WebSocket(`${proto}://${location.host}/ws/chat/${chatSession.id}`);
   chatSocket.onmessage = (ev) => {
     const d = JSON.parse(ev.data);
-    if (d.type === 'assistant_done') { removeTyping(); addMsg('assistant', d.content || ''); loadProjects(); loadSuggestions(); if (currentProjectId) refreshProjMeta(); }
+    if (d.type === 'assistant_done') { removeTyping(); addMsg('assistant', d.content || ''); loadProjects(); loadSuggestions(); if (currentProjectId) { loadBoard(); refreshProjMeta(); } }
     else if (d.type === 'error') { removeTyping(); addMsg('system', '出错：' + (d.message || '')); }
     else if (d.type === 'aborted') removeTyping();
   };
@@ -277,10 +307,10 @@ function sendChat() { const inp = $('#chatInput'); const text = inp.value.trim()
 $('#chatSend').onclick = sendChat;
 $('#chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
-// ─── responsive toggles ───
+// ─── responsive + textareas ───
 $('#navToggle').onclick = () => $('#sidebar').classList.toggle('open');
 $('#asstToggle').onclick = () => $('#assistant').classList.toggle('open');
 $('#collapseAsst').onclick = () => $('#assistant').classList.remove('open');
-$('#planGoal').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
+['#planGoal', '#npGoal'].forEach((sel) => { const e = $(sel); if (e) e.addEventListener('input', () => { e.style.height = 'auto'; e.style.height = e.scrollHeight + 'px'; }); });
 
 boot();
