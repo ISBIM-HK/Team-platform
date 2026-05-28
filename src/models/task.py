@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 from src.models.common import TaskPriority, TaskStatus, TimestampMixin, new_uuid, utcnow

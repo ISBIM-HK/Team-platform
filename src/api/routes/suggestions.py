@@ -8,7 +8,7 @@ Accept logic per suggestion_type:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -143,7 +143,7 @@ async def accept_suggestion(
         if not task or task.tenant_id != current_user.tenant_id:
             raise HTTPException(status_code=404, detail="Referenced task not found")
         task.owner_user_id = suggestion.target_user_id
-        task.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        task.updated_at = datetime.now(UTC).replace(tzinfo=None)
         session.add(task)
         await session.flush()
         created_task_ids.append(task.id)

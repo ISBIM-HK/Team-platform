@@ -3,7 +3,7 @@
 import secrets
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 from sqlmodel import Field, SQLModel
@@ -11,7 +11,7 @@ from sqlmodel import Field, SQLModel
 
 def utcnow() -> datetime:
     """Return naive UTC datetime (PostgreSQL TIMESTAMP WITHOUT TIME ZONE compatible)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def new_uuid() -> uuid.UUID:

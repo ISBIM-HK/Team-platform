@@ -10,8 +10,19 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.api.routes import (
-    auth, chat, contributions, decompose, health, integrations, pm, projects,
-    suggestions, tasks, tokens, users, ws_chat,
+    auth,
+    chat,
+    contributions,
+    decompose,
+    health,
+    integrations,
+    pm,
+    projects,
+    suggestions,
+    tasks,
+    tokens,
+    users,
+    ws_chat,
 )
 from src.core.config import get_settings
 

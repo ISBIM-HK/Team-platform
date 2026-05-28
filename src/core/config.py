@@ -4,6 +4,7 @@ Reads from environment / .env. Fail-fast on missing required values.
 """
 
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

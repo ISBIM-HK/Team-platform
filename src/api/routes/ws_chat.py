@@ -23,8 +23,8 @@ from starlette.websockets import WebSocketState
 
 from src.ai.assistant import AssistantDeps, chat_turn
 from src.ai.usage import RecordCtx
-from src.core.security import read_session_token
 from src.core.database import async_session_factory
+from src.core.security import read_session_token
 from src.models.common import ChatRole, LLMTrigger
 from src.repositories.chat_repo import ChatRepository
 from src.repositories.user_repo import UserRepository

@@ -4,8 +4,8 @@ import uuid
 from datetime import date as Date
 from datetime import datetime
 
-from sqlalchemy import Column, JSON
-from sqlmodel import Field, SQLModel
+from sqlalchemy import JSON, Column
+from sqlmodel import Field
 
 from src.models.common import ReportKind, TimestampMixin, new_uuid, utcnow
 

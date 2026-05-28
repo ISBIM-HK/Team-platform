@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
 
 from src.models.common import LLMStatus, LLMTrigger, TimestampMixin, new_uuid, utcnow
 

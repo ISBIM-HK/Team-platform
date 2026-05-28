@@ -10,10 +10,10 @@ from sqlalchemy import engine_from_config, pool
 # Add project root to sys.path so `src` is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from sqlmodel import SQLModel
+
 from src.core.config import get_settings
 from src.models import *  # noqa: F401,F403 — register all SQLModel tables
-
-from sqlmodel import SQLModel
 
 config = context.config
 settings = get_settings()

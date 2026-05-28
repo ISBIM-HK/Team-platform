@@ -1,7 +1,7 @@
 """AISuggestion repository."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,7 +61,7 @@ class SuggestionRepository:
     async def accept(self, suggestion: AISuggestion, user_id: uuid.UUID) -> AISuggestion:
         suggestion.status = SuggestionStatus.accepted
         suggestion.handled_by = user_id
-        suggestion.handled_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        suggestion.handled_at = datetime.now(UTC).replace(tzinfo=None)
         self.session.add(suggestion)
         await self.session.flush()
         await self.session.refresh(suggestion)
@@ -72,7 +72,7 @@ class SuggestionRepository:
     ) -> AISuggestion:
         suggestion.status = SuggestionStatus.rejected
         suggestion.handled_by = user_id
-        suggestion.handled_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        suggestion.handled_at = datetime.now(UTC).replace(tzinfo=None)
         suggestion.reject_reason = reason
         self.session.add(suggestion)
         await self.session.flush()

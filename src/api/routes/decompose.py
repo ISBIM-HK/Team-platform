@@ -3,9 +3,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.api.deps import CurrentUser, DBSession
 from src.ai.decompose import decompose_goal
 from src.ai.usage import RecordCtx
+from src.api.deps import CurrentUser, DBSession
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import LLMTrigger, SuggestionStatus, SuggestionType
 from src.repositories.suggestion_repo import SuggestionRepository

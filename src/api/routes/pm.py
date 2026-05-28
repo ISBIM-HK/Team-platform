@@ -1,6 +1,6 @@
 """PM-only observability routes."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -35,7 +35,7 @@ async def llm_usage(current_user: CurrentUser, session: DBSession):
     if not current_user.is_pm:
         raise HTTPException(status_code=403, detail="PM only")
 
-    since = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    since = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 
     stmt = select(
         LLMCall.triggered_by,

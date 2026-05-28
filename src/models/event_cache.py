@@ -3,8 +3,8 @@
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import Column, JSON, UniqueConstraint
-from sqlmodel import Field, SQLModel
+from sqlalchemy import JSON, Column, UniqueConstraint
+from sqlmodel import Field
 
 from src.models.common import EventSource, EventType, TimestampMixin, new_uuid, utcnow
 
