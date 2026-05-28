@@ -47,6 +47,20 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
+    async def count_open_by_owner(self, tenant_id: uuid.UUID, owner_id: uuid.UUID) -> int:
+        """Count a user's unfinished tasks (excludes done/archived) — used as dispatch load."""
+        stmt = (
+            select(func.count())
+            .select_from(Task)
+            .where(
+                Task.tenant_id == tenant_id,
+                Task.owner_user_id == owner_id,
+                Task.status.notin_([TaskStatus.done, TaskStatus.archived]),
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
     async def create(self, task: Task) -> Task:
         self.session.add(task)
         await self.session.flush()

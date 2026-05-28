@@ -2,11 +2,15 @@
 
 import uuid
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
+from src.ai.dispatch import suggest_assignment
 from src.api.deps import CurrentUser, DBSession
-from src.models.common import TaskStatus, utcnow
+from src.models.ai_suggestion import AISuggestion
+from src.models.common import SuggestionStatus, SuggestionType, TaskStatus, utcnow
 from src.models.task import Task
 from src.repositories.task_repo import TaskRepository
+from src.repositories.user_repo import UserRepository
 from src.schemas.task import (
     TaskCreate,
     TaskListResponse,
@@ -112,3 +116,61 @@ async def claim_task(task_id: uuid.UUID, current_user: CurrentUser, session: DBS
     if not task:
         raise HTTPException(status_code=409, detail="Task already claimed or not found")
     return TaskResponse.model_validate(task)
+
+
+class AssignSuggestResponse(BaseModel):
+    suggestion_id: str
+    suggested_user_id: str
+    suggested_user_name: str
+    rationale: str
+    confidence: float
+
+
+@router.post("/{task_id}/suggest-assignment", response_model=AssignSuggestResponse)
+async def suggest_task_assignment(task_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+    """PM-triggered AI dispatch: recommend an owner based on team load. Advisory (creates an assign suggestion)."""
+    if not current_user.is_pm:
+        raise HTTPException(status_code=403, detail="PM only")
+
+    task_repo = TaskRepository(session)
+    task = await task_repo.get_by_id(task_id)
+    if not task or task.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Build team context with per-member open-task load
+    members = await UserRepository(session).list_by_tenant(current_user.tenant_id)
+    member_ctx = []
+    by_id: dict[str, object] = {}
+    for m in members:
+        load = await task_repo.count_open_by_owner(current_user.tenant_id, m.id)
+        member_ctx.append({"user_id": str(m.id), "name": m.display_name, "open_tasks": load})
+        by_id[str(m.id)] = m
+    if not member_ctx:
+        raise HTTPException(status_code=422, detail="No team members to assign")
+
+    rec = await suggest_assignment(task.title, task.description, member_ctx)
+
+    # Guard against a hallucinated user_id
+    if rec.user_id not in by_id:
+        raise HTTPException(status_code=502, detail="AI returned an unknown user_id")
+
+    suggestion = AISuggestion(
+        tenant_id=current_user.tenant_id,
+        suggestion_type=SuggestionType.assign,
+        target_user_id=uuid.UUID(rec.user_id),
+        target_ref={"task_id": str(task_id)},
+        rationale=rec.rationale,
+        confidence=rec.confidence,
+        status=SuggestionStatus.pending,
+    )
+    session.add(suggestion)
+    await session.flush()
+    await session.refresh(suggestion)
+
+    return AssignSuggestResponse(
+        suggestion_id=str(suggestion.id),
+        suggested_user_id=rec.user_id,
+        suggested_user_name=rec.user_name,
+        rationale=rec.rationale,
+        confidence=rec.confidence,
+    )
