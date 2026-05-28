@@ -29,6 +29,14 @@ dev = [
     "mypy>=1.14",
     "pyyaml>=6.0",
 ]
+clients = [
+    "typer>=0.15",
+    "mcp>=1.2",
+]
+
+[project.scripts]
+teamplat = "src.clients.cli:main"
+teamplat-mcp = "src.clients.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=75"]
