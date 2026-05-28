@@ -54,6 +54,7 @@ async def chat_turn(
     user_message: str,
     history: list[dict],
     deps: AssistantDeps,
+    record=None,
 ) -> str:
     """Run one chat turn: user message → assistant response.
 
@@ -61,20 +62,28 @@ async def chat_turn(
         user_message: The user's input text.
         history: Previous messages as [{"role": "user"/"assistant", "content": "..."}].
         deps: Runtime dependencies (session, user_id, tenant_id).
+        record: Optional usage.RecordCtx; when given, logs the call to llm_calls.
 
     Returns:
         Assistant's response text.
     """
+    import time
+
     agent = get_assistant_agent()
 
     # Build message history + new user message
     messages = history + [{"role": "user", "content": user_message}]
 
+    t0 = time.monotonic()
     result = await agent.run(
         user_prompt=user_message,
         message_history=_convert_history(messages[:-1]),  # exclude last user msg (it's the prompt)
         deps=deps,
     )
+    if record is not None:
+        from src.ai.usage import record_run
+        await record_run(record, result, get_settings().llm_model_cheap,
+                         int((time.monotonic() - t0) * 1000))
     return result.output
 
 

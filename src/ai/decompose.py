@@ -67,6 +67,7 @@ async def decompose_goal(
     goal: str,
     team_context: str = "",
     model: str | None = None,
+    record=None,
 ) -> DecompositionPlan:
     """Decompose a goal into a plan with subtasks.
 
@@ -74,15 +75,23 @@ async def decompose_goal(
         goal: The high-level goal or requirement text.
         team_context: Optional context about team members, skills, current workload.
         model: Override model string; defaults to settings.llm_model_strong.
+        record: Optional usage.RecordCtx; when given, the LLM call is logged to llm_calls.
 
     Returns:
         DecompositionPlan with parent task info + list of subtasks.
     """
+    import time
+
+    model_name = model or get_settings().llm_model_strong
     agent = get_decompose_agent(model)
 
     user_prompt = f"## 目标\n{goal}"
     if team_context:
         user_prompt += f"\n\n## 团队上下文\n{team_context}"
 
+    t0 = time.monotonic()
     result = await agent.run(user_prompt)
+    if record is not None:
+        from src.ai.usage import record_run
+        await record_run(record, result, model_name, int((time.monotonic() - t0) * 1000))
     return result.output

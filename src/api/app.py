@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.api.routes import auth, chat, decompose, health, suggestions, tasks, users, ws_chat
+from src.api.routes import auth, chat, decompose, health, pm, suggestions, tasks, users, ws_chat
 from src.core.config import get_settings
 
 
@@ -59,4 +59,5 @@ app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(suggestions.router, prefix="/api/v1")
 app.include_router(decompose.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(pm.router, prefix="/api/v1")
 app.include_router(ws_chat.router)

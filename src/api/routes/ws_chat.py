@@ -22,9 +22,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from src.ai.assistant import AssistantDeps, chat_turn
+from src.ai.usage import RecordCtx
 from src.core.security import read_session_token
 from src.core.database import async_session_factory
-from src.models.common import ChatRole
+from src.models.common import ChatRole, LLMTrigger
 from src.repositories.chat_repo import ChatRepository
 from src.repositories.user_repo import UserRepository
 
@@ -139,9 +140,11 @@ async def _handle_user_message(
             tenant_id=user.tenant_id,
         )
 
-        # Call AI
+        # Call AI (record cost to llm_calls)
+        rec = RecordCtx(session=db, tenant_id=user.tenant_id, user_id=user.id,
+                        trigger=LLMTrigger.chat, triggered_by_id=session_id)
         try:
-            response_text = await chat_turn(content, history, deps)
+            response_text = await chat_turn(content, history, deps, record=rec)
         except Exception as e:
             await websocket.send_json({"type": "error", "message": f"AI error: {e}"})
             return

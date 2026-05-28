@@ -39,19 +39,28 @@ async def suggest_assignment(
     task_title: str,
     task_description: str,
     members: list[dict],
+    record=None,
 ) -> AssignmentSuggestion:
     """Recommend an assignee for a task.
 
     Args:
         task_title / task_description: the task to assign.
         members: [{"user_id": str, "name": str, "open_tasks": int}, ...]
+        record: Optional usage.RecordCtx; when given, logs the call to llm_calls.
 
     Returns:
         AssignmentSuggestion (user_id picked from members + rationale + confidence).
     """
+    import time
+
     prompt = (
         f"## 待分配任务\n标题：{task_title}\n描述：{task_description or '（无）'}\n\n"
         f"## 候选成员（含当前未完成任务数）\n{json.dumps(members, ensure_ascii=False, indent=2)}"
     )
+    t0 = time.monotonic()
     result = await get_dispatch_agent().run(prompt)
+    if record is not None:
+        from src.ai.usage import record_run
+        await record_run(record, result, get_settings().llm_model_strong,
+                         int((time.monotonic() - t0) * 1000))
     return result.output

@@ -1,14 +1,13 @@
 """Decomposition route — goal → AI plan → suggestion."""
 
-import uuid
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from src.api.deps import CurrentUser, DBSession
 from src.ai.decompose import decompose_goal
+from src.ai.usage import RecordCtx
 from src.models.ai_suggestion import AISuggestion
-from src.models.common import SuggestionStatus, SuggestionType
+from src.models.common import LLMTrigger, SuggestionStatus, SuggestionType
 from src.repositories.suggestion_repo import SuggestionRepository
 from src.repositories.user_repo import UserRepository
 
@@ -42,9 +41,11 @@ async def trigger_decomposition(
         team_lines.append(f"- {m.display_name}（{role}，ID: {m.id}）")
     team_context = "## 团队成员\n" + "\n".join(team_lines) if team_lines else ""
 
-    # Run AI decomposition
+    # Run AI decomposition (record cost to llm_calls)
+    rec = RecordCtx(session=session, tenant_id=current_user.tenant_id,
+                    user_id=current_user.id, trigger=LLMTrigger.dispatch)
     try:
-        plan = await decompose_goal(req.goal, team_context)
+        plan = await decompose_goal(req.goal, team_context, record=rec)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI decomposition failed: {e}")
 

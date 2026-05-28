@@ -5,9 +5,10 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from src.ai.dispatch import suggest_assignment
+from src.ai.usage import RecordCtx
 from src.api.deps import CurrentUser, DBSession
 from src.models.ai_suggestion import AISuggestion
-from src.models.common import SuggestionStatus, SuggestionType, TaskStatus, utcnow
+from src.models.common import LLMTrigger, SuggestionStatus, SuggestionType, TaskStatus, utcnow
 from src.models.task import Task
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
@@ -148,7 +149,12 @@ async def suggest_task_assignment(task_id: uuid.UUID, current_user: CurrentUser,
     if not member_ctx:
         raise HTTPException(status_code=422, detail="No team members to assign")
 
-    rec = await suggest_assignment(task.title, task.description, member_ctx)
+    rec = await suggest_assignment(
+        task.title, task.description, member_ctx,
+        record=RecordCtx(session=session, tenant_id=current_user.tenant_id,
+                         user_id=current_user.id, trigger=LLMTrigger.dispatch,
+                         triggered_by_id=task_id),
+    )
 
     # Guard against a hallucinated user_id
     if rec.user_id not in by_id:
