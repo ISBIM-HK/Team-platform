@@ -10,6 +10,7 @@ from src.api.deps import CurrentUser, DBSession
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import LLMTrigger, SuggestionStatus, SuggestionType, TaskStatus, utcnow
 from src.models.task import Task
+from src.repositories.project_repo import ProjectRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
 from src.schemas.task import (
@@ -55,8 +56,17 @@ async def list_tasks(
 @router.post("", response_model=TaskResponse, status_code=201)
 async def create_task(req: TaskCreate, current_user: CurrentUser, session: DBSession):
     repo = TaskRepository(session)
+    prepo = ProjectRepository(session)
+    if req.project_id:
+        proj = await prepo.get_by_id(req.project_id)
+        if not proj or proj.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=404, detail="Project not found")
+        project_id = proj.id
+    else:
+        project_id = (await prepo.ensure_inbox(current_user.tenant_id)).id
     task = Task(
         tenant_id=current_user.tenant_id,
+        project_id=project_id,
         title=req.title,
         description=req.description,
         priority=req.priority,

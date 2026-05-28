@@ -151,3 +151,8 @@ class ChatRole(str, Enum):
     assistant = "assistant"
     tool = "tool"
     system = "system"
+
+
+class ProjectStatus(str, Enum):
+    active = "active"
+    archived = "archived"

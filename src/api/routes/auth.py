@@ -7,6 +7,7 @@ from src.core.config import get_settings
 from src.core.security import create_session_token, hash_password, verify_password
 from src.models.tenant import Tenant
 from src.models.user import User
+from src.repositories.project_repo import ProjectRepository
 from src.repositories.tenant_repo import TenantRepository
 from src.repositories.user_repo import UserRepository
 from src.schemas.auth import (
@@ -44,6 +45,8 @@ async def register(req: RegisterRequest, session: DBSession):
     if not tenant:
         tenant = Tenant(name=settings.default_tenant_name)
         await tenant_repo.create(tenant)
+        # every tenant gets an "未分类" default project so tasks always have one
+        await ProjectRepository(session).ensure_inbox(tenant.id)
 
     user = User(
         tenant_id=tenant.id,

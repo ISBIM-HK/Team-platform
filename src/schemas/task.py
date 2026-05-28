@@ -12,6 +12,7 @@ class TaskCreate(BaseModel):
     title: str
     description: str = ""
     priority: TaskPriority = TaskPriority.normal
+    project_id: uuid.UUID | None = None  # None → tenant Inbox
     owner_user_id: uuid.UUID | None = None
     tags: list[str] | None = None
     due_date: date | None = None
@@ -32,6 +33,7 @@ class TaskUpdate(BaseModel):
 
 class TaskResponse(BaseModel):
     id: uuid.UUID
+    project_id: uuid.UUID
     title: str
     description: str
     status: TaskStatus

@@ -14,6 +14,7 @@ class Task(TimestampMixin, table=True):
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
+    project_id: uuid.UUID = Field(foreign_key="projects.id", index=True)
     title: str = Field(max_length=500)
     description: str = Field(default="")
     status: TaskStatus = Field(default=TaskStatus.todo, max_length=20, index=True)

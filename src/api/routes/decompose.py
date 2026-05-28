@@ -17,6 +17,8 @@ router = APIRouter(prefix="/decompose", tags=["decompose"])
 class DecomposeRequest(BaseModel):
     goal: str
     """The high-level goal or requirement to decompose."""
+    project_id: str | None = None
+    """If set, accept adds tasks to this existing project; else a new project is proposed."""
 
 
 class DecomposeResponse(BaseModel):
@@ -49,7 +51,8 @@ async def trigger_decomposition(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI decomposition failed: {e}")
 
-    # Build suggestion target_ref with the full plan
+    # Build suggestion target_ref with the full plan.
+    # project_id → accept adds to existing project; else project_name → new project (附录 G.3)
     target_ref = {
         "title": plan.title,
         "description": plan.description,
@@ -60,11 +63,16 @@ async def trigger_decomposition(
                 "description": st.description,
                 "priority": st.priority,
                 "estimated_hours": st.estimated_hours,
+                "suggested_owner_hint": st.suggested_owner_hint,
                 "owner_user_id": None,  # Will be filled when user accepts
             }
             for st in plan.subtasks
         ],
     }
+    if req.project_id:
+        target_ref["project_id"] = req.project_id   # add into existing project
+    else:
+        target_ref["project_name"] = plan.title     # accept creates a new project
 
     # Create suggestion
     suggestion_repo = SuggestionRepository(session)

@@ -13,8 +13,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
 from src.api.deps import CurrentUser, DBSession
-from src.models.common import SuggestionStatus, SuggestionType, TaskPriority, TaskStatus
+from src.models.common import SuggestionStatus, SuggestionType, TaskPriority
+from src.models.project import Project
 from src.models.task import Task
+from src.repositories.project_repo import ProjectRepository
 from src.repositories.suggestion_repo import SuggestionRepository
 from src.repositories.task_repo import TaskRepository
 from src.schemas.suggestion import (
@@ -67,12 +69,27 @@ async def accept_suggestion(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     task_repo = TaskRepository(session)
+    prepo = ProjectRepository(session)
     created_task_ids: list[uuid.UUID] = []
+
+    async def _resolve_project(ref: dict) -> uuid.UUID:
+        """ref.project_name → new project; ref.project_id → existing; else Inbox."""
+        if ref.get("project_name"):
+            proj = await prepo.create(Project(
+                tenant_id=current_user.tenant_id, name=ref["project_name"],
+                description=ref.get("description", ""), status="active",
+                created_by=current_user.id,
+            ))
+            return proj.id
+        if ref.get("project_id"):
+            return uuid.UUID(ref["project_id"])
+        return (await prepo.ensure_inbox(current_user.tenant_id)).id
 
     if suggestion.suggestion_type == SuggestionType.create_task:
         ref = suggestion.target_ref or {}
         task = Task(
             tenant_id=current_user.tenant_id,
+            project_id=await _resolve_project(ref),
             title=ref.get("title", "Untitled"),
             description=ref.get("description", ""),
             priority=TaskPriority(ref.get("priority", 1)),
@@ -86,9 +103,11 @@ async def accept_suggestion(
 
     elif suggestion.suggestion_type == SuggestionType.decompose:
         ref = suggestion.target_ref or {}
+        project_id = await _resolve_project(ref)
         # Create parent task
         parent = Task(
             tenant_id=current_user.tenant_id,
+            project_id=project_id,
             title=ref.get("title", "Decomposed Goal"),
             description=ref.get("description", ""),
             priority=TaskPriority(ref.get("priority", 1)),
@@ -103,6 +122,7 @@ async def accept_suggestion(
         for st in subtasks:
             child = Task(
                 tenant_id=current_user.tenant_id,
+                project_id=project_id,
                 title=st.get("title", "Subtask"),
                 description=st.get("description", ""),
                 priority=TaskPriority(st.get("priority", 1)),

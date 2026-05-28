@@ -33,6 +33,16 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_by_project(
+        self, project_id: uuid.UUID, status: TaskStatus | None = None
+    ) -> list[Task]:
+        stmt = select(Task).where(Task.project_id == project_id)
+        if status:
+            stmt = stmt.where(Task.status == status)
+        stmt = stmt.order_by(Task.created_at.desc())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def count_by_tenant(
         self,
         tenant_id: uuid.UUID,
