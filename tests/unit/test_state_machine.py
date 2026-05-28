@@ -21,8 +21,9 @@ def test_review_goes_back_or_done():
     assert VALID_TRANSITIONS[TaskStatus.review] == {TaskStatus.in_progress, TaskStatus.done}
 
 
-def test_archived_is_terminal():
-    assert VALID_TRANSITIONS[TaskStatus.archived] == set()
+def test_archived_can_be_restored():
+    # archived → todo (restore/reopen) so归档的任务能从折叠区恢复
+    assert VALID_TRANSITIONS[TaskStatus.archived] == {TaskStatus.todo}
 
 
 def test_every_status_has_a_rule():

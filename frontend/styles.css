@@ -392,6 +392,15 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .card .subc { font-size: 10.5px; color: var(--text-3); }
 .card .actions button { z-index: 2; }
 
+/* archived fold (kanban) */
+.arch-head { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding: 9px 12px; width: 100%; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--text-2); background: var(--bg-deep); transition: color .12s; }
+.arch-head:hover { color: var(--text); }
+.arch-head .arch-arrow { font-size: 10px; transition: transform .2s; }
+.arch-head.open .arch-arrow { transform: rotate(90deg); }
+.arch-body { display: none; gap: 9px; flex-wrap: wrap; padding: 12px 2px; }
+.arch-body.open { display: flex; }
+.arch-body .card { width: 240px; opacity: .8; }
+
 /* task detail modal */
 .td-field { margin-bottom: 12px; }
 .td-field .lbl { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }

@@ -29,7 +29,7 @@ VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.blocked: {TaskStatus.in_progress},
     TaskStatus.review: {TaskStatus.in_progress, TaskStatus.done},
     TaskStatus.done: {TaskStatus.archived},
-    TaskStatus.archived: set(),
+    TaskStatus.archived: {TaskStatus.todo},  # 恢复/重开 → 回看板待办
 }
 
 

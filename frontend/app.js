@@ -29,7 +29,7 @@ const STATUS_NAME = Object.fromEntries(STATUSES.map((s) => [s.id, s.name]));
 const PRIO = { 0: ['low', ''], 1: ['normal', ''], 2: ['high', '高'], 3: ['urgent', '紧急'] };
 const NEXT = {
   todo: [['in_progress', '开始']], in_progress: [['review', '提交评审'], ['done', '完成'], ['blocked', '阻塞']],
-  blocked: [['in_progress', '解除阻塞']], review: [['done', '完成'], ['in_progress', '退回']], done: [['archived', '归档']], archived: [],
+  blocked: [['in_progress', '解除阻塞']], review: [['done', '完成'], ['in_progress', '退回']], done: [['archived', '归档']], archived: [['todo', '恢复']],
 };
 const SUG_LABEL = { decompose: '任务拆解', create_task: '创建任务', assign: '分配建议' };
 
@@ -124,6 +124,18 @@ async function loadBoard() {
     items.forEach((t, i) => el.appendChild(card(t, i, childCount[t.id] || 0)));
     board.appendChild(el);
   }
+  renderArchivedFold(boardTasks.filter((t) => t.status === 'archived'), childCount);
+}
+function renderArchivedFold(archived, childCount) {
+  const fold = $('#archivedFold'); fold.innerHTML = '';
+  if (!archived.length) return;
+  const head = document.createElement('button');
+  head.className = 'arch-head';
+  head.innerHTML = `<span class="arch-arrow">▶</span>已归档 (${archived.length})`;
+  const body = document.createElement('div'); body.className = 'arch-body';
+  archived.forEach((t, i) => body.appendChild(card(t, i, childCount[t.id] || 0)));
+  head.onclick = () => { head.classList.toggle('open'); body.classList.toggle('open'); };
+  fold.appendChild(head); fold.appendChild(body);
 }
 function card(t, i, nChildren) {
   const el = document.createElement('div'); el.className = 'card'; el.style.animationDelay = (i * 0.03) + 's';
