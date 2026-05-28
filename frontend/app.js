@@ -282,9 +282,12 @@ async function initChat() {
     const sessions = (await api('/chat/sessions')).items || [];
     chatSession = sessions[0] || (await api('/chat/sessions', { method: 'POST', body: { title: '工作助手' } }));
     const msgs = (await api(`/chat/sessions/${chatSession.id}/messages`)).items || [];
-    $('#msgs').innerHTML = '';
-    if (!msgs.length) addMsg('assistant', `你好 ${me.display_name}，我是你的工作助手。可以让我查任务、记录工作，或帮你理清今天要做什么。`);
-    msgs.forEach((m) => addMsg(m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system'), m.content));
+    // render after a frame so the 3-pane grid has settled (avoids first-paint width race)
+    requestAnimationFrame(() => {
+      $('#msgs').innerHTML = '';
+      if (!msgs.length) addMsg('assistant', `你好 ${me.display_name}，我是你的工作助手。可以让我查任务、记录工作，或帮你理清今天要做什么。`);
+      msgs.forEach((m) => addMsg(m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system'), m.content));
+    });
     connectWS();
   } catch (e) { addMsg('system', '助手暂不可用：' + e.message); }
 }
