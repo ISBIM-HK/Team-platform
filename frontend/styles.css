@@ -356,7 +356,7 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 /* chat scroll + bubble wrapping */
 .assistant { display: flex; flex-direction: column; }
 .assistant .msgs { min-height: 0; flex: 1 1 auto; overflow-y: auto; align-items: flex-start; }
-.msg { word-break: break-word; overflow-wrap: anywhere; flex: 0 0 auto; width: fit-content; max-width: 88%; }
+.msg { word-break: break-word; flex: 0 0 auto; max-width: 88%; }
 .msg.user { align-self: flex-end; }
 .msg.system { align-self: center; }
 

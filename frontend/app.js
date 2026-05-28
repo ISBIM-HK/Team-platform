@@ -285,7 +285,7 @@ async function initChat() {
     // render after a frame so the 3-pane grid has settled (avoids first-paint width race)
     requestAnimationFrame(() => {
       $('#msgs').innerHTML = '';
-      if (!msgs.length) addMsg('assistant', '你好,我是你的工作助手。');
+      if (!msgs.length) addMsg('assistant', `你好 ${me.display_name}，我是你的工作助手。可以让我查任务、记录工作，或帮你理清今天要做什么。`);
       msgs.forEach((m) => addMsg(m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system'), m.content));
     });
     connectWS();
