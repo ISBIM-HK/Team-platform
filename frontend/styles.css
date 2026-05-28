@@ -355,10 +355,11 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 /* ═══ v2 UX fixes ═══ */
 /* chat scroll + bubble wrapping */
 .assistant { display: flex; flex-direction: column; }
-.assistant .msgs { min-height: 0; flex: 1 1 auto; overflow-y: auto; align-items: flex-start; }
-.msg { word-break: break-word; flex: 0 0 auto; max-width: 88%; }
-.msg.user { align-self: flex-end; }
-.msg.system { align-self: center; }
+.assistant .msgs { min-height: 0; flex: 1 1 auto; overflow-y: auto; align-items: flex-start; justify-content: flex-start; }
+/* high-specificity guard: bubbles hug content height, never stretch vertically */
+.assistant .msgs .msg { flex: 0 0 auto; align-self: flex-start; height: auto; max-width: 88%; word-break: break-word; }
+.assistant .msgs .msg.user { align-self: flex-end; }
+.assistant .msgs .msg.system { align-self: center; }
 
 /* sidebar: global nav pinned bottom-left */
 .side-global { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 12px; }
