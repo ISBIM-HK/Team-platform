@@ -4,12 +4,25 @@
 - itsdangerous for signed session cookies
 """
 
+import hashlib
+import secrets
+
 import bcrypt
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from src.core.config import get_settings
 
 SESSION_MAX_AGE_DAYS = 7
+
+
+def generate_pat() -> tuple[str, str]:
+    """Return (plaintext_token, sha256_hash). Plaintext shown to user once."""
+    raw = "pat_" + secrets.token_urlsafe(32)
+    return raw, hash_pat(raw)
+
+
+def hash_pat(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def hash_password(plain: str) -> str:

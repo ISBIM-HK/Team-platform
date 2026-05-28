@@ -76,6 +76,7 @@ class EventSource(str, Enum):
     wecom_mail = "wecom_mail"
     meeting = "meeting"
     user_chat = "user_chat"
+    agent = "agent"  # 本地 AI 投送(Claude Code/Cursor/Codex…)
 
 
 class EventType(str, Enum):

@@ -13,11 +13,12 @@ from src.models.audit_log import AuditLog
 from src.models.llm_call import LLMCall
 from src.models.scheduled_job import ScheduledJob
 from src.models.notification import Notification
+from src.models.pat import PersonalAccessToken
 
 __all__ = [
     "Tenant", "User", "Project", "Integration", "EventCache",
     "Task", "TaskHistory", "TaskLink",
     "ChatSession", "ChatMessage",
     "AISuggestion", "Report", "AuditLog", "LLMCall",
-    "ScheduledJob", "Notification",
+    "ScheduledJob", "Notification", "PersonalAccessToken",
 ]

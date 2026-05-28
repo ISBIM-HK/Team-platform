@@ -17,6 +17,7 @@ class EventCache(TimestampMixin, table=True):
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
+    project_id: uuid.UUID | None = Field(default=None, foreign_key="projects.id", index=True)
     source: EventSource = Field(max_length=50, index=True)
     event_type: EventType = Field(max_length=50)
     actor_user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
