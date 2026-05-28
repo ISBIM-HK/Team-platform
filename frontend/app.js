@@ -190,7 +190,30 @@ async function loadShare() {
   s.tasks.forEach((t) => { if (t.parent_task_id) (byParent[t.parent_task_id] = byParent[t.parent_task_id] || []).push(t); else roots.push(t); });
   const row = (t, child) => `<div class="share-task ${child ? 'child' : ''}"><span class="st-status">${STATUS_NAME[t.status]}</span><span>${escapeHtml(t.title)}</span>${t.owner_user_id ? `<span class="avatar" style="margin-left:auto">${initials(userMap[t.owner_user_id] || '·')}</span>` : ''}</div>`;
   let flow = ''; roots.forEach((r) => { flow += row(r, false); (byParent[r.id] || []).forEach((ch) => flow += row(ch, true)); });
-  body.innerHTML = `<div class="share-summary"><div class="big">${pct}%</div><div class="ws-meta">完成度 · ${p.done_count}/${p.task_count} 个任务</div><div class="progress-bar"><i style="width:${pct}%"></i></div><div class="status-chips">${chips}</div></div><div class="section-title" style="font-size:15px;margin-bottom:10px">任务流程</div><div class="share-flow">${flow || '<div class="plan-hint">还没有任务。</div>'}</div>`;
+  body.innerHTML = `<div class="share-summary"><div class="big">${pct}%</div><div class="ws-meta">完成度 · ${p.done_count}/${p.task_count} 个任务</div><div class="progress-bar"><i style="width:${pct}%"></i></div><div class="status-chips">${chips}</div></div>`
+    + `<div class="brief-card" id="briefCard"><div class="brief-head"><span class="section-title" style="font-size:15px">AI 进展简报</span><button class="btn btn-soft btn-sm" id="briefGenBtn">生成简报</button></div><div class="brief-body" id="briefBody"><div class="plan-hint">点「生成简报」让 AI 汇总任务进展与成员投送的工作痕迹。</div></div></div>`
+    + `<div class="section-title" style="font-size:15px;margin-bottom:10px">任务流程</div><div class="share-flow">${flow || '<div class="plan-hint">还没有任务。</div>'}</div>`;
+  $('#briefGenBtn').onclick = generateBrief;
+}
+
+async function generateBrief() {
+  const btn = $('#briefGenBtn'), bb = $('#briefBody');
+  btn.disabled = true; btn.textContent = '生成中…';
+  bb.innerHTML = '<div class="plan-hint">AI 正在汇总进展，请稍候…</div>';
+  try {
+    const b = await api(`/projects/${currentProjectId}/brief`, { method: 'POST' });
+    const list = (title, items, cls) => items && items.length
+      ? `<div class="brief-sec ${cls}"><div class="brief-sec-t">${title}</div><ul>${items.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : '';
+    bb.innerHTML = `<div class="brief-summary">${escapeHtml(b.summary)}</div>`
+      + list('进展亮点', b.highlights, 'hl')
+      + list('阻塞与风险', b.risks, 'risk')
+      + list('下一步', b.next_steps, 'next');
+    btn.textContent = '重新生成';
+  } catch (e) {
+    bb.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`;
+    btn.textContent = '生成简报';
+  }
+  btn.disabled = false;
 }
 
 // ─── suggestions (shared renderer) ───

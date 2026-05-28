@@ -321,6 +321,18 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .progress-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #e0a07f); border-radius: 999px; transition: width .5s ease; }
 .status-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .status-chips .chip { font-size: 12px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); padding: 4px 10px; border-radius: 999px; }
+.brief-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
+.brief-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.brief-head .section-title { margin-bottom: 0; }
+.brief-summary { font-size: 14px; line-height: 1.7; color: var(--text); margin-bottom: 14px; }
+.brief-sec { margin-top: 12px; }
+.brief-sec-t { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; letter-spacing: .02em; }
+.brief-sec ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.brief-sec li { font-size: 13px; line-height: 1.6; color: var(--text); }
+.brief-sec.risk .brief-sec-t { color: #b4654a; }
+.brief-sec.risk li::marker { color: #b4654a; }
+.brief-sec.hl li::marker { color: var(--accent); }
+
 .share-flow { display: flex; flex-direction: column; gap: 8px; }
 .share-task { display: flex; align-items: center; gap: 10px; padding: 9px 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; }
 .share-task.child { margin-left: 26px; }
