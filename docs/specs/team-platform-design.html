@@ -692,6 +692,7 @@ tr.risk-critical:hover { background: #f8514922; }
     <a href="#appendix-deploy">附录 C：部署 & 运维</a>
     <a href="#appendix-evolution">附录 D：A → B 演进</a>
     <a href="#appendix-testing">附录 E：测试策略</a>
+    <a href="#appendix-schedule">附录 F：调度与通知</a>
 
   </nav>
 </aside>
@@ -785,7 +786,7 @@ tr.risk-critical:hover { background: #f8514922; }
 <!-- § 三 -->
 <section id="er-diagram">
   <h2>§ 三、模块级 ER 图</h2>
-  <p class="section-desc">核心实体关系，覆盖用户、任务、事件缓存、AI 建议、聊天会话等 11 个实体。</p>
+  <p class="section-desc">核心实体关系，覆盖用户、任务、事件缓存、AI 建议、聊天会话、定时任务、通知、审计、LLM 调用等 15 个实体（12 可见框 + ChatMessage/TaskHistory/TaskLink 3 个子实体）。</p>
   <div id="er-diagram-container">
     <span>加载中…</span>
   </div>
@@ -800,7 +801,7 @@ tr.risk-critical:hover { background: #f8514922; }
 <!-- § 四 -->
 <section id="ddd">
   <h2>§ 四、DDD 聚合设计</h2>
-  <p class="section-desc">8 个聚合，点击展开查看字段详情和不变量。</p>
+  <p class="section-desc">12 个聚合，点击展开查看字段详情和不变量。</p>
 
   <!-- Agg 1: Tenant -->
   <div class="collapse-card">
@@ -845,7 +846,8 @@ tr.risk-critical:hover { background: #f8514922; }
             <tr><td>display_name</td><td>String</td><td>显示名称</td></tr>
             <tr><td>password_hash</td><td>String (nullable)</td><td>bcrypt 哈希，SSO 用户可空</td></tr>
             <tr><td>sso_subject</td><td>String (nullable)</td><td>OIDC sub</td></tr>
-            <tr><td>is_pm</td><td>Boolean</td><td>是否为 PM 角色</td></tr>
+            <tr><td>is_pm</td><td>Boolean</td><td>是否为 PM 角色（团队负载视图、对外简报、分发建议权限）</td></tr>
+            <tr><td>is_admin</td><td>Boolean</td><td>是否为系统管理员（建账号、授/撤 PM、查审计日志）</td></tr>
             <tr><td>capture_preferences</td><td>JSONB</td><td>隐私开关配置</td></tr>
             <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
             <tr><td>last_seen_at</td><td>DateTime (nullable)</td><td>最后活跃时间</td></tr>
@@ -854,7 +856,8 @@ tr.risk-critical:hover { background: #f8514922; }
         <ul class="invariant-list">
           <li>email 全局唯一</li>
           <li>用户必须属于一个 Tenant</li>
-          <li>is_pm 支持多 PM、轮换 PM</li>
+          <li>is_pm 支持多 PM、轮换 PM；is_admin 通常 ≤ 2 人（设计者本人 + 备份）</li>
+          <li>两者独立可叠加：admin 不自动是 PM，反之亦然</li>
         </ul>
       </div>
     </div>
@@ -873,6 +876,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
           <tbody>
             <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户（多租户隔离用）</td></tr>
             <tr><td>user_id</td><td>UUID</td><td>所属用户</td></tr>
             <tr><td>provider</td><td>Enum</td><td>gitlab / lark / dingtalk / notion / wecom_mail</td></tr>
             <tr><td>credential</td><td>JSONB (加密)</td><td>Fernet 加密的 OAuth/Token 凭据</td></tr>
@@ -920,7 +924,7 @@ tr.risk-critical:hover { background: #f8514922; }
         </table>
         <ul class="invariant-list">
           <li>append-only：任何修改通过新事件追加</li>
-          <li>(source, external_id) 唯一，防止重复入库</li>
+          <li>(tenant_id, source, external_id) 唯一——多租户下不同租户的 external_id 可能冲突（同一 GitLab 实例被多团队接入）</li>
           <li>过期事件自动清理，需要可从原系统重新拉取</li>
         </ul>
       </div>
@@ -957,8 +961,8 @@ tr.risk-critical:hover { background: #f8514922; }
           </tbody>
         </table>
         <ul class="invariant-list">
-          <li>状态流转必须遵循状态机：todo → in_progress → review → done，blocked 可从 in_progress 进入</li>
-          <li>owner_user_id 为空时任务处于"未认领"状态</li>
+          <li>状态流转必须遵循状态机：todo → in_progress → review → done；review 可退回 in_progress；blocked 仅从 in_progress 进入，仅能退回 in_progress（不直接跳 done，避免"绕过 review"）</li>
+          <li>owner_user_id 为空时任务处于"未认领"状态；pull 模式认领走乐观锁（UPDATE ... WHERE owner_user_id IS NULL，affected rows=0 时返 409 Conflict）</li>
           <li>created_by 为 'ai_auto' 时需有对应的 ai_suggestions 记录</li>
         </ul>
       </div>
@@ -980,6 +984,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <tbody>
             <tr><td colspan="3" style="color:var(--accent);font-weight:600;">ChatSession</td></tr>
             <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户（多租户隔离用）</td></tr>
             <tr><td>user_id</td><td>UUID</td><td>所属用户</td></tr>
             <tr><td>title</td><td>String (nullable)</td><td>AI 自动生成或用户修改</td></tr>
             <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
@@ -987,6 +992,7 @@ tr.risk-critical:hover { background: #f8514922; }
             <tr><td>archived_at</td><td>DateTime (nullable)</td><td>软归档时间</td></tr>
             <tr><td colspan="3" style="color:var(--accent);font-weight:600;padding-top:8px;">ChatMessage</td></tr>
             <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户（冗余字段，避免 JOIN ChatSession 查 tenant）</td></tr>
             <tr><td>session_id</td><td>UUID</td><td>所属会话</td></tr>
             <tr><td>role</td><td>Enum</td><td>user / assistant / tool / system</td></tr>
             <tr><td>content</td><td>Text</td><td>消息内容</td></tr>
@@ -1020,7 +1026,7 @@ tr.risk-critical:hover { background: #f8514922; }
           <tbody>
             <tr><td>id</td><td>UUID</td><td>主键</td></tr>
             <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
-            <tr><td>suggestion_type</td><td>Enum</td><td>create_task / assign / merge_duplicates / archive / flag_blocked</td></tr>
+            <tr><td>suggestion_type</td><td>Enum</td><td>create_task / decompose / assign / merge_duplicates / archive / flag_blocked</td></tr>
             <tr><td>target_user_id</td><td>UUID (nullable)</td><td>建议指向的用户</td></tr>
             <tr><td>target_ref</td><td>JSONB</td><td>涉及的 task_id / user_id 等</td></tr>
             <tr><td>rationale</td><td>Text (required)</td><td>AI 给出的理由</td></tr>
@@ -1029,13 +1035,14 @@ tr.risk-critical:hover { background: #f8514922; }
             <tr><td>status</td><td>Enum</td><td>pending / accepted / rejected / expired</td></tr>
             <tr><td>handled_by</td><td>UUID (nullable)</td><td>处理人</td></tr>
             <tr><td>handled_at</td><td>DateTime (nullable)</td><td>处理时间</td></tr>
+            <tr><td>reject_reason</td><td>Text (nullable)</td><td>用户拒绝时填写的原因（自由文本 + 可选枚举如 'wrong_owner' / 'duplicate' / 'not_a_task'），用于 prompt 优化回路</td></tr>
             <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
           </tbody>
         </table>
         <ul class="invariant-list">
           <li>confidence &lt; 0.6 的建议不展示给用户</li>
           <li>AI 不直接修改 Kanban，所有产出都生成 ai_suggestions</li>
-          <li>accepted 后执行实际操作，rejected 记录原因供 prompt 优化</li>
+          <li>accepted 后执行实际操作；rejected 时 reject_reason 必填——每周分析 reject 模式 → 补充 AI 评估案例 → 改 prompt（参见附录 E.5）</li>
         </ul>
       </div>
     </div>
@@ -1072,9 +1079,6 @@ tr.risk-critical:hover { background: #f8514922; }
       </div>
     </div>
   </div>
-
-</section>
-
 
   <!-- Agg 9: AuditLog -->
   <div class="collapse-card">
@@ -1143,10 +1147,83 @@ tr.risk-critical:hover { background: #f8514922; }
     </div>
   </div>
 
+  <!-- Agg 11: ScheduledJob -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">ScheduledJob（定时任务）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">调度器的唯一真相源——循环任务（日/周报 cron）与一次性任务（提醒、开会通知）都是它的行。</p>
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>job_type</td><td>Enum</td><td>daily_report / weekly_report / reminder / meeting_notice / custom</td></tr>
+            <tr><td>schedule</td><td>String</td><td>cron 表达式（循环）或 ISO 时间戳（一次性）</td></tr>
+            <tr><td>target_ref</td><td>JSONB</td><td>作用对象：user_id / task_id / 提醒文本等</td></tr>
+            <tr><td>created_by</td><td>UUID</td><td>创建人（用户或系统）</td></tr>
+            <tr><td>enabled</td><td>Boolean</td><td>是否启用</td></tr>
+            <tr><td>last_run_at</td><td>DateTime (nullable)</td><td>最近一次执行时间</td></tr>
+            <tr><td>next_run_at</td><td>DateTime (nullable)</td><td>下次触发时间（调度器算）</td></tr>
+            <tr><td>last_status</td><td>Enum</td><td>ok / error / skipped</td></tr>
+            <tr><td>consecutive_failures</td><td>Int</td><td>连续失败次数，达阈值告警</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>进程内调度器（APScheduler）读本表注册触发，不是另起常驻进程</li>
+          <li>一次性任务（reminder / meeting_notice）执行后 enabled=False</li>
+          <li>job 触发只产出 Notification / Report，不直接改 Kanban（仍走 ai_suggestions）</li>
+          <li>提醒 = job_type=reminder 的一次性任务，不单独建表</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agg 12: Notification -->
+  <div class="collapse-card">
+    <div class="collapse-header" onclick="toggleCollapse(this)">
+      <span class="arrow">▶</span>
+      <span class="agg-name">Notification（通知）</span>
+      <span class="agg-type">聚合根</span>
+    </div>
+    <div class="collapse-body">
+      <div class="collapse-body-inner">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">投递与收件箱——ScheduledJob 触发后、或 webhook 事件（被 @ / PR 被 review）产生，记已读状态并可外推飞书/钉钉。</p>
+        <table class="agg-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>UUID</td><td>主键</td></tr>
+            <tr><td>tenant_id</td><td>UUID</td><td>所属租户</td></tr>
+            <tr><td>recipient_user_id</td><td>UUID</td><td>接收用户</td></tr>
+            <tr><td>kind</td><td>Enum</td><td>reminder / meeting_notice / report_ready / mentioned / pr_reviewed / system</td></tr>
+            <tr><td>title</td><td>String</td><td>通知标题</td></tr>
+            <tr><td>body</td><td>Text</td><td>通知正文</td></tr>
+            <tr><td>source_ref</td><td>JSONB (nullable)</td><td>来源：scheduled_job_id / task_id / event_id 等</td></tr>
+            <tr><td>read_at</td><td>DateTime (nullable)</td><td>已读时间，null=未读</td></tr>
+            <tr><td>pushed_channels</td><td>JSONB</td><td>已外推的通道（如 ["lark"]），用于去重</td></tr>
+            <tr><td>created_at</td><td>DateTime</td><td>创建时间</td></tr>
+          </tbody>
+        </table>
+        <ul class="invariant-list">
+          <li>应用内 inbox 与外部 webhook 推送共用本表，pushed_channels 防重复推送</li>
+          <li>webhook 即时事件（被 @ / PR review）直接入 Notification，<strong>不入 events_cache 主流程</strong>（呼应附录 A 按需拉取边界）</li>
+          <li>通知仅接收者可见，PM 不能看别人的通知</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</section>
+
 <!-- § 五 -->
 <section id="commands-events">
   <h2>§ 五、命令与领域事件</h2>
-  <p class="section-desc">8 个 AI 命令触发点 + 对应的领域事件，确保触发 → Command → Domain Event 三层映射完整。</p>
+  <p class="section-desc">9 个 AI 命令触发点 + 对应的领域事件，确保触发 → Command → Domain Event 三层映射完整。</p>
 
   <h3>5.1 命令表</h3>
   <div class="table-wrap">
@@ -1154,13 +1231,14 @@ tr.risk-critical:hover { background: #f8514922; }
     <thead><tr><th>#</th><th>命令</th><th>触发条件</th><th>输入</th><th>输出</th><th>模型</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>事件归一化</td><td>报告/对话/看板请求时</td><td>一批 raw events</td><td>list[ActivityItem]</td><td>Haiku 4.5 / GPT-4o-mini</td></tr>
-      <tr><td>2</td><td>任务抽取</td><td>归一化后顺带</td><td>activity item</td><td>TaskSuggestion?（可空）</td><td>同上</td></tr>
-      <tr><td>3</td><td>重复任务检测</td><td>抽到新任务时</td><td>新任务 + 现有任务</td><td>DuplicateMatch?</td><td>同上 + embedding 预筛</td></tr>
-      <tr><td>4</td><td>日报生成</td><td>每天 18:00 cron + 手动</td><td>当天 activities</td><td>DailyReport</td><td>Sonnet 4.5</td></tr>
-      <tr><td>5</td><td>周报生成</td><td>每周五 17:00 cron + 手动</td><td>本周 daily reports</td><td>WeeklyReport</td><td>Sonnet 4.5</td></tr>
-      <tr><td>6</td><td>智能分发建议</td><td>PM 点击"AI 推荐"</td><td>任务 + 团队负载/专长</td><td>list[AssignmentSuggestion]</td><td>Sonnet 4.5</td></tr>
-      <tr><td>7</td><td>PM 对外汇总</td><td>PM 手动触发</td><td>多周报 + 关键任务</td><td>ExecutiveBrief</td><td>Sonnet 4.5</td></tr>
-      <tr><td>8</td><td>个人 AI 助手</td><td>用户开聊</td><td>多轮 + 工具</td><td>多轮 + tool_calls</td><td>Sonnet 4.5</td></tr>
+      <tr><td>2</td><td>任务抽取（回溯式）</td><td>归一化后顺带</td><td>activity item（已发生的活动）</td><td>TaskSuggestion?（可空）</td><td>同上</td></tr>
+      <tr><td>3</td><td><strong>任务拆解 + 分配建议（主动式）</strong></td><td>用户/PM 给定目标或需求</td><td>目标文本 + 团队花名册/负载 + 现有任务</td><td>DecompositionPlan（list[SubtaskSuggestion]，每条带 建议负责人 + 理由 + 估时）</td><td>Sonnet 4.5</td></tr>
+      <tr><td>4</td><td>重复任务检测</td><td>抽到/拆出新任务时</td><td>新任务 + 现有任务</td><td>DuplicateMatch?</td><td>同上 + embedding 预筛</td></tr>
+      <tr><td>5</td><td>日报生成</td><td>每天 18:00 cron + 手动</td><td>当天 activities</td><td>DailyReport</td><td>Sonnet 4.5</td></tr>
+      <tr><td>6</td><td>周报生成</td><td>每周五 17:00 cron + 手动</td><td>本周 daily reports</td><td>WeeklyReport</td><td>Sonnet 4.5</td></tr>
+      <tr><td>7</td><td>智能分发建议（单任务）</td><td>PM 在<strong>已存在的未认领</strong>任务上点"AI 推荐"</td><td>该任务 + 团队负载/专长</td><td>list[AssignmentSuggestion]</td><td>Sonnet 4.5</td></tr>
+      <tr><td>8</td><td>PM 对外汇总</td><td>PM 手动触发</td><td>多周报 + 关键任务</td><td>ExecutiveBrief</td><td>Sonnet 4.5</td></tr>
+      <tr><td>9</td><td>个人 AI 助手</td><td>用户开聊</td><td>多轮 + 工具</td><td>多轮 + tool_calls</td><td>Sonnet 4.5</td></tr>
     </tbody>
   </table>
   </div>
@@ -1175,9 +1253,12 @@ tr.risk-critical:hover { background: #f8514922; }
       <tr><td>DuplicateDetected</td><td>EventCache</td><td>AiSuggestion</td><td>检测到疑似重复任务</td></tr>
       <tr><td>DailyReportGenerated</td><td>Report</td><td>User, PM</td><td>日报已生成可供查看</td></tr>
       <tr><td>WeeklyReportGenerated</td><td>Report</td><td>User, PM</td><td>周报已生成可供查看</td></tr>
+      <tr><td>TasksDecomposed</td><td>AiSuggestion</td><td>User/PM, Task Aggregate</td><td>目标被拆解为子任务建议（每条含建议负责人），accept 后落地为父任务 + 子任务</td></tr>
       <tr><td>AssignmentSuggested</td><td>AiSuggestion</td><td>PM</td><td>AI 建议任务分配方案</td></tr>
       <tr><td>ExecBriefGenerated</td><td>Report</td><td>PM</td><td>对外简报已生成</td></tr>
       <tr><td>ManualWorkLogged</td><td>EventCache</td><td>TaskExtractor</td><td>用户通过助手手动登记工作内容</td></tr>
+      <tr><td>ScheduledJobFired</td><td>ScheduledJob</td><td>ReportGenerator, Notification</td><td>定时任务到点触发，分派给对应 handler（出报告 / 发提醒 / 发会议通知）</td></tr>
+      <tr><td>NotificationCreated</td><td>Notification</td><td>User（收件箱）, 飞书/钉钉 webhook</td><td>通知产生，入应用内 inbox 并按需外推</td></tr>
     </tbody>
   </table>
   </div>
@@ -1206,6 +1287,8 @@ tr.risk-critical:hover { background: #f8514922; }
       <tr><td>chat_sessions</td><td>仅自己</td><td>仅自己</td><td><span class="cross">✗</span> PM 也不能看别人 chat</td></tr>
       <tr><td>integrations</td><td>仅自己</td><td>仅自己</td><td><span class="cross">✗</span></td></tr>
       <tr><td>reports</td><td>自己日报 + 全队周报</td><td><span class="cross">✗</span></td><td><span class="check">✓</span> 全部</td></tr>
+      <tr><td>scheduled_jobs</td><td>仅自己创建的</td><td>仅自己创建的</td><td><span class="check">✓</span> 团队级 cron（日/周报）可管</td></tr>
+      <tr><td>notifications</td><td>仅发给自己的</td><td>标记已读</td><td><span class="cross">✗</span> PM 也不能看别人的通知</td></tr>
     </tbody>
   </table>
   </div>
@@ -1234,11 +1317,21 @@ tr.risk-critical:hover { background: #f8514922; }
   <h3>6.4 计算规则</h3>
   <div class="code-block">
     <button class="copy-btn" onclick="copyCode(this)">复制</button>
-    <pre><code># 每日 LLM Token 预算（每人，按 token 数量计，非价格）
-DAILY_TOKEN_BUDGET_PER_USER = 200_000  tokens/天/人
+    <pre><code># 成本预算分两类，互不挤占（避免对话失控拖死批处理）
 
-# 每月硬上限（团队级，按美元计）
+# 1) 批处理预算（cron 驱动：日报/周报/归一化/任务抽取）
+BATCH_BUDGET_PER_USER_PER_DAY = 60_000  tokens/天/人
+  # 估算：日报 ~40K + 归一化/抽取 ~15K + 周报摊薄 ~5K（Sonnet 4.5 主，Haiku 4.5 辅）
+  # → 团队 6 人 × $0.30/天 ≈ $54/月
+
+# 2) 对话预算（用户驱动：个人 AI 助手）
+CHAT_BUDGET_PER_USER_PER_DAY = 80_000  tokens/天/人（软上限）
+  # Sonnet 4.5 主，按需调 Haiku
+  # → 团队 6 人 × $0.40/天 ≈ $72/月（全员重度对话上限）
+
+# 3) 团队月度硬顶（覆盖两类总和的天花板）
 MONTHLY_HARD_CAP_USD = 500  USD/月
+  # 预估实际消耗 ≈ $130/月，留 ~4x 余量给突发场景
 
 # AI 建议置信度阈值
 if confidence &lt; 0.6 → 不展示给用户
@@ -1250,14 +1343,16 @@ expires_at = ingested_at + INTERVAL '90 days'
 # 按需拉取缓存窗口
 cache_ttl = 5 minutes per (user_id, time_window)
 
-# 超预算降级策略（在 llm_calls 中累计 token → 算价）
-if daily_tokens_used >= 200,000 → 降级模型（Sonnet → Haiku）
-if monthly_cost_usd    >= 500     → 暂停非必要 AI + 保留个人助手</code></pre>
+# 降级策略（在 llm_calls 中按 triggered_by 分桶累计）
+if user_batch_tokens_today  >= BATCH_BUDGET  → Sonnet → Haiku，影响该用户当天后续批处理
+if user_chat_tokens_today   >= CHAT_BUDGET   → Sonnet → Haiku，仅影响该用户对话
+if team_monthly_cost_usd    >= 500           → 暂停非必要批处理（周报顺延次日）；个人助手保留</code></pre>
   </div>
 
   <h3>6.5 业务规则汇总</h3>
   <ol class="rules-list">
     <li><strong>AI 不直接修改 Kanban</strong> <span class="rule-desc">所有 AI 产出都生成 ai_suggestions，等用户 accept/reject。半年观察期后再讨论自动通道。</span></li>
+    <li><strong>拆解与分配都只建议、不强制</strong> <span class="rule-desc">任务拆解（目标→子任务）与分配建议（建议负责人）都走 ai_suggestions，人确认才落地——保留扁平 pull 模式（谁有空谁接），AI 不自动指派、不替人决策。这是与被否的"中心化派活"方案的根本区别。</span></li>
     <li><strong>低置信度过滤</strong> <span class="rule-desc">confidence &lt; 0.6 的建议不展示给用户，减少噪音。</span></li>
     <li><strong>事件缓存 append-only</strong> <span class="rule-desc">events_cache 只追加不修改，TTL 90 天自动清理。</span></li>
     <li><strong>凭据加密存储</strong> <span class="rule-desc">第三方 token 用 Fernet 对称加密，主密钥 CRYPTO_KEY 从环境变量读，不入库不入仓库。</span></li>
@@ -1273,7 +1368,7 @@ if monthly_cost_usd    >= 500     → 暂停非必要 AI + 保留个人助手</c
 <!-- § 七 -->
 <section id="mvp">
   <h2>§ 七、MVP 分期计划</h2>
-  <p class="section-desc">按"先验证 → 再扩功能"，每阶段独立可上线试用。总计 3~4 个月（业余）/ 5~7 周（全职）。</p>
+  <p class="section-desc">产品重心：<strong>AI 拆解 + 分发任务</strong>为核心,捕获→报告为支撑。P1/P2 先验证核心引擎(拆解质量 + 分发采纳),报告自动化降到 P3。每阶段独立可上线试用,总计约 3~4 个月（业余）/ 5~7 周（全职）。</p>
 
   <h3>7.1 阶段时间线</h3>
   <div class="timeline">
@@ -1284,27 +1379,27 @@ if monthly_cost_usd    >= 500     → 暂停非必要 AI + 保留个人助手</c
       <div class="phase-time">3~5 天</div>
     </div>
     <div class="timeline-card">
-      <div class="phase-label">P1 · 核心可用</div>
-      <div class="phase-name">1 人能用</div>
-      <div class="phase-deliver">任务 CRUD / 助手基础工具 / GitLab 集成 / 手动日报生成</div>
-      <div class="phase-time">1.5~2 周</div>
-    </div>
-    <div class="timeline-card">
-      <div class="phase-label">P2 · 团队可用</div>
-      <div class="phase-name">6 人能用</div>
-      <div class="phase-deliver">多用户 / 看板共享 / 飞书或钉钉接入 / AI 自动日报 / ai_suggestions accept/reject UI</div>
+      <div class="phase-label">P1 · 核心引擎</div>
+      <div class="phase-name">拆解+分发跑通（1 人验证）</div>
+      <div class="phase-deliver">任务 CRUD / <strong>任务拆解 pipeline（目标→子任务+建议负责人+估时）</strong> / ai_suggestions accept/reject UI / 助手基础工具</div>
       <div class="phase-time">2~3 周</div>
     </div>
     <div class="timeline-card">
-      <div class="phase-label">P3 · PM 价值</div>
-      <div class="phase-name">PM 真受益</div>
-      <div class="phase-deliver">周报自动 / 智能分发建议 / 团队负载视图 / 重复任务检测</div>
+      <div class="phase-label">P2 · 团队协作</div>
+      <div class="phase-name">6 人 + 分发闭环</div>
+      <div class="phase-deliver">多用户 / 看板共享 / <strong>未认领任务 AI 分发建议 + pull 认领</strong> / 团队负载视图 / GitLab 集成（给拆解/分发提供"谁在忙什么"上下文）</div>
+      <div class="phase-time">2~3 周</div>
+    </div>
+    <div class="timeline-card">
+      <div class="phase-label">P3 · 报告自动化</div>
+      <div class="phase-name">捕获 → 日/周报</div>
+      <div class="phase-deliver">AI 自动日报 / 自动周报 / 重复任务检测 / 飞书或钉钉接入</div>
       <div class="phase-time">2 周</div>
     </div>
     <div class="timeline-card">
       <div class="phase-label">P4 · 完善</div>
       <div class="phase-name">试用稳定</div>
-      <div class="phase-deliver">剩余集成 / 会议纪要 / capture preferences UI / 通知 webhook</div>
+      <div class="phase-deliver">剩余集成 / 会议纪要 / 调度通知（提醒/会议通知） / capture preferences UI / PM 对外汇总</div>
       <div class="phase-time">2~3 周</div>
     </div>
     <div class="timeline-card">
@@ -1321,10 +1416,10 @@ if monthly_cost_usd    >= 500     → 暂停非必要 AI + 保留个人助手</c
     <thead><tr><th>阶段</th><th>不达成绝不上</th></tr></thead>
     <tbody>
       <tr><td><strong>P0</strong></td><td>干净机器 <code>make setup && make dev</code> 一次成功 / 能登录 / Alembic 正常 / /health 返 200</td></tr>
-      <tr><td><strong>P1</strong></td><td>用户能：创建任务、改状态、跟助手对话让它建任务、连 GitLab 看到 commit 摘要、手动生成今日日报</td></tr>
-      <tr><td><strong>P2</strong></td><td>6 人同时在线无卡 / 后台定时跑出日报无错 / ≥ 5 个 ai_suggestions 被实际处理 / 一周自动捕获率 > 50%</td></tr>
-      <tr><td><strong>P3</strong></td><td>≥ 2 期自动周报质量过关 / 智能分发被采纳率 > 30%</td></tr>
-      <tr><td><strong>P4</strong></td><td>6 人中 ≥ 4 人主动连接 ≥ 3 个集成 / 通知到达率 > 95%</td></tr>
+      <tr><td><strong>P1</strong></td><td>用户给一个目标 → AI 拆出子任务（带建议负责人+估时）→ accept 落地为父+子任务；<strong>喂 ≥ 5 个真实历史目标,拆解质量人工判定过关</strong>（子任务可落地、非"设计/开发/测试"式废话堆砌、估时合理）</td></tr>
+      <tr><td><strong>P2</strong></td><td>6 人同时在线无卡 / <strong>未认领任务 AI 分发建议采纳率 > 30%</strong> / 拆出的子任务被 pull 认领率有正向信号 / GitLab 活动喂入分发上下文生效</td></tr>
+      <tr><td><strong>P3</strong></td><td>AI 自动日报质量过关 / ≥ 2 期自动周报过关 / 一周自动捕获率 > 50%</td></tr>
+      <tr><td><strong>P4</strong></td><td>6 人中 ≥ 4 人主动连接 ≥ 3 个集成 / 提醒/会议通知到达率 > 95%</td></tr>
       <tr><td><strong>P5</strong></td><td>第二个团队（≥ 3 人）独立 tenant 跑通 / SSO 一次成功</td></tr>
     </tbody>
   </table>
@@ -1353,7 +1448,7 @@ if monthly_cost_usd    >= 500     → 暂停非必要 AI + 保留个人助手</c
   <table class="data-table sortable">
     <thead><tr><th>#</th><th>风险</th><th>概率</th><th>影响</th><th>缓解措施</th></tr></thead>
     <tbody>
-      <tr><td>R1</td><td>LLM 摘要/抽取质量不达预期，团队不信任</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-high">高</span></td><td>AI 评估集 + 建议不直接执行 + accept/reject 跟踪 + 用 Sonnet 不省钱</td></tr>
+      <tr><td>R1</td><td>LLM <strong>拆解/分发</strong>及摘要/抽取质量不达预期，团队不信任（拆解出废话子任务、派错人）</td><td><span class="pill pill-high">高</span></td><td><span class="pill pill-high">高</span></td><td>AI 评估集（P1 即覆盖拆解质量）+ 建议不直接执行 + accept/reject + reject_reason 回路 + 用 Sonnet 不省钱</td></tr>
       <tr><td>R2</td><td>LLM API 成本失控</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-med">中</span></td><td>预算+硬上限 + 缓存 + 模型分层 + 每月看账单</td></tr>
       <tr><td>R3</td><td>集成 token 过期/被撤销，静默失败</td><td><span class="pill pill-high">高</span></td><td><span class="pill pill-med">中</span></td><td>连续失败自动通知 + 监控页显"上次成功"时间</td></tr>
       <tr><td>R4</td><td>服务器（某人电脑）宕机</td><td><span class="pill pill-med">中</span></td><td><span class="pill pill-med">中</span></td><td>早期影响小；P3 后迁闲置 mini PC + UPS + 每周检查</td></tr>
@@ -1735,15 +1830,63 @@ expectations:
   <div class="code-block">
     <button class="copy-btn" onclick="copyCode(this)">复制</button>
     <pre><code>tests/ai_eval/
+├── decompose/cases/*.yaml     # 拆解质量案例（P1 核心，优先建）
+├── dispatch/cases/*.yaml      # 分发建议案例
 ├── normalize/cases/*.yaml     # 归一化质量案例
-├── daily_report/cases/*.yaml  # 日报生成案例
-└── dispatch/cases/*.yaml      # 分发建议案例
+└── daily_report/cases/*.yaml  # 日报生成案例
 
 维护规则：
 - 数值/分类用硬断言，模糊评价用 LLM-as-judge（强模型评弱模型输出）
 - 维护 baseline 分数，新 prompt 必须不低于 baseline
 - 流程：accept/reject 记录 → 每周分析误判 → 补充案例 → 跑 eval → 改 prompt</code></pre>
   </div>
+</section>
+
+<!-- 附录 F -->
+<section id="appendix-schedule">
+  <h2>附录 F：调度与通知</h2>
+  <p class="section-desc">承载"提醒 / 汇报 / 开会通知 / PM 看进展"等自动行为——它们是定时任务，不是多 Agent 协作。</p>
+
+  <h3>F.1 调度器选型</h3>
+  <ul class="rules-list">
+    <li><strong>APScheduler（进程内）</strong> <span class="rule-desc">FastAPI 同进程起一个 AsyncIOScheduler，启动时读 scheduled_jobs 表注册触发，不另起常驻进程。</span></li>
+    <li><strong>不上 Celery / Arq</strong> <span class="rule-desc">6 人 / 1 PM 规模过度——独立 broker + worker 容器是 A→B 的事（见附录 D）。</span></li>
+    <li><strong>状态即 DB 行</strong> <span class="rule-desc">"谁有哪些待发提醒 / job 跑到哪了 / 去重" 全是 scheduled_jobs + notifications 表的行，不用文件、不用 agent 内存。</span></li>
+  </ul>
+
+  <h3>F.2 触发流</h3>
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    <pre><code>ScheduledJob 到点 → 调度器按 job_type 分派 handler：
+  daily_report / weekly_report → 调 PydanticAI 报告函数 → 写 Report → 发 Notification(report_ready)
+  reminder                     → 写 Notification(reminder)
+  meeting_notice               → 写 Notification(meeting_notice)
+
+Notification 产生 → 入应用内 inbox（Notification 表）
+                 → 按 recipient 偏好外推飞书/钉钉 webhook（pushed_channels 防重复）
+
+每个 handler 是独立的单一职责函数，互不调用、不协商——没有 Agent↔Agent。</code></pre>
+  </div>
+
+  <h3>F.3 通知通道</h3>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>来源</th><th>kind</th><th>入口</th></tr></thead>
+    <tbody>
+      <tr><td>定时任务触发</td><td>reminder / meeting_notice / report_ready</td><td>ScheduledJob → Notification</td></tr>
+      <tr><td>webhook 即时事件</td><td>mentioned / pr_reviewed</td><td>直接写 Notification（<strong>不入 events_cache 主流程</strong>）</td></tr>
+      <tr><td>系统</td><td>system</td><td>集成连续失败 / 预算超 / 启动失败等</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>F.4 PM 看进展</h3>
+  <p style="font-size: 13px; margin: 8px 0;">PM 的"每日/每周看进展"不是新机制：cron ScheduledJob 触发 → DB 聚合查询当窗口全员活动 → 一次 PydanticAI 摘要 → 写团队 digest（Report，kind=daily/weekly，user_id=null 表团队级）。PM 也可在团队负载视图按需触发同一管道。</p>
+
+  <h3>F.5 A → B 演进</h3>
+  <p style="font-size: 13px; color: var(--warning); margin: 8px 0;">
+    ⚠️ 进程内调度器在当前规模够用。<strong>真正撑不住的信号</strong>：后台 job 变多 + 高并发，定时任务拖累 web 响应（呼应附录 D 的 P95 &gt; 1s 信号）。届时抽 capture/AI worker 出独立容器 + 上真正的任务队列（Arq / Celery / NATS），scheduled_jobs 表与触发流不变。现在别预建，留好 handler 函数边界即可。
+  </p>
 </section>
 
 

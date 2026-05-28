@@ -44,6 +44,7 @@ var ERDiagram = (function() {
         { name: 'password_hash', type: 'TEXT' },
         { name: 'sso_subject', type: 'TEXT' },
         { name: 'is_pm', type: 'BOOLEAN' },
+        { name: 'is_admin', type: 'BOOLEAN' },
         { name: 'capture_preferences', type: 'JSONB' },
         { name: 'created_at', type: 'TIMESTAMPTZ' },
         { name: 'last_seen_at', type: 'TIMESTAMPTZ' }
@@ -104,6 +105,7 @@ var ERDiagram = (function() {
         { name: 'status', type: 'TEXT' },
         { name: 'handled_by', type: 'UUID' },
         { name: 'handled_at', type: 'TIMESTAMPTZ' },
+        { name: 'reject_reason', type: 'TEXT' },
         { name: 'created_at', type: 'TIMESTAMPTZ' }
       ]
     },
@@ -126,9 +128,10 @@ var ERDiagram = (function() {
     {
       name: 'ChatSession',
       pk: 'id',
-      fk: ['user_id'],
+      fk: ['tenant_id', 'user_id'],
       fields: [
         { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
         { name: 'user_id', type: 'UUID', isFK: true },
         { name: 'title', type: 'TEXT' },
         { name: 'created_at', type: 'TIMESTAMPTZ' },
@@ -139,9 +142,10 @@ var ERDiagram = (function() {
     {
       name: 'Integration',
       pk: 'id',
-      fk: ['user_id'],
+      fk: ['tenant_id', 'user_id'],
       fields: [
         { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
         { name: 'user_id', type: 'UUID', isFK: true },
         { name: 'provider', type: 'TEXT' },
         { name: 'credential', type: 'JSONB' },
@@ -152,6 +156,76 @@ var ERDiagram = (function() {
         { name: 'consecutive_failures', type: 'INT' },
         { name: 'sync_cursor', type: 'JSONB' },
         { name: 'enabled', type: 'BOOLEAN' }
+      ]
+    },
+    {
+      name: 'ScheduledJob',
+      pk: 'id',
+      fk: ['tenant_id', 'created_by'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'job_type', type: 'TEXT' },
+        { name: 'schedule', type: 'TEXT' },
+        { name: 'target_ref', type: 'JSONB' },
+        { name: 'created_by', type: 'UUID', isFK: true },
+        { name: 'enabled', type: 'BOOLEAN' },
+        { name: 'last_run_at', type: 'TIMESTAMPTZ' },
+        { name: 'next_run_at', type: 'TIMESTAMPTZ' },
+        { name: 'last_status', type: 'TEXT' },
+        { name: 'consecutive_failures', type: 'INT' },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
+      ]
+    },
+    {
+      name: 'Notification',
+      pk: 'id',
+      fk: ['tenant_id', 'recipient_user_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'recipient_user_id', type: 'UUID', isFK: true },
+        { name: 'kind', type: 'TEXT' },
+        { name: 'title', type: 'TEXT' },
+        { name: 'body', type: 'TEXT' },
+        { name: 'source_ref', type: 'JSONB' },
+        { name: 'read_at', type: 'TIMESTAMPTZ' },
+        { name: 'pushed_channels', type: 'JSONB' },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
+      ]
+    },
+    {
+      name: 'AuditLog',
+      pk: 'id',
+      fk: ['tenant_id', 'actor_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'action', type: 'TEXT' },
+        { name: 'actor_id', type: 'UUID', isFK: true },
+        { name: 'target_type', type: 'TEXT' },
+        { name: 'target_id', type: 'UUID' },
+        { name: 'detail', type: 'JSONB' },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
+      ]
+    },
+    {
+      name: 'LLMCall',
+      pk: 'id',
+      fk: ['tenant_id', 'user_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'triggered_by', type: 'TEXT' },
+        { name: 'triggered_by_id', type: 'UUID' },
+        { name: 'user_id', type: 'UUID', isFK: true },
+        { name: 'model', type: 'TEXT' },
+        { name: 'tokens_in', type: 'INT' },
+        { name: 'tokens_out', type: 'INT' },
+        { name: 'cost_usd', type: 'NUMERIC' },
+        { name: 'latency_ms', type: 'INT' },
+        { name: 'status', type: 'TEXT' },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
       ]
     }
   ];
@@ -168,7 +242,12 @@ var ERDiagram = (function() {
     { from: 'Task', to: 'Task', label: '自引用', fromCard: '1', toCard: 'N', selfRef: true },
     { from: 'Task', to: 'TaskHistory', label: '1 → N', hidden: true },
     { from: 'Task', to: 'TaskLink', label: 'N → N', hidden: true },
-    { from: 'ChatSession', to: 'ChatMessage', label: '1 → N', hidden: true }
+    { from: 'ChatSession', to: 'ChatMessage', label: '1 → N', hidden: true },
+    { from: 'User', to: 'ScheduledJob', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'User', to: 'Notification', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'ScheduledJob', to: 'Notification', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'User', to: 'AuditLog', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'User', to: 'LLMCall', label: '1 → N', fromCard: '1', toCard: 'N' }
   ];
 
   const FIELD_H = 20;
