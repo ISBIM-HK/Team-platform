@@ -17,10 +17,16 @@ OIDC_SCOPE = "openid email profile"
 _TIMEOUT = 10.0
 
 
+def _http_client() -> httpx.AsyncClient:
+    """httpx client for IdP calls. A seam: tests override this to point at an
+    in-process IdP (ASGITransport) so the full handshake runs without a network."""
+    return httpx.AsyncClient(timeout=_TIMEOUT)
+
+
 async def _discover() -> dict:
     """Fetch the IdP's OIDC discovery document."""
     base = get_settings().oidc_issuer.rstrip("/")
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+    async with _http_client() as c:
         r = await c.get(f"{base}/.well-known/openid-configuration")
         r.raise_for_status()
         return r.json()
@@ -50,7 +56,7 @@ async def exchange_code(code: str) -> dict:
         "client_id": settings.oidc_client_id,
         "client_secret": settings.oidc_client_secret,
     }
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+    async with _http_client() as c:
         r = await c.post(meta["token_endpoint"], data=data)
         r.raise_for_status()
         return r.json()
@@ -60,7 +66,7 @@ async def verify_id_token(id_token: str, nonce: str) -> dict:
     """Verify the id_token's signature + standard claims + nonce; return claims."""
     settings = get_settings()
     meta = await _discover()
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+    async with _http_client() as c:
         r = await c.get(meta["jwks_uri"])
         r.raise_for_status()
         jwks = r.json()
