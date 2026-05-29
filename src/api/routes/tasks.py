@@ -1,16 +1,27 @@
 """Task CRUD routes."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from src.ai.dispatch import suggest_assignment
+from src.ai.impl_hint import suggest_impl_hint
 from src.ai.usage import RecordCtx
 from src.api.deps import CurrentUser, DBSession
 from src.models.ai_suggestion import AISuggestion
-from src.models.common import LLMTrigger, SuggestionStatus, SuggestionType, TaskStatus, utcnow
+from src.models.common import (
+    LLMTrigger,
+    NotificationKind,
+    SuggestionStatus,
+    SuggestionType,
+    TaskStatus,
+    utcnow,
+)
+from src.models.notification import Notification
 from src.models.task import Task
+from src.repositories.notification_repo import NotificationRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
@@ -127,7 +138,68 @@ async def claim_task(task_id: uuid.UUID, current_user: CurrentUser, session: DBS
     task = await repo.claim_task(task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=409, detail="Task already claimed or not found")
+    # Self-notification into the inbox (附录 I.3)
+    await NotificationRepository(session).create(Notification(
+        tenant_id=current_user.tenant_id,
+        recipient_user_id=current_user.id,
+        kind=NotificationKind.task_claimed,
+        title=f"已认领:{task.title}",
+        source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
+    ))
     return TaskResponse.model_validate(task)
+
+
+class ImplHintResponse(BaseModel):
+    task_id: uuid.UUID
+    impl_hint: str | None
+    impl_hint_updated_at: datetime | None
+    skipped: str | None = None  # "exists" | "not_leaf" when not (re)generated
+
+
+@router.post("/{task_id}/impl-hint", response_model=ImplHintResponse)
+async def task_impl_hint(
+    task_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    regenerate: bool = Query(False),
+):
+    """Auto AI implementation hint for a claimed leaf task (附录 I.2). Advisory only — no accept/reject."""
+    repo = TaskRepository(session)
+    task = await repo.get_by_id(task_id)
+    if not task or task.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not (current_user.is_pm or task.owner_user_id == current_user.id):
+        raise HTTPException(status_code=403, detail="Only the task owner can generate a hint")
+
+    def _resp(skipped: str | None) -> ImplHintResponse:
+        return ImplHintResponse(
+            task_id=task.id,
+            impl_hint=task.impl_hint,
+            impl_hint_updated_at=task.impl_hint_updated_at,
+            skipped=skipped,
+        )
+
+    if task.impl_hint and not regenerate:
+        return _resp("exists")
+    if await repo.has_children(task_id):  # 仅叶子任务出思路 (附录 I.2)
+        return _resp("not_leaf")
+
+    rec = RecordCtx(
+        session=session,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        trigger=LLMTrigger.dispatch,
+        triggered_by_id=task_id,
+    )
+    try:
+        hint = await suggest_impl_hint(task.title, task.description, record=rec)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI hint failed: {e}")
+    task.impl_hint = hint
+    task.impl_hint_updated_at = utcnow()
+    session.add(task)
+    await session.flush()
+    return _resp(None)
 
 
 class AssignSuggestResponse(BaseModel):

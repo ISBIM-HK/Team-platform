@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.capture.gitlab import fetch_events, map_event_type, parse_occurred_at
 from src.core.crypto import decrypt_credential
-from src.models.common import EventSource, utcnow
+from src.models.common import EventSource, IntegrationStatus, utcnow
 from src.models.event_cache import EventCache
 from src.models.integration import Integration
 
@@ -22,6 +22,14 @@ FAILURE_DISABLE_THRESHOLD = 3
 
 async def sync_gitlab(session: AsyncSession, integration: Integration, window_hours: int = 168) -> int:
     """Pull recent GitLab events for one integration; returns # new events stored."""
+    # Expired credential → expired status (Integration 状态机), skip the pull.
+    if integration.expires_at and integration.expires_at < utcnow():
+        integration.status = IntegrationStatus.expired
+        integration.last_error = "credential expired"
+        session.add(integration)
+        await session.flush()
+        raise RuntimeError("GitLab credential expired")
+
     cred = decrypt_credential(integration.credential)
     since = utcnow() - timedelta(hours=window_hours)
 
@@ -31,7 +39,10 @@ async def sync_gitlab(session: AsyncSession, integration: Integration, window_ho
         integration.last_error = str(e)[:1000]
         integration.consecutive_failures += 1
         if integration.consecutive_failures >= FAILURE_DISABLE_THRESHOLD:
-            integration.enabled = False
+            integration.enabled = False  # dual-write
+            integration.status = IntegrationStatus.disabled
+        else:
+            integration.status = IntegrationStatus.error
         session.add(integration)
         await session.flush()
         raise
@@ -69,6 +80,7 @@ async def sync_gitlab(session: AsyncSession, integration: Integration, window_ho
     integration.last_synced_at = utcnow()
     integration.last_error = None
     integration.consecutive_failures = 0
+    integration.status = IntegrationStatus.active
     session.add(integration)
     await session.flush()
     return inserted

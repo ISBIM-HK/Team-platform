@@ -9,7 +9,7 @@ from sqlalchemy import select
 from src.api.deps import CurrentUser, DBSession
 from src.capture.sync import sync_gitlab
 from src.core.crypto import encrypt_credential
-from src.models.common import IntegrationProvider
+from src.models.common import IntegrationProvider, IntegrationStatus
 from src.models.integration import Integration
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -23,6 +23,7 @@ class GitlabConnectRequest(BaseModel):
 class IntegrationResponse(BaseModel):
     id: str
     provider: str
+    status: str
     enabled: bool
     last_synced_at: datetime | None
     last_error: str | None
@@ -48,6 +49,7 @@ async def connect_gitlab(req: GitlabConnectRequest, current_user: CurrentUser, s
     if integ:
         integ.credential = cred
         integ.enabled = True
+        integ.status = IntegrationStatus.active
         integ.consecutive_failures = 0
         integ.last_error = None
     else:
@@ -89,6 +91,7 @@ def _to_response(i: Integration) -> IntegrationResponse:
     return IntegrationResponse(
         id=str(i.id),
         provider=i.provider.value,
+        status=i.status.value,
         enabled=i.enabled,
         last_synced_at=i.last_synced_at,
         last_error=i.last_error,

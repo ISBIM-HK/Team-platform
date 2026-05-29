@@ -1,6 +1,7 @@
 """Project routes — list, create, detail, board, share."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -9,9 +10,11 @@ from sqlalchemy import select
 from src.ai.brief import ProgressBrief, generate_brief
 from src.ai.usage import RecordCtx
 from src.api.deps import CurrentUser, DBSession
-from src.models.common import LLMTrigger, TaskStatus
+from src.core.config import get_settings
+from src.models.common import LLMTrigger, ReportKind, TaskStatus, utcnow
 from src.models.event_cache import EventCache
 from src.models.project import Project
+from src.models.report import Report
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
@@ -50,8 +53,12 @@ def _summary(project: Project, counts: dict[str, int]) -> ProjectResponse:
     total = sum(counts.values())
     done = sum(counts.get(s, 0) for s in DONE_STATUSES)
     return ProjectResponse(
-        id=str(project.id), name=project.name, description=project.description,
-        status=project.status, task_count=total, done_count=done,
+        id=str(project.id),
+        name=project.name,
+        description=project.description,
+        status=project.status,
+        task_count=total,
+        done_count=done,
         completion=round(done / total, 3) if total else 0.0,
     )
 
@@ -69,10 +76,15 @@ async def list_projects(current_user: CurrentUser, session: DBSession):
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(req: ProjectCreate, current_user: CurrentUser, session: DBSession):
     prepo = ProjectRepository(session)
-    p = await prepo.create(Project(
-        tenant_id=current_user.tenant_id, name=req.name,
-        description=req.description, status="active", created_by=current_user.id,
-    ))
+    p = await prepo.create(
+        Project(
+            tenant_id=current_user.tenant_id,
+            name=req.name,
+            description=req.description,
+            status="active",
+            created_by=current_user.id,
+        )
+    )
     return _summary(p, {})
 
 
@@ -117,6 +129,27 @@ class ShareResponse(BaseModel):
     project: ProjectResponse
     status_counts: dict[str, int]
     tasks: list[TaskResponse]  # for the flow/progress view (incl parent/child via parent_task_id)
+    brief: ProgressBrief | None = None  # latest persisted AI brief (附录 H.4), null if never generated
+    brief_generated_at: datetime | None = None
+
+
+async def _latest_brief(session, project_id: uuid.UUID) -> tuple[ProgressBrief | None, datetime | None]:
+    """Most recent persisted project_brief report for this project (share reads, never regenerates)."""
+    row = (
+        (
+            await session.execute(
+                select(Report)
+                .where(Report.project_id == project_id, Report.kind == ReportKind.project_brief)
+                .order_by(Report.generated_at.desc())
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not row:
+        return None, None
+    return ProgressBrief.model_validate(row.content), row.generated_at
 
 
 @router.get("/{project_id}/share", response_model=ShareResponse)
@@ -126,10 +159,13 @@ async def project_share(project_id: uuid.UUID, current_user: CurrentUser, sessio
     prepo = ProjectRepository(session)
     counts = await prepo.status_counts(p.id)
     tasks = await TaskRepository(session).list_by_project(project_id)
+    brief, brief_at = await _latest_brief(session, p.id)
     return ShareResponse(
         project=_summary(p, counts),
         status_counts=counts,
         tasks=[TaskResponse.model_validate(t) for t in tasks],
+        brief=brief,
+        brief_generated_at=brief_at,
     )
 
 
@@ -172,20 +208,39 @@ async def project_brief(project_id: uuid.UUID, current_user: CurrentUser, sessio
     """Generate an AI progress brief for the share page (on-demand)."""
     p = await _get_owned(project_id, current_user, session)
     tasks = await TaskRepository(session).list_by_project(project_id)
-    events = (await session.execute(
-        select(EventCache).where(EventCache.project_id == project_id)
-        .order_by(EventCache.occurred_at.desc()).limit(40)
-    )).scalars().all()
-    names = {
-        u.id: u.display_name
-        for u in await UserRepository(session).list_by_tenant(current_user.tenant_id)
-    }
+    events = (
+        (
+            await session.execute(
+                select(EventCache)
+                .where(EventCache.project_id == project_id)
+                .order_by(EventCache.occurred_at.desc())
+                .limit(40)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    names = {u.id: u.display_name for u in await UserRepository(session).list_by_tenant(current_user.tenant_id)}
     context = await _build_brief_context(p, tasks, events, names)
     record = RecordCtx(
-        session=session, tenant_id=current_user.tenant_id,
-        user_id=current_user.id, trigger=LLMTrigger.weekly_report,
+        session=session,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        trigger=LLMTrigger.weekly_report,
         triggered_by_id=p.id,
     )
     brief = await generate_brief(context, record=record)
+    # Persist as a project_brief report (append; share reads the latest). 附录 H.4
+    session.add(
+        Report(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            project_id=p.id,
+            kind=ReportKind.project_brief,
+            report_date=utcnow().date(),
+            content=brief.model_dump(),
+            model_used=get_settings().llm_model_strong,
+        )
+    )
     await session.commit()
     return brief

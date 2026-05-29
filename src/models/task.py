@@ -26,6 +26,8 @@ class Task(TimestampMixin, table=True):
     tags: list | None = Field(default=None, sa_column=Column(JSON))
     due_date: date | None = Field(default=None)
     estimated_hours: float | None = Field(default=None)
+    impl_hint: str | None = Field(default=None)  # AI 自动生成的一条实现思路 (附录 I.2)
+    impl_hint_updated_at: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 

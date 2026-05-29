@@ -99,8 +99,10 @@ async def ws_chat(websocket: WebSocket, session_id: uuid.UUID):
             if not content:
                 continue
 
-            # Process the message
-            await _handle_user_message(websocket, session_id, user, content)
+            # Process the message (optional current project context for tools, 附录 I.1)
+            await _handle_user_message(
+                websocket, session_id, user, content, data.get("project_id")
+            )
 
     except WebSocketDisconnect:
         pass
@@ -117,6 +119,7 @@ async def _handle_user_message(
     session_id: uuid.UUID,
     user,
     content: str,
+    project_id: str | None = None,
 ):
     """Process one user message: save → call AI → stream response → save."""
     async with async_session_factory() as db:
@@ -133,11 +136,18 @@ async def _handle_user_message(
         # Get conversation history for context
         history = await chat_repo.get_context_messages(session_id, limit=20)
 
-        # Prepare deps
+        # Prepare deps (current project lets tools default to the open workspace, 附录 I.1)
+        current_pid = None
+        if project_id:
+            try:
+                current_pid = uuid.UUID(project_id)
+            except ValueError:
+                current_pid = None
         deps = AssistantDeps(
             session=db,
             user_id=user.id,
             tenant_id=user.tenant_id,
+            current_project_id=current_pid,
         )
 
         # Call AI (record cost to llm_calls)

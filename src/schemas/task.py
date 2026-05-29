@@ -44,6 +44,8 @@ class TaskResponse(BaseModel):
     due_date: date | None
     estimated_hours: float | None
     parent_task_id: uuid.UUID | None
+    impl_hint: str | None = None
+    impl_hint_updated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

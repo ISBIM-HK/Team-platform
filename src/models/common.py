@@ -108,6 +108,7 @@ class ReportKind(str, Enum):
     daily = "daily"
     weekly = "weekly"
     monthly = "monthly"
+    project_brief = "project_brief"
 
 
 class JobType(str, Enum):
@@ -131,6 +132,8 @@ class NotificationKind(str, Enum):
     mentioned = "mentioned"
     pr_reviewed = "pr_reviewed"
     system = "system"
+    task_assigned = "task_assigned"
+    task_claimed = "task_claimed"
 
 
 class LLMTrigger(str, Enum):

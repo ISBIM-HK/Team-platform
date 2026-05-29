@@ -13,9 +13,11 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query
 
 from src.api.deps import CurrentUser, DBSession
-from src.models.common import SuggestionStatus, SuggestionType, TaskPriority
+from src.models.common import NotificationKind, SuggestionStatus, SuggestionType, TaskPriority
+from src.models.notification import Notification
 from src.models.project import Project
 from src.models.task import Task
+from src.repositories.notification_repo import NotificationRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.suggestion_repo import SuggestionRepository
 from src.repositories.task_repo import TaskRepository
@@ -147,6 +149,15 @@ async def accept_suggestion(
         session.add(task)
         await session.flush()
         created_task_ids.append(task.id)
+        # Notify the assignee (附录 I.3)
+        if suggestion.target_user_id:
+            await NotificationRepository(session).create(Notification(
+                tenant_id=current_user.tenant_id,
+                recipient_user_id=suggestion.target_user_id,
+                kind=NotificationKind.task_assigned,
+                title=f"你被分配任务:{task.title}",
+                source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
+            ))
 
     else:
         raise HTTPException(

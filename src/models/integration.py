@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Column
 from sqlmodel import Field
 
-from src.models.common import IntegrationProvider, TimestampMixin, new_uuid
+from src.models.common import IntegrationProvider, IntegrationStatus, TimestampMixin, new_uuid
 
 
 class Integration(TimestampMixin, table=True):
@@ -23,4 +23,5 @@ class Integration(TimestampMixin, table=True):
     last_error: str | None = Field(default=None, max_length=1000)
     consecutive_failures: int = Field(default=0)
     sync_cursor: dict | None = Field(default=None, sa_column=Column(JSON))
-    enabled: bool = Field(default=True)
+    status: IntegrationStatus = Field(default=IntegrationStatus.active, max_length=20)
+    enabled: bool = Field(default=True)  # dual-write with status until dropped (§7.5)

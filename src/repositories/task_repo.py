@@ -71,6 +71,10 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
+    async def has_children(self, task_id: uuid.UUID) -> bool:
+        stmt = select(func.count()).select_from(Task).where(Task.parent_task_id == task_id)
+        return (await self.session.execute(stmt)).scalar_one() > 0
+
     async def create(self, task: Task) -> Task:
         self.session.add(task)
         await self.session.flush()

@@ -16,6 +16,7 @@ class Report(TimestampMixin, table=True):
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
     user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
+    project_id: uuid.UUID | None = Field(default=None, foreign_key="projects.id", index=True)
     kind: ReportKind = Field(max_length=20)
     report_date: Date = Field()  # renamed from 'date' to avoid pydantic name clash
     content: dict = Field(sa_column=Column(JSON))

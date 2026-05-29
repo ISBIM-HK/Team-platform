@@ -36,6 +36,7 @@
 
     <div class="side-global">
       <button class="nav-item" id="navSuggestions"><span>📥 待处理建议</span><span class="badge" id="sugBadge" style="display:none">0</span></button>
+      <button class="nav-item" id="navNotifications"><span>🔔 通知</span><span class="badge" id="notifBadge" style="display:none">0</span></button>
       <button class="nav-item" id="navCost" style="display:none"><span>💲 LLM 成本</span></button>
     </div>
     <div class="side-foot">
@@ -67,6 +68,8 @@
           <div class="eyebrow">向本项目补充任务</div>
           <div class="row"><textarea id="planGoal" rows="1" placeholder="描述一个子目标,AI 拆成子任务加进这个项目…"></textarea><button class="btn btn-primary" id="planDecomposeBtn">拆解</button></div>
         </div>
+        <div class="section-title" style="font-size:15px;margin:6px 0 10px">我的任务 · AI 实现思路</div>
+        <div id="planImplHints"></div>
         <div class="section-title" style="font-size:15px;margin:6px 0 10px">本项目的 AI 建议</div>
         <div id="planSuggestions"></div>
       </div>
@@ -77,6 +80,12 @@
     <div class="center-view" id="suggestionsView" style="display:none">
       <div class="ws-header"><div class="ws-title"><h1>待处理建议</h1><span class="ws-meta" id="sugMeta"></span></div></div>
       <div id="suggestionsBody" class="sug-grid"></div>
+    </div>
+
+    <!-- notifications inbox (附录 I.3 — separate from AI suggestions) -->
+    <div class="center-view" id="notificationsView" style="display:none">
+      <div class="ws-header"><div class="ws-title"><h1>通知</h1><span class="ws-meta" id="notifMeta"></span></div></div>
+      <div id="notificationsBody"></div>
     </div>
 
     <!-- LLM cost -->

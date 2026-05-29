@@ -22,6 +22,34 @@ async def test_brief_returns_structured_summary(auth_client, monkeypatch):
     assert body["next_steps"] == ["接入检索"]
 
 
+async def test_share_has_null_brief_before_generation(auth_client):
+    pid = (await auth_client.post("/api/v1/projects", json={"name": "P", "description": ""})).json()["id"]
+    share = (await auth_client.get(f"/api/v1/projects/{pid}/share")).json()
+    assert share["brief"] is None
+    assert share["brief_generated_at"] is None
+
+
+async def test_generated_brief_persists_to_share(auth_client, monkeypatch):
+    async def fake_generate(context, record=None):
+        return ProgressBrief(summary="阶段进展", highlights=["完成登录"], risks=[], next_steps=["接入检索"])
+
+    monkeypatch.setattr("src.api.routes.projects.generate_brief", fake_generate)
+
+    pid = (await auth_client.post("/api/v1/projects", json={"name": "P", "description": ""})).json()["id"]
+    await auth_client.post("/api/v1/tasks", json={"title": "登录", "project_id": pid})
+
+    gen = await auth_client.post(f"/api/v1/projects/{pid}/brief")
+    assert gen.status_code == 200
+
+    # a later (separate) share request returns the persisted brief, no regeneration
+    share = (await auth_client.get(f"/api/v1/projects/{pid}/share")).json()
+    assert share["brief"] is not None
+    assert share["brief"]["summary"] == "阶段进展"
+    assert share["brief"]["highlights"] == ["完成登录"]
+    assert share["brief"]["next_steps"] == ["接入检索"]
+    assert share["brief_generated_at"] is not None
+
+
 async def test_brief_other_tenant_project_404(auth_client, session, monkeypatch):
     async def fake_generate(context, record=None):
         return ProgressBrief(summary="x")
