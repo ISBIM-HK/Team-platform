@@ -43,9 +43,10 @@
       ],
       edges: [
         { from: 'todo',        to: 'in_progress', label: '开始工作'     },
-        { from: 'todo',        to: 'todo',        label: '认领/改派', selfLoop: true },
+        { from: 'todo',        to: 'archived',    label: '归档(未启动)' },
         { from: 'in_progress', to: 'blocked',     label: '遇到阻塞'     },
         { from: 'in_progress', to: 'review',      label: '提交 review' },
+        { from: 'in_progress', to: 'done',        label: '直接完成'     },
         { from: 'blocked',     to: 'in_progress', label: '解除阻塞'     },
         { from: 'review',      to: 'done',        label: '审核通过'     },
         { from: 'review',      to: 'in_progress', label: '退回'         },
@@ -70,12 +71,19 @@
 
     integration: {
       states: [
-        { id: 'enabled',  label: '已启用' },
+        { id: 'active',   label: '正常'   },
+        { id: 'error',    label: '错误'   },
         { id: 'disabled', label: '已禁用' },
+        { id: 'expired',  label: '已过期' },
       ],
       edges: [
-        { from: 'enabled',  to: 'disabled', label: '连续失败≥3次' },
-        { from: 'disabled', to: 'enabled',  label: '用户重新授权'  },
+        { from: 'active',   to: 'error',    label: '拉取失败'     },
+        { from: 'error',    to: 'active',    label: '恢复成功'     },
+        { from: 'error',    to: 'disabled',  label: '连续失败≥3次' },
+        { from: 'active',   to: 'disabled',  label: '手动停用'     },
+        { from: 'disabled', to: 'active',    label: '重新授权'     },
+        { from: 'active',   to: 'expired',   label: '凭据过期'     },
+        { from: 'expired',  to: 'active',    label: '重新授权'     },
       ],
     },
   };
