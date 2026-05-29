@@ -10,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.api.routes import (
+    admin,
+    assistant,
     auth,
     chat,
     contributions,
@@ -91,6 +93,8 @@ app.include_router(projects.router, prefix="/api/v1")
 app.include_router(tokens.router, prefix="/api/v1")
 app.include_router(contributions.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(assistant.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ws_chat.router)
 
 # Serve the bundled SPA last (same-origin → cookies work, no CORS).

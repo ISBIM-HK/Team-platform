@@ -22,6 +22,7 @@ from src.models.common import (
 from src.models.notification import Notification
 from src.models.task import Task
 from src.repositories.notification_repo import NotificationRepository
+from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
@@ -33,6 +34,12 @@ from src.schemas.task import (
 )
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def _privileged(current_user) -> bool:
+    """Global is_pm / is_admin bypass project-level ACL (附录 K)."""
+    return bool(current_user.is_pm or current_user.is_admin)
+
 
 # Valid state transitions (from design doc)
 VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -55,10 +62,17 @@ async def list_tasks(
     offset: int = Query(0, ge=0),
 ):
     repo = TaskRepository(session)
+    # Project-level ACL: regular users see only tasks in their member projects (附录 K §3)
+    project_ids = None
+    if not _privileged(current_user):
+        project_ids = await ProjectRepository(session).list_ids_for_member(current_user.id)
     tasks = await repo.list_by_tenant(
-        current_user.tenant_id, status=status, owner_id=owner, limit=limit, offset=offset
+        current_user.tenant_id, status=status, owner_id=owner,
+        project_ids=project_ids, limit=limit, offset=offset,
     )
-    total = await repo.count_by_tenant(current_user.tenant_id, status=status, owner_id=owner)
+    total = await repo.count_by_tenant(
+        current_user.tenant_id, status=status, owner_id=owner, project_ids=project_ids
+    )
     return TaskListResponse(
         items=[TaskResponse.model_validate(t) for t in tasks],
         total=total,
@@ -73,9 +87,14 @@ async def create_task(req: TaskCreate, current_user: CurrentUser, session: DBSes
         proj = await prepo.get_by_id(req.project_id)
         if not proj or proj.tenant_id != current_user.tenant_id:
             raise HTTPException(status_code=404, detail="Project not found")
+        # Must be a member to add tasks to a project (404 over 403, 附录 K §3)
+        if not _privileged(current_user) and not await ProjectMemberRepository(session).is_member(
+            proj.id, current_user.id
+        ):
+            raise HTTPException(status_code=404, detail="Project not found")
         project_id = proj.id
     else:
-        project_id = (await prepo.ensure_inbox(current_user.tenant_id)).id
+        project_id = (await prepo.ensure_inbox(current_user.tenant_id, current_user.id)).id
     task = Task(
         tenant_id=current_user.tenant_id,
         project_id=project_id,
@@ -103,6 +122,12 @@ async def update_task(
     repo = TaskRepository(session)
     task = await repo.get_by_id(task_id)
     if not task or task.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Project ACL: non-members can't even see the task (404 over 403, 附录 K §3)
+    if not _privileged(current_user) and not await ProjectMemberRepository(session).is_member(
+        task.project_id, current_user.id
+    ):
         raise HTTPException(status_code=404, detail="Task not found")
 
     # Resource-level authz (§5.4): non-PM may only edit tasks they own or created
@@ -135,6 +160,15 @@ async def update_task(
 @router.post("/{task_id}/claim", response_model=TaskResponse)
 async def claim_task(task_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
     repo = TaskRepository(session)
+    # Must be a member of the task's project to claim it (404 over 403, 附录 K §6)
+    existing = await repo.get_by_id(task_id)
+    if not existing or existing.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not _privileged(current_user) and not await ProjectMemberRepository(session).is_member(
+        existing.project_id, current_user.id
+    ):
+        raise HTTPException(status_code=404, detail="Task not found")
+
     task = await repo.claim_task(task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=409, detail="Task already claimed or not found")
@@ -212,25 +246,34 @@ class AssignSuggestResponse(BaseModel):
 
 @router.post("/{task_id}/suggest-assignment", response_model=AssignSuggestResponse)
 async def suggest_task_assignment(task_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
-    """PM-triggered AI dispatch: recommend an owner based on team load. Advisory (creates an assign suggestion)."""
-    if not current_user.is_pm:
-        raise HTTPException(status_code=403, detail="PM only")
+    """Lead-triggered AI dispatch: recommend an owner based on project-member load.
 
+    Advisory (creates an assign suggestion). Triggerable by the project's lead or a
+    global is_pm/is_admin; candidates are the project's members only (附录 K §5).
+    """
     task_repo = TaskRepository(session)
     task = await task_repo.get_by_id(task_id)
     if not task or task.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Build team context with per-member open-task load
-    members = await UserRepository(session).list_by_tenant(current_user.tenant_id)
+    mrepo = ProjectMemberRepository(session)
+    role = await mrepo.role_of(task.project_id, current_user.id)
+    if role is None and not _privileged(current_user):
+        raise HTTPException(status_code=404, detail="Task not found")  # 404 over 403
+    if role != "lead" and not _privileged(current_user):
+        raise HTTPException(status_code=403, detail="Lead only")
+
+    # Candidates = this project's members (not the whole tenant)
+    project_members = await mrepo.list_by_project(task.project_id)
+    names = {u.id: u.display_name for u in await UserRepository(session).list_by_tenant(current_user.tenant_id)}
     member_ctx = []
     by_id: dict[str, object] = {}
-    for m in members:
-        load = await task_repo.count_open_by_owner(current_user.tenant_id, m.id)
-        member_ctx.append({"user_id": str(m.id), "name": m.display_name, "open_tasks": load})
-        by_id[str(m.id)] = m
+    for pm in project_members:
+        load = await task_repo.count_open_by_owner(current_user.tenant_id, pm.user_id)
+        member_ctx.append({"user_id": str(pm.user_id), "name": names.get(pm.user_id, "?"), "open_tasks": load})
+        by_id[str(pm.user_id)] = pm
     if not member_ctx:
-        raise HTTPException(status_code=422, detail="No team members to assign")
+        raise HTTPException(status_code=422, detail="No project members to assign")
 
     rec = await suggest_assignment(
         task.title, task.description, member_ctx,

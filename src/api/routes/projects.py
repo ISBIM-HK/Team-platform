@@ -15,6 +15,7 @@ from src.models.common import LLMTrigger, ReportKind, TaskStatus, utcnow
 from src.models.event_cache import EventCache
 from src.models.project import Project
 from src.models.report import Report
+from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
@@ -63,12 +64,43 @@ def _summary(project: Project, counts: dict[str, int]) -> ProjectResponse:
     )
 
 
+# ─── access control (项目级 ACL, 附录 K) ───
+def _privileged(current_user) -> bool:
+    """Global is_pm / is_admin act as a tenant super-permission above project ACL."""
+    return bool(current_user.is_pm or current_user.is_admin)
+
+
+async def _get_accessible(
+    project_id: uuid.UUID, current_user, session, *, need_lead: bool = False
+) -> Project:
+    """Resolve a project the caller may access, or 404 (don't leak existence).
+
+    Membership grants read/member access; need_lead requires lead role.
+    Global is_pm/is_admin bypass both.
+    """
+    p = await ProjectRepository(session).get_by_id(project_id)
+    if not p or p.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if _privileged(current_user):
+        return p
+    role = await ProjectMemberRepository(session).role_of(p.id, current_user.id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Project not found")  # 404 over 403
+    if need_lead and role != "lead":
+        raise HTTPException(status_code=403, detail="Lead only")
+    return p
+
+
 # ─── routes ───
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects(current_user: CurrentUser, session: DBSession):
     prepo = ProjectRepository(session)
+    if _privileged(current_user):
+        projects = await prepo.list_by_tenant(current_user.tenant_id)
+    else:
+        projects = await prepo.list_for_member(current_user.tenant_id, current_user.id)
     out = []
-    for p in await prepo.list_by_tenant(current_user.tenant_id):
+    for p in projects:
         out.append(_summary(p, await prepo.status_counts(p.id)))
     return out
 
@@ -85,26 +117,21 @@ async def create_project(req: ProjectCreate, current_user: CurrentUser, session:
             created_by=current_user.id,
         )
     )
+    # Creator becomes lead + member (附录 K §2)
+    await ProjectMemberRepository(session).add(current_user.tenant_id, p.id, current_user.id, role="lead")
     return _summary(p, {})
-
-
-async def _get_owned(project_id: uuid.UUID, current_user, session) -> Project:
-    p = await ProjectRepository(session).get_by_id(project_id)
-    if not p or p.tenant_id != current_user.tenant_id:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return p
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
-    p = await _get_owned(project_id, current_user, session)
+    p = await _get_accessible(project_id, current_user, session)
     counts = await ProjectRepository(session).status_counts(p.id)
     return _summary(p, counts)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
 async def update_project(project_id: uuid.UUID, req: ProjectUpdate, current_user: CurrentUser, session: DBSession):
-    p = await _get_owned(project_id, current_user, session)
+    p = await _get_accessible(project_id, current_user, session, need_lead=True)
     if req.name is not None:
         p.name = req.name
     if req.description is not None:
@@ -120,7 +147,7 @@ async def update_project(project_id: uuid.UUID, req: ProjectUpdate, current_user
 
 @router.get("/{project_id}/tasks", response_model=list[TaskResponse])
 async def project_tasks(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
-    await _get_owned(project_id, current_user, session)
+    await _get_accessible(project_id, current_user, session)
     tasks = await TaskRepository(session).list_by_project(project_id)
     return [TaskResponse.model_validate(t) for t in tasks]
 
@@ -155,7 +182,7 @@ async def _latest_brief(session, project_id: uuid.UUID) -> tuple[ProgressBrief |
 @router.get("/{project_id}/share", response_model=ShareResponse)
 async def project_share(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
     """Read-only progress/flow view — visible to any team member."""
-    p = await _get_owned(project_id, current_user, session)
+    p = await _get_accessible(project_id, current_user, session)
     prepo = ProjectRepository(session)
     counts = await prepo.status_counts(p.id)
     tasks = await TaskRepository(session).list_by_project(project_id)
@@ -206,7 +233,7 @@ async def _build_brief_context(project, tasks, events, names: dict) -> str:
 @router.post("/{project_id}/brief", response_model=ProgressBrief)
 async def project_brief(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
     """Generate an AI progress brief for the share page (on-demand)."""
-    p = await _get_owned(project_id, current_user, session)
+    p = await _get_accessible(project_id, current_user, session)
     tasks = await TaskRepository(session).list_by_project(project_id)
     events = (
         (
@@ -244,3 +271,85 @@ async def project_brief(project_id: uuid.UUID, current_user: CurrentUser, sessio
     )
     await session.commit()
     return brief
+
+
+# ─── project members (附录 K §4) ───
+class MemberAdd(BaseModel):
+    user_id: uuid.UUID
+    role: str = "member"  # 'lead' | 'member'
+
+
+class MemberRoleUpdate(BaseModel):
+    role: str
+
+
+class MemberResponse(BaseModel):
+    user_id: str
+    name: str
+    role: str
+    added_at: datetime
+
+
+def _validate_role(role: str) -> None:
+    if role not in ("lead", "member"):
+        raise HTTPException(status_code=422, detail="role must be lead|member")
+
+
+async def _members_payload(project_id: uuid.UUID, current_user, session) -> list[MemberResponse]:
+    mrepo = ProjectMemberRepository(session)
+    members = await mrepo.list_by_project(project_id)
+    names = {u.id: u.display_name for u in await UserRepository(session).list_by_tenant(current_user.tenant_id)}
+    return [
+        MemberResponse(
+            user_id=str(m.user_id), name=names.get(m.user_id, "?"), role=m.role, added_at=m.added_at
+        )
+        for m in members
+    ]
+
+
+@router.get("/{project_id}/members", response_model=list[MemberResponse])
+async def list_members(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+    """Any member (or privileged) may read the roster."""
+    await _get_accessible(project_id, current_user, session)
+    return await _members_payload(project_id, current_user, session)
+
+
+@router.post("/{project_id}/members", response_model=list[MemberResponse], status_code=201)
+async def add_member(project_id: uuid.UUID, req: MemberAdd, current_user: CurrentUser, session: DBSession):
+    """lead (or privileged) adds a member. Target must be in the same tenant."""
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    _validate_role(req.role)
+    target = await UserRepository(session).get_by_id(req.user_id)
+    if not target or target.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="User not found")
+    await ProjectMemberRepository(session).add(current_user.tenant_id, project_id, req.user_id, role=req.role)
+    return await _members_payload(project_id, current_user, session)
+
+
+@router.patch("/{project_id}/members/{user_id}", response_model=list[MemberResponse])
+async def update_member_role(
+    project_id: uuid.UUID, user_id: uuid.UUID, req: MemberRoleUpdate, current_user: CurrentUser, session: DBSession
+):
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    _validate_role(req.role)
+    mrepo = ProjectMemberRepository(session)
+    m = await mrepo.get(project_id, user_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Member not found")
+    # Demoting the last lead would orphan the project
+    if m.role == "lead" and req.role != "lead" and await mrepo.count_leads(project_id) <= 1:
+        raise HTTPException(status_code=422, detail="Cannot demote the last lead")
+    await mrepo.add(current_user.tenant_id, project_id, user_id, role=req.role)
+    return await _members_payload(project_id, current_user, session)
+
+
+@router.delete("/{project_id}/members/{user_id}", status_code=204)
+async def remove_member(project_id: uuid.UUID, user_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    mrepo = ProjectMemberRepository(session)
+    m = await mrepo.get(project_id, user_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if m.role == "lead" and await mrepo.count_leads(project_id) <= 1:
+        raise HTTPException(status_code=422, detail="Cannot remove the last lead")
+    await mrepo.remove(project_id, user_id)

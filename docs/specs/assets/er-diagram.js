@@ -242,6 +242,65 @@ var ERDiagram = (function() {
         { name: 'created_by', type: 'UUID', isFK: true },
         { name: 'created_at', type: 'TIMESTAMPTZ' }
       ]
+    },
+    {
+      name: 'AssistantWorkspace',
+      pk: 'id',
+      fk: ['tenant_id', 'user_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'user_id', type: 'UUID', isFK: true },
+        { name: 'persona_md', type: 'TEXT' },
+        { name: 'memory_md', type: 'TEXT' },
+        { name: 'profile_md', type: 'TEXT' },
+        { name: 'updated_at', type: 'TIMESTAMPTZ' }
+      ]
+    },
+    {
+      name: 'AssistantSkill',
+      pk: 'id',
+      fk: ['workspace_id', 'tenant_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'workspace_id', type: 'UUID', isFK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'name', type: 'TEXT' },
+        { name: 'description', type: 'TEXT' },
+        { name: 'instruction_md', type: 'TEXT' },
+        { name: 'enabled', type: 'BOOLEAN' },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
+      ]
+    },
+    {
+      name: 'AssistantMcpServer',
+      pk: 'id',
+      fk: ['workspace_id', 'tenant_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'workspace_id', type: 'UUID', isFK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'name', type: 'TEXT' },
+        { name: 'url', type: 'TEXT' },
+        { name: 'transport', type: 'TEXT' },
+        { name: 'credential', type: 'JSONB' },
+        { name: 'enabled', type: 'BOOLEAN' },
+        { name: 'status', type: 'TEXT' },
+        { name: 'created_at', type: 'TIMESTAMPTZ' }
+      ]
+    },
+    {
+      name: 'ProjectMember',
+      pk: 'id',
+      fk: ['project_id', 'user_id', 'tenant_id'],
+      fields: [
+        { name: 'id', type: 'UUID', isPK: true },
+        { name: 'project_id', type: 'UUID', isFK: true },
+        { name: 'user_id', type: 'UUID', isFK: true },
+        { name: 'tenant_id', type: 'UUID', isFK: true },
+        { name: 'role', type: 'TEXT' },
+        { name: 'added_at', type: 'TIMESTAMPTZ' }
+      ]
     }
   ];
 
@@ -264,7 +323,12 @@ var ERDiagram = (function() {
     { from: 'User', to: 'AuditLog', label: '1 → N', fromCard: '1', toCard: 'N' },
     { from: 'User', to: 'LLMCall', label: '1 → N', fromCard: '1', toCard: 'N' },
     { from: 'Tenant', to: 'Project', label: '1 → N', fromCard: '1', toCard: 'N' },
-    { from: 'Project', to: 'Task', label: '1 → N', fromCard: '1', toCard: 'N' }
+    { from: 'Project', to: 'Task', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'User', to: 'AssistantWorkspace', label: '1 → 1', fromCard: '1', toCard: '1' },
+    { from: 'AssistantWorkspace', to: 'AssistantSkill', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'AssistantWorkspace', to: 'AssistantMcpServer', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'Project', to: 'ProjectMember', label: '1 → N', fromCard: '1', toCard: 'N' },
+    { from: 'User', to: 'ProjectMember', label: '1 → N', fromCard: '1', toCard: 'N' }
   ];
 
   const FIELD_H = 20;

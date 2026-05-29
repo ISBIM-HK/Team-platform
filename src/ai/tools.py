@@ -199,3 +199,68 @@ async def update_task_impl_hint(ctx: RunContext[AssistantDeps], task_id: str, hi
     ctx.deps.session.add(task)
     await ctx.deps.session.flush()
     return f"已更新「{task.title}」的实现思路。"
+
+
+async def remember(ctx: RunContext[AssistantDeps], note: str) -> str:
+    """记住一条信息,持久化到助手记忆,跨会话保留(附录 J)。值得长期记住的事实/上下文才记。"""
+    from src.repositories.assistant_repo import AssistantWorkspaceRepository
+
+    repo = AssistantWorkspaceRepository(ctx.deps.session)
+    ws = await repo.ensure(ctx.deps.tenant_id, ctx.deps.user_id)
+    await repo.append_memory(ws, note)
+    return f"已记住:{note}"
+
+
+async def note_about_user(ctx: RunContext[AssistantDeps], note: str) -> str:
+    """记录关于用户的一条画像信息(偏好/角色/工作方式等),持久化(附录 J)。"""
+    from src.repositories.assistant_repo import AssistantWorkspaceRepository
+
+    repo = AssistantWorkspaceRepository(ctx.deps.session)
+    ws = await repo.ensure(ctx.deps.tenant_id, ctx.deps.user_id)
+    await repo.append_profile(ws, note)
+    return "已记录到用户画像。"
+
+
+async def rewrite_memory(ctx: RunContext[AssistantDeps], markdown: str) -> str:
+    """整篇重写助手记忆(用于压缩/整理过长的记忆),附录 J。"""
+    from src.repositories.assistant_repo import AssistantWorkspaceRepository
+
+    repo = AssistantWorkspaceRepository(ctx.deps.session)
+    ws = await repo.ensure(ctx.deps.tenant_id, ctx.deps.user_id)
+    await repo.patch(ws, memory_md=markdown)
+    return "记忆已重写。"
+
+
+async def save_skill(
+    ctx: RunContext[AssistantDeps], name: str, description: str = "", instruction: str = ""
+) -> str:
+    """发现可复用的做法时,把它沉淀成一个技能(默认启用,跨会话保留),附录 J.5。"""
+    from src.models.assistant_skill import AssistantSkill
+    from src.repositories.assistant_repo import AssistantWorkspaceRepository
+    from src.repositories.assistant_skill_repo import AssistantSkillRepository
+
+    ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(
+        ctx.deps.tenant_id, ctx.deps.user_id
+    )
+    skill = AssistantSkill(
+        workspace_id=ws.id, tenant_id=ctx.deps.tenant_id,
+        name=name, description=description, instruction_md=instruction, enabled=True,
+    )
+    await AssistantSkillRepository(ctx.deps.session).create(skill)
+    return f"已沉淀技能「{name}」并启用。"
+
+
+async def improve_skill(ctx: RunContext[AssistantDeps], name: str, instruction: str) -> str:
+    """改进某个已有技能的指令(按技能名),附录 J.5。"""
+    from src.repositories.assistant_repo import AssistantWorkspaceRepository
+    from src.repositories.assistant_skill_repo import AssistantSkillRepository
+
+    ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(
+        ctx.deps.tenant_id, ctx.deps.user_id
+    )
+    repo = AssistantSkillRepository(ctx.deps.session)
+    skill = await repo.get_by_name(ws.id, name)
+    if not skill:
+        return f"找不到技能「{name}」,可用 save_skill 新建。"
+    await repo.update(skill, instruction_md=instruction)
+    return f"已改进技能「{name}」。"

@@ -218,8 +218,18 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .overlay { position: fixed; inset: 0; background: rgba(34, 30, 22, 0.34); backdrop-filter: blur(2px);
   display: none; place-items: center; z-index: 50; padding: 24px; }
 .overlay.show { display: grid; animation: fade .2s ease; }
-.modal { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); width: 100%; max-width: 560px;
+.modal { position: relative; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); width: 100%; max-width: 560px;
   max-height: 86vh; overflow: hidden; display: flex; flex-direction: column; animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
+.modal-close { position: absolute; top: 12px; right: 14px; z-index: 2; border: none; background: transparent; cursor: pointer;
+  font-size: 16px; line-height: 1; color: var(--text-3); width: 30px; height: 30px; border-radius: 8px; }
+.modal-close:hover { background: var(--accent-soft); color: var(--accent-hover); }
+.tab-members { margin-left: auto; }
+.members-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.members-row .mr-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.members-row .mr-role { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }
+.members-row .mr-role.member { background: var(--surface-2, #f1ece6); color: var(--text-2); }
+.members-add { display: flex; gap: 8px; width: 100%; }
+.members-add select { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: var(--surface); }
 .modal .mhead { padding: 22px 24px 14px; border-bottom: 1px solid var(--border); }
 .modal .mhead .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-hover); }
 .modal .mhead h3 { font-family: var(--font-display); font-weight: 500; font-size: 21px; margin: 5px 0 4px; letter-spacing: -0.01em; }
@@ -395,6 +405,13 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .cost-row .cnums { color: var(--text-2); flex: 1; }
 .cost-row .ccost { font-variant-numeric: tabular-nums; color: var(--accent-hover); font-weight: 600; }
 
+/* admin: team management */
+.admin-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); max-width: 560px; margin-bottom: 8px; }
+.admin-row .ar-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.admin-row .ar-name b { font-size: 14px; }
+.admin-row .ar-role { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-2); cursor: pointer; user-select: none; }
+.admin-row .ar-role input { accent-color: var(--accent); cursor: pointer; }
+
 /* enriched task card */
 .card { cursor: pointer; }
 .card .cdesc { font-size: 12px; color: var(--text-2); line-height: 1.45; margin: 5px 0 7px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -432,3 +449,12 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .ih-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .ih-title { font-weight: 600; font-size: 14px; }
 .ih-text { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+
+/* ─── assistant settings textareas (附录 J) ─── */
+.aw-text { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); background: var(--surface); color: var(--text); }
+.aw-text:focus { outline: none; border-color: var(--accent); }
+.aw-skills { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.aw-skill-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.aw-skill-row .aw-sk-on { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.aw-skill-row .aw-sk-desc { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
+.aw-skill-form { display: flex; flex-direction: column; gap: 6px; }

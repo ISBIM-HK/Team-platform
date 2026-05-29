@@ -6,11 +6,34 @@ Invoked per WebSocket message turn.
 
 from __future__ import annotations
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 
 from src.ai.decompose import resolve_model
 from src.ai.tools import AssistantDeps
 from src.core.config import get_settings
+
+
+def workspace_prompt_section(ws) -> str:
+    """Build the per-user persona/profile/memory block injected into the system prompt (附录 J.2)."""
+    parts = []
+    if (ws.persona_md or "").strip():
+        parts.append("## 人格\n" + ws.persona_md.strip())
+    if (ws.profile_md or "").strip():
+        parts.append("## 关于用户\n" + ws.profile_md.strip())
+    if (ws.memory_md or "").strip():
+        parts.append("## 记忆\n" + ws.memory_md.strip())
+    return "\n\n".join(parts)
+
+
+def skills_prompt_section(skills) -> str:
+    """Build the enabled-skills block for the system prompt (附录 J.5)."""
+    enabled = [s for s in skills if s.enabled]
+    if not enabled:
+        return ""
+    parts = ["## 技能"]
+    for s in enabled:
+        parts.append(f"### {s.name}\n{(s.instruction_md or '').strip()}")
+    return "\n\n".join(parts)
 
 ASSISTANT_SYSTEM_PROMPT = """你是 Team Platform 的个人 AI 助手。你的职责：
 1. 帮用户查任务（自己的或团队的）
@@ -18,7 +41,8 @@ ASSISTANT_SYSTEM_PROMPT = """你是 Team Platform 的个人 AI 助手。你的�
 3. 帮用户创建任务建议
 4. 把新需求拆解进当前项目（decompose_into_project，走建议确认）
 5. 查看/改写任务的实现思路（get_task_impl_hint / update_task_impl_hint）
-6. 回答工作相关问题
+6. 记住重要信息与用户偏好（remember / note_about_user），跨会话保留
+7. 回答工作相关问题
 
 ## 规则
 - 简洁直接，不废话
@@ -26,6 +50,8 @@ ASSISTANT_SYSTEM_PROMPT = """你是 Team Platform 的个人 AI 助手。你的�
 - 不确定的信息不要编造
 - 需要创建任务或拆解需求时，调用工具而不是直接告诉用户去操作
 - 你不能直接修改任务状态或分配任务，只能创建建议；但可以改写任务的“实现思路”（仅参考、不改状态）
+- 发现值得长期记住的事实或用户偏好时，主动用 remember / note_about_user 记下；记忆过长时用 rewrite_memory 压缩
+- 发现可复用的做法/流程时，用 save_skill 把它沉淀成技能；已有技能用得不顺时用 improve_skill 改进
 """
 
 def get_assistant_agent() -> Agent[AssistantDeps, str]:
@@ -37,9 +63,14 @@ def get_assistant_agent() -> Agent[AssistantDeps, str]:
         create_task_suggestion,
         decompose_into_project,
         get_task_impl_hint,
+        improve_skill,
         log_manual_work,
+        note_about_user,
         query_my_tasks,
         query_team_tasks,
+        remember,
+        rewrite_memory,
+        save_skill,
         update_task_impl_hint,
     )
 
@@ -51,6 +82,19 @@ def get_assistant_agent() -> Agent[AssistantDeps, str]:
         retries=1,
     )
 
+    # Per-user persona/memory/profile injected each turn (附录 J.2)
+    @agent.system_prompt
+    async def _inject_workspace(ctx: RunContext[AssistantDeps]) -> str:
+        from src.repositories.assistant_repo import AssistantWorkspaceRepository
+        from src.repositories.assistant_skill_repo import AssistantSkillRepository
+
+        ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(
+            ctx.deps.tenant_id, ctx.deps.user_id
+        )
+        skills = await AssistantSkillRepository(ctx.deps.session).list_enabled(ws.id)
+        sections = [workspace_prompt_section(ws), skills_prompt_section(skills)]
+        return "\n\n".join(p for p in sections if p)
+
     # Register tools
     agent.tool(query_my_tasks)
     agent.tool(query_team_tasks)
@@ -59,6 +103,11 @@ def get_assistant_agent() -> Agent[AssistantDeps, str]:
     agent.tool(decompose_into_project)
     agent.tool(get_task_impl_hint)
     agent.tool(update_task_impl_hint)
+    agent.tool(remember)
+    agent.tool(note_about_user)
+    agent.tool(rewrite_memory)
+    agent.tool(save_skill)
+    agent.tool(improve_skill)
 
     return agent
 

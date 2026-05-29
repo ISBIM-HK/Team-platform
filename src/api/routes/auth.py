@@ -45,16 +45,21 @@ async def register(req: RegisterRequest, session: DBSession):
     if not tenant:
         tenant = Tenant(name=settings.default_tenant_name)
         await tenant_repo.create(tenant)
-        # every tenant gets an "未分类" default project so tasks always have one
-        await ProjectRepository(session).ensure_inbox(tenant.id)
 
+    # Bootstrap: the first user in a tenant becomes admin + pm (附录 L)
+    is_first = len(await user_repo.list_by_tenant(tenant.id)) == 0
     user = User(
         tenant_id=tenant.id,
         email=req.email,
         display_name=req.display_name,
         password_hash=hash_password(req.password),
+        is_admin=is_first,
+        is_pm=is_first,
     )
     await user_repo.create(user)
+
+    # Each user gets their own "未分类" Inbox (per-user, respects project ACL 附录 K §7)
+    await ProjectRepository(session).ensure_inbox(tenant.id, user.id)
 
     return RegisterResponse(
         user_id=str(user.id),

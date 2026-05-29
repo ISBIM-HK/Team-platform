@@ -65,17 +65,19 @@ async function boot() {
   $('#whoName').textContent = me.display_name; $('#meAvatar').textContent = initials(me.display_name);
   $('#pmPill').style.display = me.is_pm ? 'inline' : 'none';
   $('#navCost').style.display = me.is_pm ? 'flex' : 'none';
+  $('#navAdmin').style.display = me.is_admin ? 'flex' : 'none';
   await loadUsers(); await loadProjects(); await loadSuggestions(); updateNotifBadge(); await initChat();
 }
 async function loadUsers() { try { const r = await api('/users'); (Array.isArray(r) ? r : r.items || []).forEach((u) => userMap[u.id] = u.display_name); } catch {} }
 
 // ─── center view switching ───
-const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'notificationsView', 'costView'];
+const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'notificationsView', 'costView', 'adminView'];
 function showView(id) {
   VIEWS.forEach((v) => $('#' + v).style.display = v === id ? 'block' : 'none');
   $('#navSuggestions').classList.toggle('active-nav', id === 'suggestionsView');
   $('#navNotifications').classList.toggle('active-nav', id === 'notificationsView');
   $('#navCost').classList.toggle('active-nav', id === 'costView');
+  $('#navAdmin').classList.toggle('active-nav', id === 'adminView');
   if (id !== 'projectView') { currentProjectId = null; document.querySelectorAll('.proj-item').forEach((el) => el.classList.remove('active')); }
   if (window.innerWidth <= 760) $('#sidebar').classList.remove('open');
 }
@@ -330,8 +332,106 @@ $('#navCost').onclick = async () => {
   } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; }
 };
 
+// ─── admin: team management (附录 L, admin-only) ───
+$('#navAdmin').onclick = loadAdmin;
+async function loadAdmin() {
+  showView('adminView');
+  const body = $('#adminBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  let items;
+  try { items = (await api('/admin/users')).items || []; }
+  catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
+  body.innerHTML = '';
+  items.forEach((u) => {
+    const row = document.createElement('div'); row.className = 'admin-row';
+    const self = u.id === me.id;
+    row.innerHTML = `<span class="avatar">${initials(u.display_name)}</span>`
+      + `<span class="ar-name"><b>${escapeHtml(u.display_name)}${self ? ' <span class="ws-meta">（你）</span>' : ''}</b><span class="ws-meta">${escapeHtml(u.email)}</span></span>`
+      + `<label class="ar-role"><input type="checkbox" data-role="is_admin" ${u.is_admin ? 'checked' : ''}> admin</label>`
+      + `<label class="ar-role"><input type="checkbox" data-role="is_pm" ${u.is_pm ? 'checked' : ''}> pm</label>`;
+    row.querySelectorAll('input').forEach((chk) => {
+      chk.onchange = async () => {
+        const role = chk.dataset.role;
+        try {
+          const updated = await api(`/admin/users/${u.id}`, { method: 'PATCH', body: { [role]: chk.checked } });
+          u.is_admin = updated.is_admin; u.is_pm = updated.is_pm;
+          if (self) { me = { ...me, is_admin: updated.is_admin, is_pm: updated.is_pm }; $('#navAdmin').style.display = me.is_admin ? 'flex' : 'none'; $('#navCost').style.display = me.is_pm ? 'flex' : 'none'; }
+        } catch (e) { toast(e.message); chk.checked = !chk.checked; }
+      };
+    });
+    body.appendChild(row);
+  });
+}
+
+// ─── project members (附录 K) ───
+$('#pvMembersBtn').onclick = () => { if (currentProjectId) openMembers(currentProjectId); };
+$('#membersClose').onclick = () => $('#membersOverlay').classList.remove('show');
+async function openMembers(pid) {
+  $('#membersOverlay').classList.add('show');
+  const body = $('#membersBody'); const addRow = $('#membersAddRow');
+  body.innerHTML = '<div class="plan-hint">加载中…</div>'; addRow.innerHTML = '';
+  let members;
+  try { members = await api(`/projects/${pid}/members`); }
+  catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
+  const myRole = (members.find((m) => m.user_id === me.id) || {}).role;
+  const canManage = myRole === 'lead' || me.is_pm || me.is_admin;
+  $('#membersTitle').textContent = `成员 · ${members.length}`;
+  $('#membersHint').textContent = canManage ? 'lead 可加/移成员、改角色;成员只能查看。' : '你是项目成员,可查看名单。';
+  body.innerHTML = '';
+  const memberIds = new Set(members.map((m) => m.user_id));
+  members.forEach((m) => {
+    const isLead = m.role === 'lead';
+    const row = document.createElement('div'); row.className = 'members-row';
+    row.innerHTML = `<span class="avatar">${initials(m.name)}</span>`
+      + `<span class="mr-name"><b>${escapeHtml(m.name)}${m.user_id === me.id ? ' <span class="ws-meta">（你）</span>' : ''}</b></span>`
+      + `<span class="mr-role ${isLead ? '' : 'member'}">${isLead ? 'lead' : 'member'}</span>`;
+    if (canManage) {
+      const toggle = document.createElement('button'); toggle.className = 'btn btn-ghost btn-sm';
+      toggle.textContent = isLead ? '设为成员' : '设为 lead';
+      toggle.onclick = async () => {
+        try { await api(`/projects/${pid}/members/${m.user_id}`, { method: 'PATCH', body: { role: isLead ? 'member' : 'lead' } }); openMembers(pid); }
+        catch (e) { toast(e.message); }
+      };
+      const rm = document.createElement('button'); rm.className = 'btn btn-ghost btn-sm'; rm.textContent = '移除';
+      rm.onclick = async () => {
+        try { await api(`/projects/${pid}/members/${m.user_id}`, { method: 'DELETE' }); openMembers(pid); }
+        catch (e) { toast(e.message); }
+      };
+      row.appendChild(toggle); row.appendChild(rm);
+    }
+    body.appendChild(row);
+  });
+  if (canManage) {
+    const candidates = Object.entries(userMap).filter(([id]) => !memberIds.has(id));
+    if (candidates.length) {
+      const wrap = document.createElement('div'); wrap.className = 'members-add';
+      const sel = document.createElement('select');
+      sel.innerHTML = '<option value="">添加成员…</option>'
+        + candidates.map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
+      const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = '添加';
+      btn.onclick = async () => {
+        if (!sel.value) return;
+        try { await api(`/projects/${pid}/members`, { method: 'POST', body: { user_id: sel.value } }); openMembers(pid); }
+        catch (e) { toast(e.message); }
+      };
+      wrap.appendChild(sel); wrap.appendChild(btn);
+      addRow.appendChild(wrap);
+    } else {
+      addRow.innerHTML = '<span class="ws-meta">没有可添加的成员了</span>';
+    }
+  }
+}
+
+// ─── unified overlay dismissal: click backdrop or Esc closes any open overlay (附录 K §9) ───
+document.querySelectorAll('.overlay').forEach((ov) => {
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('show'); });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.overlay.show').forEach((ov) => ov.classList.remove('show'));
+});
+
 // ─── new project ───
 $('#newProjectBtn').onclick = () => { $('#npGoal').value = ''; $('#npName').value = ''; $('#projectOverlay').classList.add('show'); };
+$('#npClose').onclick = $('#npCancel').onclick = () => $('#projectOverlay').classList.remove('show');
 $('#npDecomposeBtn').onclick = async () => {
   const goal = $('#npGoal').value.trim(); if (!goal) { $('#npGoal').focus(); return; }
   const btn = $('#npDecomposeBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>拆解中…';
@@ -415,6 +515,54 @@ function removeTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } 
 function sendChat() { const inp = $('#chatInput'); const text = inp.value.trim(); if (!text || !chatSocket || chatSocket.readyState !== 1) return; addMsg('user', text); inp.value = ''; showTyping(); chatSocket.send(JSON.stringify({ type: 'user_message', content: text, project_id: currentProjectId })); }
 $('#chatSend').onclick = sendChat;
 $('#chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+// ─── assistant settings: persona / memory / profile (附录 J) ───
+$('#asstSettingsBtn').onclick = async () => {
+  try {
+    const w = await api('/me/assistant');
+    $('#awPersona').value = w.persona_md || '';
+    $('#awMemory').value = w.memory_md || '';
+    $('#awProfile').value = w.profile_md || '';
+    resetSkillForm(); renderSkills();
+    $('#asstSettingsOverlay').classList.add('show');
+  } catch (e) { toast(e.message); }
+};
+$('#awCancel').onclick = () => $('#asstSettingsOverlay').classList.remove('show');
+$('#awSave').onclick = async () => {
+  try {
+    await api('/me/assistant', { method: 'PATCH', body: { persona_md: $('#awPersona').value, memory_md: $('#awMemory').value, profile_md: $('#awProfile').value } });
+    $('#asstSettingsOverlay').classList.remove('show'); toast('助手设置已保存');
+  } catch (e) { toast(e.message); }
+};
+
+// assistant skills (附录 J.5)
+let awEditingSkill = null;
+function resetSkillForm() { awEditingSkill = null; $('#awSkillName').value = ''; $('#awSkillDesc').value = ''; $('#awSkillInstr').value = ''; $('#awSkillSave').textContent = '添加技能'; }
+async function renderSkills() {
+  const box = $('#awSkills'); box.innerHTML = '<div class="plan-hint">加载中…</div>';
+  let items; try { items = (await api('/me/assistant/skills')).items || []; } catch (e) { box.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
+  if (!items.length) { box.innerHTML = '<div class="plan-hint">还没有技能,下面添加。</div>'; return; }
+  box.innerHTML = '';
+  items.forEach((s) => {
+    const row = document.createElement('div'); row.className = 'aw-skill-row';
+    row.innerHTML = `<label class="aw-sk-on"><input type="checkbox" ${s.enabled ? 'checked' : ''}><b>${escapeHtml(s.name)}</b></label><span class="ws-meta aw-sk-desc">${escapeHtml(s.description || '')}</span><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm">删除</button>`;
+    const chk = row.querySelector('input');
+    const [editBtn, delBtn] = row.querySelectorAll('button');
+    chk.onchange = async () => { try { await api(`/me/assistant/skills/${s.id}`, { method: 'PATCH', body: { enabled: chk.checked } }); } catch (e) { toast(e.message); chk.checked = !chk.checked; } };
+    editBtn.onclick = () => { awEditingSkill = s.id; $('#awSkillName').value = s.name; $('#awSkillDesc').value = s.description || ''; $('#awSkillInstr').value = s.instruction_md || ''; $('#awSkillSave').textContent = '保存修改'; $('#awSkillName').focus(); };
+    delBtn.onclick = async () => { try { await api(`/me/assistant/skills/${s.id}`, { method: 'DELETE' }); if (awEditingSkill === s.id) resetSkillForm(); renderSkills(); } catch (e) { toast(e.message); } };
+    box.appendChild(row);
+  });
+}
+$('#awSkillSave').onclick = async () => {
+  const name = $('#awSkillName').value.trim(); if (!name) { $('#awSkillName').focus(); return; }
+  const body = { name, description: $('#awSkillDesc').value.trim(), instruction_md: $('#awSkillInstr').value };
+  try {
+    if (awEditingSkill) await api(`/me/assistant/skills/${awEditingSkill}`, { method: 'PATCH', body });
+    else await api('/me/assistant/skills', { method: 'POST', body });
+    resetSkillForm(); renderSkills();
+  } catch (e) { toast(e.message); }
+};
 
 // ─── responsive + textareas ───
 $('#navToggle').onclick = () => $('#sidebar').classList.toggle('open');

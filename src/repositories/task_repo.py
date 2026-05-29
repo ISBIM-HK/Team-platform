@@ -21,6 +21,7 @@ class TaskRepository:
         tenant_id: uuid.UUID,
         status: TaskStatus | None = None,
         owner_id: uuid.UUID | None = None,
+        project_ids: list[uuid.UUID] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
@@ -29,6 +30,10 @@ class TaskRepository:
             stmt = stmt.where(Task.status == status)
         if owner_id:
             stmt = stmt.where(Task.owner_user_id == owner_id)
+        if project_ids is not None:
+            if not project_ids:
+                return []
+            stmt = stmt.where(Task.project_id.in_(project_ids))
         stmt = stmt.order_by(Task.created_at.desc()).limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -48,12 +53,17 @@ class TaskRepository:
         tenant_id: uuid.UUID,
         status: TaskStatus | None = None,
         owner_id: uuid.UUID | None = None,
+        project_ids: list[uuid.UUID] | None = None,
     ) -> int:
         stmt = select(func.count()).select_from(Task).where(Task.tenant_id == tenant_id)
         if status:
             stmt = stmt.where(Task.status == status)
         if owner_id:
             stmt = stmt.where(Task.owner_user_id == owner_id)
+        if project_ids is not None:
+            if not project_ids:
+                return 0
+            stmt = stmt.where(Task.project_id.in_(project_ids))
         result = await self.session.execute(stmt)
         return result.scalar_one()
 

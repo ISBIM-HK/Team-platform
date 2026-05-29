@@ -18,6 +18,7 @@ from src.models.notification import Notification
 from src.models.project import Project
 from src.models.task import Task
 from src.repositories.notification_repo import NotificationRepository
+from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.suggestion_repo import SuggestionRepository
 from src.repositories.task_repo import TaskRepository
@@ -82,10 +83,14 @@ async def accept_suggestion(
                 description=ref.get("description", ""), status="active",
                 created_by=current_user.id,
             ))
+            # Creator becomes lead + member (附录 K §2)
+            await ProjectMemberRepository(session).add(
+                current_user.tenant_id, proj.id, current_user.id, role="lead"
+            )
             return proj.id
         if ref.get("project_id"):
             return uuid.UUID(ref["project_id"])
-        return (await prepo.ensure_inbox(current_user.tenant_id)).id
+        return (await prepo.ensure_inbox(current_user.tenant_id, current_user.id)).id
 
     if suggestion.suggestion_type == SuggestionType.create_task:
         ref = suggestion.target_ref or {}
