@@ -19,6 +19,7 @@ dependencies = [
     "structlog>=25.1",
     "pydantic-ai>=0.0.14",
     "cryptography>=43.0",
+    "authlib>=1.4",
 ]
 
 [project.optional-dependencies]

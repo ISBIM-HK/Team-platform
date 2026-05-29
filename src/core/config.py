@@ -35,6 +35,21 @@ class Settings(BaseSettings):
     def allowed_domains(self) -> list[str]:
         return [d.strip().lower() for d in self.allowed_email_domains.split(",") if d.strip()]
 
+    # SSO — generic OIDC (附录 M). All four set → SSO enabled. secret only in env.
+    oidc_issuer: str = ""  # discovery base, e.g. https://idp.acme.com/realms/main
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_redirect_uri: str = ""  # e.g. https://app.acme.com/api/v1/auth/sso/callback
+
+    @property
+    def sso_enabled(self) -> bool:
+        return bool(
+            self.oidc_issuer
+            and self.oidc_client_id
+            and self.oidc_client_secret
+            and self.oidc_redirect_uri
+        )
+
     # LLM — DeepSeek (cheap=Flash 量大窄任务, strong=Pro 拆解/分发/写作)
     # NOTE: 确认真实 provider:model 字符串与 DeepSeek API key 接入方式后再定稿。
     llm_api_key: str = ""

@@ -20,6 +20,11 @@ class UserRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_sso_subject(self, sso_subject: str) -> User | None:
+        stmt = select(User).where(User.sso_subject == sso_subject)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list_by_tenant(self, tenant_id: uuid.UUID) -> list[User]:
         stmt = select(User).where(User.tenant_id == tenant_id)
         result = await self.session.execute(stmt)

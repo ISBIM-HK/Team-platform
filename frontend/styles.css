@@ -224,6 +224,10 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
   font-size: 16px; line-height: 1; color: var(--text-3); width: 30px; height: 30px; border-radius: 8px; }
 .modal-close:hover { background: var(--accent-soft); color: var(--accent-hover); }
 .tab-members { margin-left: auto; }
+.sso-block { margin-top: 14px; }
+.sso-divider { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 12px; margin: 4px 0 12px; }
+.sso-divider::before, .sso-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.sso-btn { width: 100%; }
 .members-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .members-row .mr-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .members-row .mr-role { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }

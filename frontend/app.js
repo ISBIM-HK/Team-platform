@@ -570,4 +570,17 @@ $('#asstToggle').onclick = () => $('#assistant').classList.toggle('open');
 $('#collapseAsst').onclick = () => $('#assistant').classList.remove('open');
 ['#planGoal', '#npGoal'].forEach((sel) => { const e = $(sel); if (e) e.addEventListener('input', () => { e.style.height = 'auto'; e.style.height = e.scrollHeight + 'px'; }); });
 
+// ─── SSO (附录 M): show "用公司账号登录" when enabled; surface callback errors ───
+$('#ssoBtn').onclick = () => { window.location = '/api/v1/auth/sso/login'; };
+async function initSso() {
+  const err = new URLSearchParams(location.search).get('sso_error');
+  if (err) {
+    const m = { state: '登录校验失败,请重试', token: '与身份提供商通信失败', domain: '你的邮箱域名不被允许', claims: '身份信息不完整' };
+    $('#loginErr').textContent = m[err] || 'SSO 登录失败';
+    history.replaceState(null, '', '/');
+  }
+  try { if ((await api('/auth/sso/status')).enabled) $('#ssoBlock').style.display = 'block'; } catch {}
+}
+
 boot();
+initSso();

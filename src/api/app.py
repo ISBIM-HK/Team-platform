@@ -21,6 +21,7 @@ from src.api.routes import (
     notifications,
     pm,
     projects,
+    sso,
     suggestions,
     tasks,
     tokens,
@@ -82,6 +83,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Mount routes
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(sso.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(suggestions.router, prefix="/api/v1")
