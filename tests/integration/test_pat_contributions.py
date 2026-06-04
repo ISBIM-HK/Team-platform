@@ -5,8 +5,11 @@ import uuid
 from tests.conftest import register_and_login
 
 
-async def _pat(client, name="laptop"):
-    r = await client.post("/api/v1/me/tokens", json={"name": name})
+async def _pat(client, name="laptop", scopes=None):
+    body = {"name": name}
+    if scopes:
+        body["scopes"] = scopes
+    r = await client.post("/api/v1/me/tokens", json=body)
     assert r.status_code == 201, r.text
     return r.json()["token"]
 
@@ -22,7 +25,7 @@ async def test_pat_create_list_revoke(auth_client):
 
 
 async def test_pat_authenticates_like_a_session(auth_client):
-    token = await _pat(auth_client)
+    token = await _pat(auth_client, scopes=["*"])
     auth_client.cookies.clear()  # drop the cookie — rely solely on the Bearer token
     r = await auth_client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
@@ -49,8 +52,9 @@ async def test_contribution_ingest_and_idempotency(auth_client):
 async def test_contribution_unknown_project_404(auth_client):
     token = await _pat(auth_client)
     h = {"Authorization": f"Bearer {token}"}
-    r = await auth_client.post("/api/v1/me/contributions", headers=h,
-                               json={"summary": "x", "project_id": str(uuid.uuid4())})
+    r = await auth_client.post(
+        "/api/v1/me/contributions", headers=h, json={"summary": "x", "project_id": str(uuid.uuid4())}
+    )
     assert r.status_code == 404
 
 
@@ -58,6 +62,5 @@ async def test_contribution_tags_project(auth_client):
     token = await _pat(auth_client)
     h = {"Authorization": f"Bearer {token}"}
     pid = (await auth_client.post("/api/v1/projects", json={"name": "P", "description": ""})).json()["id"]
-    r = await auth_client.post("/api/v1/me/contributions", headers=h,
-                               json={"summary": "做了点东西", "project_id": pid})
+    r = await auth_client.post("/api/v1/me/contributions", headers=h, json={"summary": "做了点东西", "project_id": pid})
     assert r.status_code == 201 and r.json()["deduped"] is False

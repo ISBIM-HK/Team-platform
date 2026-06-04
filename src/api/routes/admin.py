@@ -6,11 +6,11 @@ admin manages roles (is_pm / is_admin) only; never reads others' private content
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.models.user import User
 from src.repositories.user_repo import UserRepository
 from src.schemas.user import UserListResponse, UserResponse
@@ -29,16 +29,16 @@ class RolePatch(BaseModel):
 
 
 async def _admin_count(session, tenant_id: uuid.UUID) -> int:
-    stmt = (
-        select(func.count())
-        .select_from(User)
-        .where(User.tenant_id == tenant_id, User.is_admin.is_(True))
-    )
+    stmt = select(func.count()).select_from(User).where(User.tenant_id == tenant_id, User.is_admin.is_(True))
     return (await session.execute(stmt)).scalar_one()
 
 
 @router.get("/users", response_model=UserListResponse)
-async def list_users(current_user: CurrentUser, session: DBSession):
+async def list_users(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("admin")),
+):
     _require_admin(current_user)
     users = await UserRepository(session).list_by_tenant(current_user.tenant_id)
     return UserListResponse(items=[UserResponse.model_validate(u) for u in users])
@@ -46,7 +46,11 @@ async def list_users(current_user: CurrentUser, session: DBSession):
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
 async def set_roles(
-    user_id: uuid.UUID, req: RolePatch, current_user: CurrentUser, session: DBSession
+    user_id: uuid.UUID,
+    req: RolePatch,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("admin")),
 ):
     _require_admin(current_user)
     repo = UserRepository(session)

@@ -18,7 +18,7 @@ function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (
 function initials(n) { return (n || '?').trim().slice(0, 2).toUpperCase(); }
 
 // ─── state ───
-let me = null, userMap = {}, projects = [], currentProjectId = null, allSuggestions = [], boardTasks = [];
+let me = null, userMap = {}, projects = [], archivedProjects = [], currentProjectId = null, allSuggestions = [], boardTasks = [];
 let chatSocket = null, chatSession = null;
 
 const STATUSES = [
@@ -32,6 +32,32 @@ const NEXT = {
   blocked: [['in_progress', '解除阻塞']], review: [['done', '完成'], ['in_progress', '退回']], done: [['archived', '归档']], archived: [['todo', '恢复']],
 };
 const SUG_LABEL = { decompose: '任务拆解', create_task: '创建任务', assign: '分配建议' };
+const DEFAULT_TOKEN_SCOPES = ['contributions:write', 'contributions:read', 'projects:read'];
+const TOKEN_SCOPE_OPTIONS = [
+  ['contributions:write', '投送工作'],
+  ['contributions:read', '查看投送'],
+  ['projects:read', '查看项目'],
+  ['projects:write', '管理项目'],
+  ['tasks:read', '查看任务'],
+  ['tasks:write', '管理任务'],
+  ['suggestions:read', '查看建议'],
+  ['suggestions:write', '处理建议'],
+  ['notifications:read', '查看通知'],
+  ['notifications:write', '标记通知'],
+  ['assistant:read', '读取助手'],
+  ['assistant:write', '修改助手'],
+  ['chat:read', '读取聊天'],
+  ['chat:write', '发送聊天'],
+  ['users:read', '查看成员'],
+  ['profile:read', '读取资料'],
+  ['integrations:read', '查看集成'],
+  ['integrations:write', '管理集成'],
+  ['decompose', 'AI 拆解'],
+  ['brief', '生成简报'],
+  ['pm', 'PM 观测'],
+  ['admin', '管理后台'],
+  ['tokens:manage', '管理令牌'],
+];
 
 // ─── auth ───
 let registerMode = false;
@@ -71,11 +97,13 @@ async function boot() {
 async function loadUsers() { try { const r = await api('/users'); (Array.isArray(r) ? r : r.items || []).forEach((u) => userMap[u.id] = u.display_name); } catch {} }
 
 // ─── center view switching ───
-const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'notificationsView', 'costView', 'adminView'];
+const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'archivedView', 'notificationsView', 'tokenView', 'costView', 'adminView'];
 function showView(id) {
   VIEWS.forEach((v) => $('#' + v).style.display = v === id ? 'block' : 'none');
   $('#navSuggestions').classList.toggle('active-nav', id === 'suggestionsView');
+  $('#navArchived').classList.toggle('active-nav', id === 'archivedView');
   $('#navNotifications').classList.toggle('active-nav', id === 'notificationsView');
+  $('#navTokens').classList.toggle('active-nav', id === 'tokenView');
   $('#navCost').classList.toggle('active-nav', id === 'costView');
   $('#navAdmin').classList.toggle('active-nav', id === 'adminView');
   if (id !== 'projectView') { currentProjectId = null; document.querySelectorAll('.proj-item').forEach((el) => el.classList.remove('active')); }
@@ -95,6 +123,31 @@ async function loadProjects(selectId) {
   });
   if (selectId) selectProject(selectId);
 }
+async function loadArchivedProjects() {
+  let all = [];
+  try { all = await api('/projects?include_archived=true'); } catch (e) { toast(e.message); }
+  archivedProjects = all.filter((p) => p.status === 'archived');
+  renderArchivedProjects();
+}
+function renderArchivedProjects() {
+  $('#archivedMeta').textContent = `${archivedProjects.length} 个项目`;
+  const body = $('#archivedProjectsBody'); body.innerHTML = '';
+  if (!archivedProjects.length) { body.innerHTML = '<div class="empty-hint">没有已归档项目。</div>'; return; }
+  archivedProjects.forEach((p) => {
+    const row = document.createElement('div'); row.className = 'admin-row';
+    row.innerHTML = `<span class="pdot"></span><span class="ar-name"><b>${escapeHtml(p.name)}</b><span class="ws-meta">${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%</span></span><button class="btn btn-soft btn-sm">恢复</button>`;
+    row.querySelector('button').onclick = async () => {
+      try {
+        await api(`/projects/${p.id}`, { method: 'PATCH', body: { status: 'active' } });
+        toast('项目已恢复');
+        await loadProjects(p.id);
+        await loadSuggestions();
+        await loadArchivedProjects();
+      } catch (e) { toast(e.message); }
+    };
+    body.appendChild(row);
+  });
+}
 function selectProject(id) {
   currentProjectId = id;
   showView('projectView');
@@ -102,7 +155,27 @@ function selectProject(id) {
   const p = projects.find((x) => x.id === id); if (!p) return;
   $('#pvName').textContent = p.name;
   $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`;
+  updateProjectActions(p);
   switchTab('board');
+}
+async function updateProjectActions(p) {
+  const archiveBtn = $('#pvDeleteBtn');
+  const deleteBtn = $('#pvHardDeleteBtn');
+  archiveBtn.style.display = 'none';
+  deleteBtn.style.display = 'none';
+  if (p.name === '未分类' || p.status === 'archived') return;
+  const show = () => {
+    archiveBtn.style.display = '';
+    deleteBtn.style.display = '';
+  };
+  if (me.is_pm || me.is_admin) { show(); return; }
+  const pid = p.id;
+  try {
+    const members = await api(`/projects/${pid}/members`);
+    if (currentProjectId !== pid) return;
+    const mine = members.find((m) => m.user_id === me.id);
+    if (mine && mine.role === 'lead') show();
+  } catch {}
 }
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
@@ -263,6 +336,7 @@ function renderSuggestionsView() {
   allSuggestions.forEach((s) => body.appendChild(sugCard(s, renderSuggestionsView)));
 }
 $('#navSuggestions').onclick = () => { showView('suggestionsView'); renderSuggestionsView(); };
+$('#navArchived').onclick = async () => { showView('archivedView'); await loadArchivedProjects(); };
 
 function renderPlanSuggestions() {
   const mine = allSuggestions.filter((s) => (s.target_ref || {}).project_id === currentProjectId);
@@ -321,6 +395,85 @@ async function loadNotifications() {
 }
 $('#navNotifications').onclick = loadNotifications;
 
+// ─── personal access tokens ───
+function renderTokenScopePicker() {
+  const box = $('#tokenScopes');
+  if (!box || box.dataset.ready) return;
+  box.innerHTML = TOKEN_SCOPE_OPTIONS.map(([scope, label]) => (
+    `<label class="scope-option"><input type="checkbox" value="${scope}" ${DEFAULT_TOKEN_SCOPES.includes(scope) ? 'checked' : ''}><span>${escapeHtml(label)}</span><code>${scope}</code></label>`
+  )).join('');
+  const full = $('#tokenFullScope');
+  const checks = Array.from(box.querySelectorAll('input[type="checkbox"]'));
+  full.onchange = () => {
+    checks.forEach((chk) => { chk.disabled = full.checked; });
+  };
+  checks.forEach((chk) => {
+    chk.onchange = () => {
+      if (chk.checked) {
+        full.checked = false;
+        checks.forEach((c) => { c.disabled = false; });
+      }
+    };
+  });
+  box.dataset.ready = '1';
+}
+function selectedTokenScopes() {
+  if ($('#tokenFullScope').checked) return ['*'];
+  return Array.from(document.querySelectorAll('#tokenScopes input[type="checkbox"]:checked')).map((el) => el.value);
+}
+function scopeTags(scopes) {
+  return (scopes || []).map((s) => `<span class="scope-tag ${s === '*' ? 'full' : ''}">${escapeHtml(s)}</span>`).join('');
+}
+async function loadTokens() {
+  showView('tokenView');
+  renderTokenScopePicker();
+  const body = $('#tokensBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  let items;
+  try { items = await api('/me/tokens'); }
+  catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
+  if (!items.length) { body.innerHTML = '<div class="empty-hint">还没有访问令牌。</div>'; return; }
+  body.innerHTML = '';
+  items.forEach((t) => {
+    const row = document.createElement('div'); row.className = 'token-row';
+    const agent = t.agent_name ? `<span class="ws-meta">${escapeHtml(t.agent_name)}</span>` : '';
+    row.innerHTML = `<div class="token-main"><b>${escapeHtml(t.name)}</b>${agent}<div class="token-scopes">${scopeTags(t.scopes)}</div><span class="ws-meta">${t.last_used_at ? `最近使用 ${escapeHtml(fmtBriefTime(t.last_used_at))}` : '尚未使用'}</span></div><button class="btn btn-ghost btn-sm">撤销</button>`;
+    row.querySelector('button').onclick = async () => {
+      if (!confirm(`撤销令牌「${t.name}」？`)) return;
+      try { await api(`/me/tokens/${t.id}`, { method: 'DELETE' }); await loadTokens(); toast('令牌已撤销'); }
+      catch (e) { toast(e.message); }
+    };
+    body.appendChild(row);
+  });
+}
+$('#navTokens').onclick = loadTokens;
+$('#tokenCreateBtn').onclick = async () => {
+  const name = $('#tokenName').value.trim();
+  if (!name) { $('#tokenName').focus(); return; }
+  const scopes = selectedTokenScopes();
+  if (!scopes.length) { toast('至少选择一个权限'); return; }
+  if (scopes.includes('*') && !confirm('创建全权限令牌？它可读写你的全部数据。')) return;
+  const body = {
+    name,
+    scopes,
+    agent_name: $('#tokenAgent').value.trim() || null,
+    description: $('#tokenDesc').value.trim() || null,
+  };
+  try {
+    const t = await api('/me/tokens', { method: 'POST', body });
+    const overlay = $('#tokenRevealOverlay');
+    $('#tokenRevealValue').textContent = t.token;
+    $('#tokenRevealName').textContent = t.name;
+    overlay.classList.add('show');
+    $('#tokenRevealCopy').onclick = async () => {
+      try { await navigator.clipboard.writeText(t.token); toast('已复制到剪贴板'); } catch { toast('复制失败'); }
+    };
+    $('#tokenRevealClose').onclick = () => { overlay.classList.remove('show'); };
+    $('#tokenName').value = ''; $('#tokenAgent').value = ''; $('#tokenDesc').value = '';
+    $('#tokenCreateResult').innerHTML = '';
+    await loadTokens();
+  } catch (e) { toast(e.message); }
+};
+
 // ─── cost view ───
 $('#navCost').onclick = async () => {
   showView('costView');
@@ -364,6 +517,31 @@ async function loadAdmin() {
 
 // ─── project members (附录 K) ───
 $('#pvMembersBtn').onclick = () => { if (currentProjectId) openMembers(currentProjectId); };
+$('#pvDeleteBtn').onclick = async () => {
+  const p = projects.find((x) => x.id === currentProjectId); if (!p) return;
+  if (!confirm(`归档项目「${p.name}」？归档后从列表隐藏，数据保留，可在“已归档”中恢复。`)) return;
+  try {
+    await api(`/projects/${currentProjectId}`, { method: 'PATCH', body: { status: 'archived' } });
+    toast('项目已归档');
+    currentProjectId = null;
+    await loadProjects();
+    await loadSuggestions();
+    showView('archivedView');
+    await loadArchivedProjects();
+  } catch (e) { toast(e.message); }
+};
+$('#pvHardDeleteBtn').onclick = async () => {
+  const p = projects.find((x) => x.id === currentProjectId); if (!p) return;
+  if (!confirm(`删除项目「${p.name}」？删除后从所有列表隐藏（含已归档），需维护者后台手动彻底清除，普通操作无法恢复。`)) return;
+  try {
+    await api(`/projects/${currentProjectId}`, { method: 'DELETE' });
+    toast('项目已删除');
+    currentProjectId = null;
+    await loadProjects();
+    await loadSuggestions();
+    if (projects.length) selectProject(projects[0].id); else showView('emptyState');
+  } catch (e) { toast(e.message); }
+};
 $('#membersClose').onclick = () => $('#membersOverlay').classList.remove('show');
 async function openMembers(pid) {
   $('#membersOverlay').classList.add('show');
@@ -572,6 +750,13 @@ $('#collapseAsst').onclick = () => $('#assistant').classList.remove('open');
 
 // ─── SSO (附录 M): show "用公司账号登录" when enabled; surface callback errors ───
 $('#ssoBtn').onclick = () => { window.location = '/api/v1/auth/sso/login'; };
+// dev stub (local only): fake SSO by email — provisions + logs in via resolve_sso_user
+$('#devSsoBtn').onclick = async () => {
+  const email = $('#devSsoEmail').value.trim();
+  if (!email) { $('#loginErr').textContent = '请输入邮箱'; return; }
+  try { await api('/auth/sso/dev-login', { method: 'POST', body: { email } }); location.reload(); }
+  catch (e) { $('#loginErr').textContent = e.message; }
+};
 async function initSso() {
   const err = new URLSearchParams(location.search).get('sso_error');
   if (err) {
@@ -579,7 +764,11 @@ async function initSso() {
     $('#loginErr').textContent = m[err] || 'SSO 登录失败';
     history.replaceState(null, '', '/');
   }
-  try { if ((await api('/auth/sso/status')).enabled) $('#ssoBlock').style.display = 'block'; } catch {}
+  try {
+    const st = await api('/auth/sso/status');
+    if (st.enabled) $('#ssoBlock').style.display = 'block';
+    if (st.dev_stub) $('#devSsoBlock').style.display = 'block';
+  } catch {}
 }
 
 boot();

@@ -10,9 +10,9 @@ Accept logic per suggestion_type:
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.models.common import NotificationKind, SuggestionStatus, SuggestionType, TaskPriority
 from src.models.notification import Notification
 from src.models.project import Project
@@ -36,6 +36,7 @@ router = APIRouter(prefix="/suggestions", tags=["suggestions"])
 async def list_suggestions(
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("suggestions:read")),
     status: SuggestionStatus | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -45,9 +46,7 @@ async def list_suggestions(
     if current_user.is_pm and status == SuggestionStatus.pending:
         items = await repo.list_pending(current_user.tenant_id, limit=limit, offset=offset)
     else:
-        items = await repo.list_by_user(
-            current_user.id, status=status, limit=limit, offset=offset
-        )
+        items = await repo.list_by_user(current_user.id, status=status, limit=limit, offset=offset)
     return SuggestionListResponse(
         items=[SuggestionResponse.model_validate(i) for i in items],
         total=len(items),
@@ -59,6 +58,7 @@ async def accept_suggestion(
     suggestion_id: uuid.UUID,
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("suggestions:write")),
 ):
     repo = SuggestionRepository(session)
     suggestion = await repo.get_by_id(suggestion_id)
@@ -78,18 +78,29 @@ async def accept_suggestion(
     async def _resolve_project(ref: dict) -> uuid.UUID:
         """ref.project_name → new project; ref.project_id → existing; else Inbox."""
         if ref.get("project_name"):
-            proj = await prepo.create(Project(
-                tenant_id=current_user.tenant_id, name=ref["project_name"],
-                description=ref.get("description", ""), status="active",
-                created_by=current_user.id,
-            ))
-            # Creator becomes lead + member (附录 K §2)
-            await ProjectMemberRepository(session).add(
-                current_user.tenant_id, proj.id, current_user.id, role="lead"
+            proj = await prepo.create(
+                Project(
+                    tenant_id=current_user.tenant_id,
+                    name=ref["project_name"],
+                    description=ref.get("description", ""),
+                    status="active",
+                    created_by=current_user.id,
+                )
             )
+            # Creator becomes lead + member (附录 K §2)
+            await ProjectMemberRepository(session).add(current_user.tenant_id, proj.id, current_user.id, role="lead")
             return proj.id
         if ref.get("project_id"):
-            return uuid.UUID(ref["project_id"])
+            try:
+                project_id = uuid.UUID(ref["project_id"])
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Invalid project_id in target_ref") from None
+            proj = await prepo.get_by_id(project_id)
+            if not proj or proj.tenant_id != current_user.tenant_id:
+                raise HTTPException(status_code=404, detail="Referenced project not found")
+            if proj.status != "active":
+                raise HTTPException(status_code=422, detail="Project is not active; cannot accept suggestion")
+            return proj.id
         return (await prepo.ensure_inbox(current_user.tenant_id, current_user.id)).id
 
     if suggestion.suggestion_type == SuggestionType.create_task:
@@ -149,6 +160,9 @@ async def accept_suggestion(
         task = await task_repo.get_by_id(uuid.UUID(task_id))
         if not task or task.tenant_id != current_user.tenant_id:
             raise HTTPException(status_code=404, detail="Referenced task not found")
+        proj = await prepo.get_by_id(task.project_id)
+        if proj and proj.status != "active":
+            raise HTTPException(status_code=422, detail="Project is not active; cannot accept suggestion")
         task.owner_user_id = suggestion.target_user_id
         task.updated_at = datetime.now(UTC).replace(tzinfo=None)
         session.add(task)
@@ -156,13 +170,15 @@ async def accept_suggestion(
         created_task_ids.append(task.id)
         # Notify the assignee (附录 I.3)
         if suggestion.target_user_id:
-            await NotificationRepository(session).create(Notification(
-                tenant_id=current_user.tenant_id,
-                recipient_user_id=suggestion.target_user_id,
-                kind=NotificationKind.task_assigned,
-                title=f"你被分配任务:{task.title}",
-                source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
-            ))
+            await NotificationRepository(session).create(
+                Notification(
+                    tenant_id=current_user.tenant_id,
+                    recipient_user_id=suggestion.target_user_id,
+                    kind=NotificationKind.task_assigned,
+                    title=f"你被分配任务:{task.title}",
+                    source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
+                )
+            )
 
     else:
         raise HTTPException(
@@ -186,6 +202,7 @@ async def reject_suggestion(
     req: RejectRequest,
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("suggestions:write")),
 ):
     repo = SuggestionRepository(session)
     suggestion = await repo.get_by_id(suggestion_id)

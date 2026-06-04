@@ -1,8 +1,8 @@
 """Auth routes — register, login, logout, me."""
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.core.config import get_settings
 from src.core.security import create_session_token, hash_password, verify_password
 from src.models.tenant import Tenant
@@ -104,5 +104,5 @@ async def logout(response: Response):
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user: CurrentUser):
+async def me(current_user: CurrentUser, _scope: None = Depends(require_scope("profile:read"))):
     return current_user

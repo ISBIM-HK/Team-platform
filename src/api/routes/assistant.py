@@ -6,10 +6,10 @@ Always self-scoped via /me — owner-only structurally (no cross-user access pat
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.models.assistant_skill import AssistantSkill
 from src.repositories.assistant_repo import AssistantWorkspaceRepository
 from src.repositories.assistant_skill_repo import AssistantSkillRepository
@@ -33,19 +33,26 @@ class WorkspacePatch(BaseModel):
 
 
 @router.get("", response_model=WorkspaceResponse)
-async def get_workspace(current_user: CurrentUser, session: DBSession):
+async def get_workspace(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("assistant:read")),
+):
     ws = await AssistantWorkspaceRepository(session).ensure(current_user.tenant_id, current_user.id)
     return WorkspaceResponse.model_validate(ws)
 
 
 @router.patch("", response_model=WorkspaceResponse)
-async def patch_workspace(req: WorkspacePatch, current_user: CurrentUser, session: DBSession):
+async def patch_workspace(
+    req: WorkspacePatch,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("assistant:write")),
+):
     """Partial update — only provided fields change (附录 J.4)."""
     repo = AssistantWorkspaceRepository(session)
     ws = await repo.ensure(current_user.tenant_id, current_user.id)
-    ws = await repo.patch(
-        ws, persona_md=req.persona_md, memory_md=req.memory_md, profile_md=req.profile_md
-    )
+    ws = await repo.patch(ws, persona_md=req.persona_md, memory_md=req.memory_md, profile_md=req.profile_md)
     return WorkspaceResponse.model_validate(ws)
 
 
@@ -93,14 +100,23 @@ async def _owned_skill(skill_id: uuid.UUID, current_user, session):
 
 
 @router.get("/skills", response_model=SkillListResponse)
-async def list_skills(current_user: CurrentUser, session: DBSession):
+async def list_skills(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("assistant:read")),
+):
     ws = await _workspace(current_user, session)
     items = await AssistantSkillRepository(session).list_by_workspace(ws.id)
     return SkillListResponse(items=[SkillResponse.model_validate(s) for s in items])
 
 
 @router.post("/skills", response_model=SkillResponse, status_code=201)
-async def create_skill(req: SkillCreate, current_user: CurrentUser, session: DBSession):
+async def create_skill(
+    req: SkillCreate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("assistant:write")),
+):
     ws = await _workspace(current_user, session)
     skill = AssistantSkill(
         workspace_id=ws.id,
@@ -116,7 +132,11 @@ async def create_skill(req: SkillCreate, current_user: CurrentUser, session: DBS
 
 @router.patch("/skills/{skill_id}", response_model=SkillResponse)
 async def patch_skill(
-    skill_id: uuid.UUID, req: SkillPatch, current_user: CurrentUser, session: DBSession
+    skill_id: uuid.UUID,
+    req: SkillPatch,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("assistant:write")),
 ):
     repo, skill = await _owned_skill(skill_id, current_user, session)
     skill = await repo.update(
@@ -130,6 +150,11 @@ async def patch_skill(
 
 
 @router.delete("/skills/{skill_id}", status_code=204)
-async def delete_skill(skill_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def delete_skill(
+    skill_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("assistant:write")),
+):
     repo, skill = await _owned_skill(skill_id, current_user, session)
     await repo.delete(skill)

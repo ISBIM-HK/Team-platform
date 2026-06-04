@@ -316,7 +316,7 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .ws-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .ws-title h1 { font-family: var(--font-display); font-weight: 500; font-size: 26px; letter-spacing: -0.01em; }
 .ws-title .ws-meta { font-size: 12.5px; color: var(--text-3); }
-.tabs { display: flex; gap: 4px; background: var(--bg-deep); padding: 4px; border-radius: 10px; }
+.tabs { display: flex; gap: 4px; background: var(--bg-deep); padding: 4px; border-radius: 10px; margin-left: auto; }
 .tab { padding: 7px 15px; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--text-2); transition: all .14s; }
 .tab:hover { color: var(--text); }
 .tab.active { background: var(--surface); color: var(--accent-hover); box-shadow: var(--shadow-sm); }
@@ -447,6 +447,26 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .notif.read { opacity: .55; border-left-color: var(--border); }
 .notif .ntext { font-size: 14px; }
 .notif .nmeta { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+
+/* ─── personal access tokens ─── */
+.token-grid { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.token-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); }
+.token-scope-head { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 6px; }
+.token-full { display: flex; align-items: center; gap: 7px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #f7ece8; color: var(--danger); font-size: 13px; margin-bottom: 8px; }
+.token-full span { color: var(--text-2); font-size: 12px; }
+.token-full input, .scope-option input { accent-color: var(--accent); }
+.scope-grid { display: grid; grid-template-columns: 1fr; gap: 6px; max-height: 260px; overflow-y: auto; padding-right: 2px; margin-bottom: 12px; }
+.scope-option { display: grid; grid-template-columns: 18px 86px minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12.5px; }
+.scope-option code { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scope-option:has(input:disabled) { opacity: .5; }
+.token-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; max-width: 680px; }
+.token-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.token-scopes { display: flex; flex-wrap: wrap; gap: 5px; }
+.scope-tag { font-size: 10.5px; font-weight: 700; color: var(--accent-hover); background: var(--accent-soft); border-radius: 999px; padding: 2px 7px; }
+.scope-tag.full { color: #fff; background: var(--danger); }
+.token-secret { margin-top: 12px; display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.token-secret span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--accent-hover); }
+@media (max-width: 760px) { .token-grid { grid-template-columns: 1fr; } }
 
 /* ─── plan tab: AI implementation hints (附录 I.2) ─── */
 .ih-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); padding: 10px 14px; margin-bottom: 8px; }

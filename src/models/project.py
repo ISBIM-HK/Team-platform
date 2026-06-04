@@ -21,6 +21,6 @@ class Project(TimestampMixin, table=True):
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
     name: str = Field(max_length=255)
     description: str = Field(default="")
-    status: str = Field(default="active", max_length=20)  # 'active' | 'archived'
+    status: str = Field(default="active", max_length=20)  # 'active' | 'archived' | 'deleted'
     created_by: uuid.UUID | None = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=utcnow)

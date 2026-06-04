@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.common import TaskStatus
@@ -18,16 +18,24 @@ class ProjectRepository:
     async def get_by_id(self, project_id: uuid.UUID) -> Project | None:
         return await self.session.get(Project, project_id)
 
-    async def list_by_tenant(self, tenant_id: uuid.UUID) -> list[Project]:
-        stmt = (
-            select(Project)
-            .where(Project.tenant_id == tenant_id)
-            .order_by(Project.created_at.asc())
-        )
+    async def list_by_tenant(
+        self, tenant_id: uuid.UUID, *, include_archived: bool = False, viewer_id: uuid.UUID | None = None
+    ) -> list[Project]:
+        """Tenant-wide project list (privileged callers). The per-user Inbox is personal:
+        when viewer_id is given, others' Inboxes are excluded so a pm/admin doesn't see
+        a row of identical "未分类"; real projects are unaffected."""
+        stmt = select(Project).where(Project.tenant_id == tenant_id).order_by(Project.created_at.asc())
+        statuses = ("active", "archived") if include_archived else ("active",)
+        stmt = stmt.where(Project.status.in_(statuses))
+        if viewer_id is not None:
+            # keep all non-Inbox projects + only the viewer's own Inbox
+            stmt = stmt.where(or_(Project.name != INBOX_NAME, Project.created_by == viewer_id))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_for_member(self, tenant_id: uuid.UUID, user_id: uuid.UUID) -> list[Project]:
+    async def list_for_member(
+        self, tenant_id: uuid.UUID, user_id: uuid.UUID, *, include_archived: bool = False
+    ) -> list[Project]:
         """Projects where the user is a member (project-level ACL, 附录 K)."""
         stmt = (
             select(Project)
@@ -35,6 +43,8 @@ class ProjectRepository:
             .where(Project.tenant_id == tenant_id, ProjectMember.user_id == user_id)
             .order_by(Project.created_at.asc())
         )
+        statuses = ("active", "archived") if include_archived else ("active",)
+        stmt = stmt.where(Project.status.in_(statuses))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -59,7 +69,10 @@ class ProjectRepository:
         if inbox:
             return inbox
         inbox = Project(
-            tenant_id=tenant_id, name=INBOX_NAME, description="", status="active",
+            tenant_id=tenant_id,
+            name=INBOX_NAME,
+            description="",
+            status="active",
             created_by=user_id,
         )
         self.session.add(inbox)
@@ -82,11 +95,7 @@ class ProjectRepository:
 
     async def status_counts(self, project_id: uuid.UUID) -> dict[str, int]:
         """Task count per status for a project (for board/share summary)."""
-        stmt = (
-            select(Task.status, func.count())
-            .where(Task.project_id == project_id)
-            .group_by(Task.status)
-        )
+        stmt = select(Task.status, func.count()).where(Task.project_id == project_id).group_by(Task.status)
         rows = (await self.session.execute(stmt)).all()
         counts = {s.value: 0 for s in TaskStatus}
         for status, n in rows:

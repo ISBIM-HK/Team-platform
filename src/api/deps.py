@@ -1,4 +1,4 @@
-"""FastAPI dependencies — session, current user, tenant."""
+"""FastAPI dependencies — session, current user, tenant, scope guards."""
 
 import uuid
 from typing import Annotated
@@ -14,6 +14,36 @@ from src.models.pat import PersonalAccessToken
 from src.models.user import User
 from src.repositories.user_repo import UserRepository
 
+VALID_SCOPES = {
+    "contributions:write",
+    "contributions:read",
+    "projects:read",
+    "projects:write",
+    "tasks:read",
+    "tasks:write",
+    "suggestions:read",
+    "suggestions:write",
+    "notifications:read",
+    "notifications:write",
+    "assistant:read",
+    "assistant:write",
+    "chat:read",
+    "chat:write",
+    "assistant:message",
+    "tokens:manage",
+    "admin",
+    "users:read",
+    "profile:read",
+    "integrations:read",
+    "integrations:write",
+    "decompose",
+    "brief",
+    "pm",
+    "events:read",
+    "events:write",
+    "*",
+}
+
 
 async def get_db() -> AsyncSession:
     """Override for FastAPI — yields an async session."""
@@ -25,10 +55,11 @@ DBSession = Annotated[AsyncSession, Depends(get_db)]
 
 
 async def get_current_user(request: Request, session: DBSession) -> User:
-    """Resolve current user from a Bearer PAT (local tools) or the session cookie."""
+    """Resolve current user from a Bearer PAT (local tools) or the session cookie.
+
+    Sets request.state.token_scopes for downstream scope guards."""
     repo = UserRepository(session)
 
-    # 1. Bearer PAT (for CLI / MCP / local tools)
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         raw = auth[7:].strip()
@@ -38,12 +69,12 @@ async def get_current_user(request: Request, session: DBSession) -> User:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
         pat.last_used_at = utcnow()
         session.add(pat)
+        request.state.token_scopes = pat.scopes or ["*"]
         user = await repo.get_by_id(pat.user_id)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         return user
 
-    # 2. Session cookie (browser)
     token = request.cookies.get("session_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -54,6 +85,7 @@ async def get_current_user(request: Request, session: DBSession) -> User:
         user_id = uuid.UUID(user_id_str)
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid session")
+    request.state.token_scopes = ["*"]
     user = await repo.get_by_id(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -61,3 +93,30 @@ async def get_current_user(request: Request, session: DBSession) -> User:
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def require_scope(*all_needed: str):
+    """ALL listed scopes must be present (AND)."""
+
+    async def _check(request: Request):
+        scopes = getattr(request.state, "token_scopes", [])
+        if "*" in scopes:
+            return
+        for s in all_needed:
+            if s not in scopes:
+                raise HTTPException(status_code=403, detail=f"Token lacks scope: {s}")
+
+    return _check
+
+
+def require_any_scope(*any_of: str):
+    """At least ONE of the listed scopes must be present (OR)."""
+
+    async def _check(request: Request):
+        scopes = set(getattr(request.state, "token_scopes", []))
+        if "*" in scopes:
+            return
+        if not scopes & set(any_of):
+            raise HTTPException(status_code=403, detail=f"Token lacks any of: {', '.join(any_of)}")
+
+    return _check

@@ -3,13 +3,13 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.ai.dispatch import suggest_assignment
 from src.ai.impl_hint import suggest_impl_hint
 from src.ai.usage import RecordCtx
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_any_scope, require_scope
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import (
     LLMTrigger,
@@ -56,6 +56,7 @@ VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
 async def list_tasks(
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_any_scope("tasks:read", "tasks:write")),
     status: TaskStatus | None = Query(None),
     owner: uuid.UUID | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
@@ -67,12 +68,14 @@ async def list_tasks(
     if not _privileged(current_user):
         project_ids = await ProjectRepository(session).list_ids_for_member(current_user.id)
     tasks = await repo.list_by_tenant(
-        current_user.tenant_id, status=status, owner_id=owner,
-        project_ids=project_ids, limit=limit, offset=offset,
+        current_user.tenant_id,
+        status=status,
+        owner_id=owner,
+        project_ids=project_ids,
+        limit=limit,
+        offset=offset,
     )
-    total = await repo.count_by_tenant(
-        current_user.tenant_id, status=status, owner_id=owner, project_ids=project_ids
-    )
+    total = await repo.count_by_tenant(current_user.tenant_id, status=status, owner_id=owner, project_ids=project_ids)
     return TaskListResponse(
         items=[TaskResponse.model_validate(t) for t in tasks],
         total=total,
@@ -80,7 +83,12 @@ async def list_tasks(
 
 
 @router.post("", response_model=TaskResponse, status_code=201)
-async def create_task(req: TaskCreate, current_user: CurrentUser, session: DBSession):
+async def create_task(
+    req: TaskCreate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("tasks:write")),
+):
     repo = TaskRepository(session)
     prepo = ProjectRepository(session)
     if req.project_id:
@@ -118,6 +126,7 @@ async def update_task(
     req: TaskUpdate,
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("tasks:write")),
 ):
     repo = TaskRepository(session)
     task = await repo.get_by_id(task_id)
@@ -158,7 +167,12 @@ async def update_task(
 
 
 @router.post("/{task_id}/claim", response_model=TaskResponse)
-async def claim_task(task_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def claim_task(
+    task_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("tasks:write")),
+):
     repo = TaskRepository(session)
     # Must be a member of the task's project to claim it (404 over 403, 附录 K §6)
     existing = await repo.get_by_id(task_id)
@@ -173,13 +187,15 @@ async def claim_task(task_id: uuid.UUID, current_user: CurrentUser, session: DBS
     if not task:
         raise HTTPException(status_code=409, detail="Task already claimed or not found")
     # Self-notification into the inbox (附录 I.3)
-    await NotificationRepository(session).create(Notification(
-        tenant_id=current_user.tenant_id,
-        recipient_user_id=current_user.id,
-        kind=NotificationKind.task_claimed,
-        title=f"已认领:{task.title}",
-        source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
-    ))
+    await NotificationRepository(session).create(
+        Notification(
+            tenant_id=current_user.tenant_id,
+            recipient_user_id=current_user.id,
+            kind=NotificationKind.task_claimed,
+            title=f"已认领:{task.title}",
+            source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
+        )
+    )
     return TaskResponse.model_validate(task)
 
 
@@ -195,6 +211,7 @@ async def task_impl_hint(
     task_id: uuid.UUID,
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("tasks:write")),
     regenerate: bool = Query(False),
 ):
     """Auto AI implementation hint for a claimed leaf task (附录 I.2). Advisory only — no accept/reject."""
@@ -245,7 +262,12 @@ class AssignSuggestResponse(BaseModel):
 
 
 @router.post("/{task_id}/suggest-assignment", response_model=AssignSuggestResponse)
-async def suggest_task_assignment(task_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def suggest_task_assignment(
+    task_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("tasks:write")),
+):
     """Lead-triggered AI dispatch: recommend an owner based on project-member load.
 
     Advisory (creates an assign suggestion). Triggerable by the project's lead or a
@@ -276,10 +298,16 @@ async def suggest_task_assignment(task_id: uuid.UUID, current_user: CurrentUser,
         raise HTTPException(status_code=422, detail="No project members to assign")
 
     rec = await suggest_assignment(
-        task.title, task.description, member_ctx,
-        record=RecordCtx(session=session, tenant_id=current_user.tenant_id,
-                         user_id=current_user.id, trigger=LLMTrigger.dispatch,
-                         triggered_by_id=task_id),
+        task.title,
+        task.description,
+        member_ctx,
+        record=RecordCtx(
+            session=session,
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            trigger=LLMTrigger.dispatch,
+            triggered_by_id=task_id,
+        ),
     )
 
     # Guard against a hallucinated user_id

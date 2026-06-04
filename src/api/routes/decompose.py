@@ -1,11 +1,11 @@
 """Decomposition route — goal → AI plan → suggestion."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.ai.decompose import decompose_goal
 from src.ai.usage import RecordCtx
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import LLMTrigger, SuggestionStatus, SuggestionType
 from src.repositories.suggestion_repo import SuggestionRepository
@@ -32,6 +32,7 @@ async def trigger_decomposition(
     req: DecomposeRequest,
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("decompose")),
 ):
     """Decompose a goal into subtasks via AI, create a suggestion for review."""
     # Build team context from tenant members
@@ -44,8 +45,9 @@ async def trigger_decomposition(
     team_context = "## 团队成员\n" + "\n".join(team_lines) if team_lines else ""
 
     # Run AI decomposition (record cost to llm_calls)
-    rec = RecordCtx(session=session, tenant_id=current_user.tenant_id,
-                    user_id=current_user.id, trigger=LLMTrigger.dispatch)
+    rec = RecordCtx(
+        session=session, tenant_id=current_user.tenant_id, user_id=current_user.id, trigger=LLMTrigger.dispatch
+    )
     try:
         plan = await decompose_goal(req.goal, team_context, record=rec)
     except Exception as e:
@@ -70,9 +72,9 @@ async def trigger_decomposition(
         ],
     }
     if req.project_id:
-        target_ref["project_id"] = req.project_id   # add into existing project
+        target_ref["project_id"] = req.project_id  # add into existing project
     else:
-        target_ref["project_name"] = plan.title     # accept creates a new project
+        target_ref["project_name"] = plan.title  # accept creates a new project
 
     # Create suggestion
     suggestion_repo = SuggestionRepository(session)

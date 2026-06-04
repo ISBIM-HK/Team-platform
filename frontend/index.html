@@ -23,6 +23,11 @@
       <div class="sso-divider"><span>或</span></div>
       <button class="btn btn-soft sso-btn" id="ssoBtn">🔐 用公司账号登录</button>
     </div>
+    <div class="sso-block" id="devSsoBlock" style="display:none">
+      <div class="sso-divider"><span>开发登录 · 仿真 SSO</span></div>
+      <div class="field"><label>公司邮箱</label><input id="devSsoEmail" type="email" placeholder="you@isbim.com.hk" autocomplete="username" /></div>
+      <button class="btn btn-soft sso-btn" id="devSsoBtn">🧪 开发登录（仿真）</button>
+    </div>
     <div class="login-toggle"><span id="toggleText">还没有账号？</span><button id="toggleMode">注册</button></div>
   </div>
 </div>
@@ -40,7 +45,9 @@
 
     <div class="side-global">
       <button class="nav-item" id="navSuggestions"><span>📥 待处理建议</span><span class="badge" id="sugBadge" style="display:none">0</span></button>
+      <button class="nav-item" id="navArchived"><span>🗄 已归档</span></button>
       <button class="nav-item" id="navNotifications"><span>🔔 通知</span><span class="badge" id="notifBadge" style="display:none">0</span></button>
+      <button class="nav-item" id="navTokens"><span>🔑 访问令牌</span></button>
       <button class="nav-item" id="navAdmin" style="display:none"><span>👑 团队管理</span></button>
       <button class="nav-item" id="navCost" style="display:none"><span>💲 LLM 成本</span></button>
     </div>
@@ -66,6 +73,8 @@
           <button class="tab" data-tab="plan">AI 方案</button>
           <button class="tab" data-tab="share">进度分享</button>
           <button class="tab tab-members" id="pvMembersBtn" title="项目成员">👥 成员</button>
+          <button class="tab tab-members" id="pvDeleteBtn" title="归档项目" style="display:none">🗄 归档</button>
+          <button class="tab tab-members" id="pvHardDeleteBtn" title="删除项目" style="display:none">🗑 删除</button>
         </div>
       </div>
       <div class="tab-panel" id="tab-board"><div class="board" id="board"></div><div id="archivedFold"></div></div>
@@ -88,10 +97,58 @@
       <div id="suggestionsBody" class="sug-grid"></div>
     </div>
 
+    <!-- archived projects -->
+    <div class="center-view" id="archivedView" style="display:none">
+      <div class="ws-header"><div class="ws-title"><h1>已归档</h1><span class="ws-meta" id="archivedMeta"></span></div></div>
+      <div id="archivedProjectsBody"></div>
+    </div>
+
     <!-- notifications inbox (附录 I.3 — separate from AI suggestions) -->
     <div class="center-view" id="notificationsView" style="display:none">
       <div class="ws-header"><div class="ws-title"><h1>通知</h1><span class="ws-meta" id="notifMeta"></span></div></div>
       <div id="notificationsBody"></div>
+    </div>
+
+    <!-- personal access tokens -->
+    <div class="center-view" id="tokenView" style="display:none">
+      <div class="ws-header"><div class="ws-title"><h1>访问令牌</h1><span class="ws-meta">本地 CLI / MCP / agent</span></div></div>
+      <div class="token-grid">
+        <div class="token-panel">
+          <div class="field"><label>名称</label><input id="tokenName" type="text" placeholder="laptop-hermes" /></div>
+          <div class="field"><label>Agent</label><input id="tokenAgent" type="text" list="agentOptions" placeholder="hermes" /></div>
+          <datalist id="agentOptions">
+            <option value="claude-code"></option>
+            <option value="codex"></option>
+            <option value="hermes"></option>
+            <option value="cli"></option>
+          </datalist>
+          <div class="field"><label>备注</label><input id="tokenDesc" type="text" placeholder="本机工作投送" /></div>
+          <div class="token-scope-head">权限范围</div>
+          <label class="token-full"><input id="tokenFullScope" type="checkbox" value="*" /> <b>全权限 (*)</b><span>可读写你的全部数据,只给可信客户端。</span></label>
+          <div class="scope-grid" id="tokenScopes"></div>
+          <button class="btn btn-primary" id="tokenCreateBtn">创建令牌</button>
+          <div id="tokenCreateResult"></div>
+        </div>
+        <div id="tokensBody"></div>
+      </div>
+    </div>
+
+    <!-- token reveal modal (shown once after creation) -->
+    <div class="overlay" id="tokenRevealOverlay">
+      <div class="overlay-card" style="max-width:520px">
+        <h2 style="margin-bottom:6px">令牌已创建</h2>
+        <p class="ws-meta" style="margin-bottom:16px">请立即复制。关闭此窗口后令牌<b style="color:var(--danger)">不再显示</b>,只能删除重建。</p>
+        <div class="field"><label>名称</label><div id="tokenRevealName" style="font-weight:600"></div></div>
+        <div class="field"><label>令牌</label>
+          <div class="token-secret" style="margin-top:0">
+            <span id="tokenRevealValue" style="word-break:break-all;white-space:normal"></span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button class="btn btn-primary" id="tokenRevealCopy">复制令牌</button>
+          <button class="btn btn-ghost" id="tokenRevealClose">我已保存,关闭</button>
+        </div>
+      </div>
     </div>
 
     <!-- LLM cost -->

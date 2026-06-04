@@ -35,6 +35,7 @@ def skills_prompt_section(skills) -> str:
         parts.append(f"### {s.name}\n{(s.instruction_md or '').strip()}")
     return "\n\n".join(parts)
 
+
 ASSISTANT_SYSTEM_PROMPT = """你是 Team Platform 的个人 AI 助手。你的职责：
 1. 帮用户查任务（自己的或团队的）
 2. 帮用户记录手动工作
@@ -54,10 +55,12 @@ ASSISTANT_SYSTEM_PROMPT = """你是 Team Platform 的个人 AI 助手。你的�
 - 发现可复用的做法/流程时，用 save_skill 把它沉淀成技能；已有技能用得不顺时用 improve_skill 改进
 """
 
-def get_assistant_agent() -> Agent[AssistantDeps, str]:
-    """Create the personal assistant agent with all tools registered.
 
-    高频对话 → 默认便宜模型（Flash）；需要更强推理可改 llm_model_strong。
+def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str]:
+    """Create the personal assistant agent.
+
+    restricted=True: only read-only tools (for REST/PAT surface — prevents scoped PAT
+    from gaining write capabilities through the assistant's tool chain).
     """
     from src.ai.tools import (
         create_task_suggestion,
@@ -82,32 +85,61 @@ def get_assistant_agent() -> Agent[AssistantDeps, str]:
         retries=1,
     )
 
-    # Per-user persona/memory/profile injected each turn (附录 J.2)
+    # Per-user persona/memory/profile + recent contributions injected each turn (附录 J.2)
     @agent.system_prompt
     async def _inject_workspace(ctx: RunContext[AssistantDeps]) -> str:
+        from sqlalchemy import select
+
+        from src.models.common import EventSource
+        from src.models.event_cache import EventCache
         from src.repositories.assistant_repo import AssistantWorkspaceRepository
         from src.repositories.assistant_skill_repo import AssistantSkillRepository
 
-        ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(
-            ctx.deps.tenant_id, ctx.deps.user_id
-        )
+        ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(ctx.deps.tenant_id, ctx.deps.user_id)
         skills = await AssistantSkillRepository(ctx.deps.session).list_enabled(ws.id)
         sections = [workspace_prompt_section(ws), skills_prompt_section(skills)]
+
+        recent = (
+            (
+                await ctx.deps.session.execute(
+                    select(EventCache)
+                    .where(
+                        EventCache.actor_user_id == ctx.deps.user_id,
+                        EventCache.source == EventSource.agent,
+                    )
+                    .order_by(EventCache.occurred_at.desc())
+                    .limit(5)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if recent:
+            lines = ["[最近投送的工作]"]
+            for e in recent:
+                p = e.payload or {}
+                t = e.occurred_at.strftime("%m-%d %H:%M") if e.occurred_at else "?"
+                agent = f" (via {p['source_agent']})" if p.get("source_agent") else ""
+                sha = f" [{p['sha'][:7]}]" if p.get("sha") else ""
+                lines.append(f"- {t}{sha} {p.get('content', '')}{agent}")
+            sections.append("\n".join(lines))
+
         return "\n\n".join(p for p in sections if p)
 
-    # Register tools
+    # Register tools — restricted mode only gets read-only tools
     agent.tool(query_my_tasks)
     agent.tool(query_team_tasks)
-    agent.tool(log_manual_work)
-    agent.tool(create_task_suggestion)
-    agent.tool(decompose_into_project)
-    agent.tool(get_task_impl_hint)
-    agent.tool(update_task_impl_hint)
-    agent.tool(remember)
-    agent.tool(note_about_user)
-    agent.tool(rewrite_memory)
-    agent.tool(save_skill)
-    agent.tool(improve_skill)
+    if not restricted:
+        agent.tool(log_manual_work)
+        agent.tool(create_task_suggestion)
+        agent.tool(decompose_into_project)
+        agent.tool(get_task_impl_hint)
+        agent.tool(update_task_impl_hint)
+        agent.tool(remember)
+        agent.tool(note_about_user)
+        agent.tool(rewrite_memory)
+        agent.tool(save_skill)
+        agent.tool(improve_skill)
 
     return agent
 
@@ -117,21 +149,16 @@ async def chat_turn(
     history: list[dict],
     deps: AssistantDeps,
     record=None,
+    *,
+    restricted: bool = False,
 ) -> str:
     """Run one chat turn: user message → assistant response.
 
-    Args:
-        user_message: The user's input text.
-        history: Previous messages as [{"role": "user"/"assistant", "content": "..."}].
-        deps: Runtime dependencies (session, user_id, tenant_id).
-        record: Optional usage.RecordCtx; when given, logs the call to llm_calls.
-
-    Returns:
-        Assistant's response text.
+    restricted=True uses a read-only tool set (for REST/PAT surface).
     """
     import time
 
-    agent = get_assistant_agent()
+    agent = get_assistant_agent(restricted=restricted)
 
     # Build message history + new user message
     messages = history + [{"role": "user", "content": user_message}]
@@ -144,8 +171,8 @@ async def chat_turn(
     )
     if record is not None:
         from src.ai.usage import record_run
-        await record_run(record, result, get_settings().llm_model_cheap,
-                         int((time.monotonic() - t0) * 1000))
+
+        await record_run(record, result, get_settings().llm_model_cheap, int((time.monotonic() - t0) * 1000))
     return result.output
 
 

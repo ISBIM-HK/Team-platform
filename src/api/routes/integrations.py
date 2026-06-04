@@ -2,11 +2,11 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.capture.sync import sync_gitlab
 from src.core.crypto import encrypt_credential
 from src.models.common import IntegrationProvider, IntegrationStatus
@@ -35,14 +35,17 @@ class SyncResponse(BaseModel):
 
 
 async def _get_user_integration(session, user_id, provider) -> Integration | None:
-    stmt = select(Integration).where(
-        Integration.user_id == user_id, Integration.provider == provider
-    )
+    stmt = select(Integration).where(Integration.user_id == user_id, Integration.provider == provider)
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
 @router.post("/gitlab/connect", response_model=IntegrationResponse)
-async def connect_gitlab(req: GitlabConnectRequest, current_user: CurrentUser, session: DBSession):
+async def connect_gitlab(
+    req: GitlabConnectRequest,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
     """Store (encrypted) the user's GitLab PAT + base URL. Idempotent (re-connect updates)."""
     cred = encrypt_credential({"pat": req.pat, "base_url": req.base_url.rstrip("/")})
     integ = await _get_user_integration(session, current_user.id, IntegrationProvider.gitlab)
@@ -69,14 +72,22 @@ async def connect_gitlab(req: GitlabConnectRequest, current_user: CurrentUser, s
 
 
 @router.get("", response_model=list[IntegrationResponse])
-async def list_integrations(current_user: CurrentUser, session: DBSession):
+async def list_integrations(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:read")),
+):
     stmt = select(Integration).where(Integration.user_id == current_user.id)
     rows = (await session.execute(stmt)).scalars().all()
     return [_to_response(i) for i in rows]
 
 
 @router.post("/gitlab/sync-now", response_model=SyncResponse)
-async def sync_now(current_user: CurrentUser, session: DBSession):
+async def sync_now(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
     integ = await _get_user_integration(session, current_user.id, IntegrationProvider.gitlab)
     if not integ or not integ.enabled:
         raise HTTPException(status_code=404, detail="No enabled GitLab integration")

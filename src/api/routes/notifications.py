@@ -3,10 +3,10 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_scope
 from src.models.common import NotificationKind
 from src.repositories.notification_repo import NotificationRepository
 
@@ -34,24 +34,32 @@ class NotificationListResponse(BaseModel):
 async def list_notifications(
     current_user: CurrentUser,
     session: DBSession,
+    _scope: None = Depends(require_scope("notifications:read")),
     unread: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     repo = NotificationRepository(session)
     items = await repo.list_for_user(current_user.id, unread_only=unread, limit=limit, offset=offset)
-    return NotificationListResponse(
-        items=[NotificationResponse.model_validate(n) for n in items], total=len(items)
-    )
+    return NotificationListResponse(items=[NotificationResponse.model_validate(n) for n in items], total=len(items))
 
 
 @router.get("/unread-count")
-async def unread_count(current_user: CurrentUser, session: DBSession):
+async def unread_count(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("notifications:read")),
+):
     return {"unread": await NotificationRepository(session).unread_count(current_user.id)}
 
 
 @router.post("/{notification_id}/read")
-async def mark_read(notification_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def mark_read(
+    notification_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("notifications:write")),
+):
     repo = NotificationRepository(session)
     n = await repo.get_by_id(notification_id)
     # 404 over 403 when hidden from caller (§8) — don't leak another user's notification

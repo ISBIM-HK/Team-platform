@@ -3,17 +3,18 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.ai.brief import ProgressBrief, generate_brief
 from src.ai.usage import RecordCtx
-from src.api.deps import CurrentUser, DBSession
+from src.api.deps import CurrentUser, DBSession, require_any_scope, require_scope
 from src.core.config import get_settings
+from src.models.audit_log import AuditLog
 from src.models.common import LLMTrigger, ReportKind, TaskStatus, utcnow
 from src.models.event_cache import EventCache
-from src.models.project import Project
+from src.models.project import INBOX_NAME, Project
 from src.models.report import Report
 from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
@@ -35,7 +36,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    status: str | None = None  # active | archived
+    status: str | None = None  # active | archived; deleted uses DELETE
 
 
 class ProjectResponse(BaseModel):
@@ -70,9 +71,7 @@ def _privileged(current_user) -> bool:
     return bool(current_user.is_pm or current_user.is_admin)
 
 
-async def _get_accessible(
-    project_id: uuid.UUID, current_user, session, *, need_lead: bool = False
-) -> Project:
+async def _get_accessible(project_id: uuid.UUID, current_user, session, *, need_lead: bool = False) -> Project:
     """Resolve a project the caller may access, or 404 (don't leak existence).
 
     Membership grants read/member access; need_lead requires lead role.
@@ -93,20 +92,37 @@ async def _get_accessible(
 
 # ─── routes ───
 @router.get("", response_model=list[ProjectResponse])
-async def list_projects(current_user: CurrentUser, session: DBSession):
+async def list_projects(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_any_scope("projects:read", "projects:write")),
+    include_archived: bool = False,
+):
     prepo = ProjectRepository(session)
     if _privileged(current_user):
-        projects = await prepo.list_by_tenant(current_user.tenant_id)
+        projects = await prepo.list_by_tenant(
+            current_user.tenant_id, include_archived=include_archived, viewer_id=current_user.id
+        )
     else:
-        projects = await prepo.list_for_member(current_user.tenant_id, current_user.id)
+        projects = await prepo.list_for_member(
+            current_user.tenant_id, current_user.id, include_archived=include_archived
+        )
     out = []
     for p in projects:
-        out.append(_summary(p, await prepo.status_counts(p.id)))
+        counts = await prepo.status_counts(p.id)
+        if p.name == INBOX_NAME and sum(counts.values()) == 0:
+            continue
+        out.append(_summary(p, counts))
     return out
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
-async def create_project(req: ProjectCreate, current_user: CurrentUser, session: DBSession):
+async def create_project(
+    req: ProjectCreate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
     prepo = ProjectRepository(session)
     p = await prepo.create(
         Project(
@@ -123,30 +139,92 @@ async def create_project(req: ProjectCreate, current_user: CurrentUser, session:
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
-async def get_project(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def get_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_any_scope("projects:read", "projects:write")),
+):
     p = await _get_accessible(project_id, current_user, session)
     counts = await ProjectRepository(session).status_counts(p.id)
     return _summary(p, counts)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
-async def update_project(project_id: uuid.UUID, req: ProjectUpdate, current_user: CurrentUser, session: DBSession):
+async def update_project(
+    project_id: uuid.UUID,
+    req: ProjectUpdate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
     p = await _get_accessible(project_id, current_user, session, need_lead=True)
+    was_inbox = p.name == INBOX_NAME
+    old_status = p.status
+    if req.status is not None:
+        if req.status == "deleted":
+            raise HTTPException(status_code=422, detail="删除请用 DELETE")
+        if req.status not in ("active", "archived"):
+            raise HTTPException(status_code=422, detail="status must be active|archived")
+        if was_inbox and req.status == "archived":
+            raise HTTPException(status_code=400, detail="Inbox project cannot be archived")
     if req.name is not None:
         p.name = req.name
     if req.description is not None:
         p.description = req.description
     if req.status is not None:
-        if req.status not in ("active", "archived"):
-            raise HTTPException(status_code=422, detail="status must be active|archived")
         p.status = req.status
+        if old_status != p.status:
+            action = "project.archive" if p.status == "archived" else "project.restore"
+            session.add(
+                AuditLog(
+                    tenant_id=current_user.tenant_id,
+                    action=action,
+                    actor_id=current_user.id,
+                    target_type="project",
+                    target_id=p.id,
+                    detail={"name": p.name},
+                )
+            )
     prepo = ProjectRepository(session)
     await prepo.update(p)
     return _summary(p, await prepo.status_counts(p.id))
 
 
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    """Soft-delete a project by hiding it from all project lists."""
+    p = await _get_accessible(project_id, current_user, session, need_lead=True)
+    if p.name == INBOX_NAME:
+        raise HTTPException(status_code=400, detail="Inbox project cannot be deleted")
+    old_status = p.status
+    p.status = "deleted"
+    if old_status != p.status:
+        session.add(
+            AuditLog(
+                tenant_id=current_user.tenant_id,
+                action="project.delete",
+                actor_id=current_user.id,
+                target_type="project",
+                target_id=p.id,
+                detail={"name": p.name},
+            )
+        )
+    await ProjectRepository(session).update(p)
+
+
 @router.get("/{project_id}/tasks", response_model=list[TaskResponse])
-async def project_tasks(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def project_tasks(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_any_scope("projects:read", "projects:write")),
+):
     await _get_accessible(project_id, current_user, session)
     tasks = await TaskRepository(session).list_by_project(project_id)
     return [TaskResponse.model_validate(t) for t in tasks]
@@ -180,7 +258,12 @@ async def _latest_brief(session, project_id: uuid.UUID) -> tuple[ProgressBrief |
 
 
 @router.get("/{project_id}/share", response_model=ShareResponse)
-async def project_share(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def project_share(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_any_scope("projects:read", "projects:write")),
+):
     """Read-only progress/flow view — visible to any team member."""
     p = await _get_accessible(project_id, current_user, session)
     prepo = ProjectRepository(session)
@@ -219,19 +302,35 @@ async def _build_brief_context(project, tasks, events, names: dict) -> str:
         for t in items:
             owner = names.get(t.owner_user_id, "未分配")
             lines.append(f"    - {t.title}(负责人:{owner})")
-    if events:
+    visible = [e for e in events if (e.payload or {}).get("visibility", "project") != "self"]
+    if visible:
         lines.append("\n成员投送的工作痕迹(近期):")
-        for e in events:
+        for e in visible:
             who = names.get(e.actor_user_id, "某成员")
-            content = (e.payload or {}).get("content", "")
-            lines.append(f"    - {who}:{content}")
+            p = e.payload or {}
+            content = p.get("content", "")
+            repo, sha, branch = p.get("repo"), p.get("sha"), p.get("branch")
+            if repo and sha:
+                ref = f"{repo}/{branch}" if branch else repo
+                stats = ""
+                if p.get("files_changed") is not None:
+                    stats = f" ({p['files_changed']} files, +{p.get('insertions', 0)}/-{p.get('deletions', 0)})"
+                content = f"[commit {sha[:7]}] {ref}: {content}{stats}"
+            agent = p.get("source_agent")
+            via = f" (via {agent})" if agent else ""
+            lines.append(f"    - {who}:{content}{via}")
     else:
         lines.append("\n(暂无成员投送的工作痕迹)")
     return "\n".join(lines)
 
 
 @router.post("/{project_id}/brief", response_model=ProgressBrief)
-async def project_brief(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def project_brief(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("brief")),
+):
     """Generate an AI progress brief for the share page (on-demand)."""
     p = await _get_accessible(project_id, current_user, session)
     tasks = await TaskRepository(session).list_by_project(project_id)
@@ -300,22 +399,31 @@ async def _members_payload(project_id: uuid.UUID, current_user, session) -> list
     members = await mrepo.list_by_project(project_id)
     names = {u.id: u.display_name for u in await UserRepository(session).list_by_tenant(current_user.tenant_id)}
     return [
-        MemberResponse(
-            user_id=str(m.user_id), name=names.get(m.user_id, "?"), role=m.role, added_at=m.added_at
-        )
+        MemberResponse(user_id=str(m.user_id), name=names.get(m.user_id, "?"), role=m.role, added_at=m.added_at)
         for m in members
     ]
 
 
 @router.get("/{project_id}/members", response_model=list[MemberResponse])
-async def list_members(project_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def list_members(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
     """Any member (or privileged) may read the roster."""
     await _get_accessible(project_id, current_user, session)
     return await _members_payload(project_id, current_user, session)
 
 
 @router.post("/{project_id}/members", response_model=list[MemberResponse], status_code=201)
-async def add_member(project_id: uuid.UUID, req: MemberAdd, current_user: CurrentUser, session: DBSession):
+async def add_member(
+    project_id: uuid.UUID,
+    req: MemberAdd,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
     """lead (or privileged) adds a member. Target must be in the same tenant."""
     await _get_accessible(project_id, current_user, session, need_lead=True)
     _validate_role(req.role)
@@ -328,7 +436,12 @@ async def add_member(project_id: uuid.UUID, req: MemberAdd, current_user: Curren
 
 @router.patch("/{project_id}/members/{user_id}", response_model=list[MemberResponse])
 async def update_member_role(
-    project_id: uuid.UUID, user_id: uuid.UUID, req: MemberRoleUpdate, current_user: CurrentUser, session: DBSession
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+    req: MemberRoleUpdate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
 ):
     await _get_accessible(project_id, current_user, session, need_lead=True)
     _validate_role(req.role)
@@ -344,7 +457,13 @@ async def update_member_role(
 
 
 @router.delete("/{project_id}/members/{user_id}", status_code=204)
-async def remove_member(project_id: uuid.UUID, user_id: uuid.UUID, current_user: CurrentUser, session: DBSession):
+async def remove_member(
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
     await _get_accessible(project_id, current_user, session, need_lead=True)
     mrepo = ProjectMemberRepository(session)
     m = await mrepo.get(project_id, user_id)
