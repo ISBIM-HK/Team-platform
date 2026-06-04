@@ -489,12 +489,12 @@ async function loadArchivedProjects() {
   renderArchivedProjects();
 }
 function renderArchivedProjects() {
-  $('#archivedMeta').textContent = `${archivedProjects.length} 个项目`;
+  $('#archivedMeta').textContent = `${archivedProjects.length} ${_t('projects')}`;
   const body = $('#archivedProjectsBody'); body.innerHTML = '';
-  if (!archivedProjects.length) { body.innerHTML = '<div class="empty-hint">没有已归档项目。</div>'; return; }
+  if (!archivedProjects.length) { body.innerHTML = `<div class="empty-hint">${_t('no_data')}</div>`; return; }
   archivedProjects.forEach((p) => {
     const row = document.createElement('div'); row.className = 'admin-row';
-    row.innerHTML = `<span class="pdot"></span><span class="ar-name"><b>${escapeHtml(p.name)}</b><span class="ws-meta">${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%</span></span><button class="btn btn-soft btn-sm">恢复</button>`;
+    row.innerHTML = `<span class="pdot"></span><span class="ar-name"><b>${escapeHtml(p.name)}</b><span class="ws-meta">${p.task_count} ${_t('tasks_unit')} · ${_t('completion')} ${Math.round(p.completion * 100)}%</span></span><button class="btn btn-soft btn-sm">${_t('restore')}</button>`;
     row.querySelector('button').onclick = async () => {
       try {
         await api(`/projects/${p.id}`, { method: 'PATCH', body: { status: 'active' } });
