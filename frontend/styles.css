@@ -556,6 +556,17 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .pws-actions { display: flex; align-items: center; gap: 12px; }
 .pws-readonly-hint { padding: 4px 0; }
 
+/* integrations */
+.integ-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.integ-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.integ-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.integ-head b { font-size: 16px; }
+.integ-status { margin-left: auto; font-size: 12px; padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+.integ-status.active { background: rgba(26,174,57,0.12); color: var(--ok); }
+.integ-status.error { background: rgba(224,49,49,0.12); color: var(--danger); }
+.integ-status.disabled { background: var(--surface-2); color: var(--text-3); }
+.integ-meta { font-size: 12px; color: var(--text-3); margin-top: 10px; }
+
 /* New-project modal */
 .np-goal, .np-name { width: 100%; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; resize: none; }
 .np-goal:focus, .np-name:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }

@@ -69,6 +69,9 @@ const I18N = {
     confirm_full_scope: '创建全权限令牌？它可读写你的全部数据。',
     // cost
     cost_title: 'LLM 成本', cost_today: '今日(UTC) · 团队', calls: '次调用',
+    integrations: '集成', integrations_sub: '连接外部服务', integ_url: 'GitLab URL', integ_pat: 'Personal Access Token',
+    integ_connect: '连接', integ_sync: '立即同步', integ_connected: '已连接', integ_syncing: '同步中…',
+    integ_synced: (n) => `同步完成，新增 ${n} 条记录`, integ_last_sync: '上次同步', integ_no_integ: '未连接',
     by_trigger: '按触发类型', by_user_model: '按用户 · 模型', no_calls_today: '今日还没有 LLM 调用。',
     // admin
     admin_title: '团队管理', set_roles: '设置成员角色(admin / pm)',
@@ -120,6 +123,9 @@ const I18N = {
     ws_bg: '項目背景', ws_ctx: '上下文', ws_focus: '當前重點', ws_save: '儲存', ws_saving: '儲存中…',
     ws_readonly: '唯讀 — 項目 lead 或 PM 可編輯', ws_saved: '工作區已儲存',
     cost_title: 'LLM 成本', cost_today: '今日(UTC) · 團隊', calls: '次調用',
+    integrations: '集成', integrations_sub: '連接外部服務', integ_url: 'GitLab URL', integ_pat: 'Personal Access Token',
+    integ_connect: '連接', integ_sync: '立即同步', integ_connected: '已連接', integ_syncing: '同步中…',
+    integ_synced: (n) => `同步完成，新增 ${n} 條記錄`, integ_last_sync: '上次同步', integ_no_integ: '未連接',
     by_trigger: '按觸發類型', by_user_model: '按用戶 · 模型', no_calls_today: '今日還沒有 LLM 調用。',
     admin_title: '團隊管理', set_roles: '設置成員角色(admin / pm)',
     notif_title: '通知', read: '已讀', no_notifs: '還沒有通知。',
@@ -179,6 +185,9 @@ const I18N = {
     ws_bg: 'Background', ws_ctx: 'Context', ws_focus: 'Current Focus', ws_save: 'Save', ws_saving: 'Saving…',
     ws_readonly: 'Read-only — project lead or PM can edit', ws_saved: 'Workspace saved',
     cost_title: 'LLM Cost', cost_today: 'Today (UTC) · Team', calls: 'calls',
+    integrations: 'Integrations', integrations_sub: 'Connect external services', integ_url: 'GitLab URL', integ_pat: 'Personal Access Token',
+    integ_connect: 'Connect', integ_sync: 'Sync Now', integ_connected: 'Connected', integ_syncing: 'Syncing…',
+    integ_synced: (n) => `Sync complete, ${n} new events`, integ_last_sync: 'Last synced', integ_no_integ: 'Not connected',
     by_trigger: 'By Trigger', by_user_model: 'By User · Model', no_calls_today: 'No LLM calls today.',
     admin_title: 'Team Admin', set_roles: 'Set member roles (admin / pm)',
     notif_title: 'Notifications', read: 'Read', no_notifs: 'No notifications yet.',
@@ -425,13 +434,14 @@ async function boot() {
 async function loadUsers() { try { const r = await api('/users'); (Array.isArray(r) ? r : r.items || []).forEach((u) => userMap[u.id] = u.display_name); } catch {} }
 
 // ─── center view switching ───
-const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'archivedView', 'notificationsView', 'tokenView', 'costView', 'adminView'];
+const VIEWS = ['emptyState', 'projectView', 'suggestionsView', 'archivedView', 'notificationsView', 'tokenView', 'integrationsView', 'costView', 'adminView'];
 function showView(id) {
   VIEWS.forEach((v) => $('#' + v).style.display = v === id ? 'block' : 'none');
   $('#navSuggestions').classList.toggle('active-nav', id === 'suggestionsView');
   $('#navArchived').classList.toggle('active-nav', id === 'archivedView');
   $('#navNotifications').classList.toggle('active-nav', id === 'notificationsView');
   $('#navTokens').classList.toggle('active-nav', id === 'tokenView');
+  $('#navIntegrations').classList.toggle('active-nav', id === 'integrationsView');
   $('#navCost').classList.toggle('active-nav', id === 'costView');
   $('#navAdmin').classList.toggle('active-nav', id === 'adminView');
   if (id !== 'projectView') { currentProjectId = null; document.querySelectorAll('.proj-item').forEach((el) => el.classList.remove('active')); }
@@ -962,6 +972,55 @@ $('#tokenCreateBtn').onclick = async () => {
     $('#tokenCreateResult').innerHTML = '';
     await loadTokens();
   } catch (e) { toast(e.message); }
+};
+
+// ─── integrations ───
+$('#navIntegrations').onclick = () => { showView('integrationsView'); loadIntegrations(); };
+async function loadIntegrations() {
+  const status = $('#integGitlabStatus');
+  const meta = $('#integGitlabMeta');
+  const syncBtn = $('#integGitlabSync');
+  try {
+    const items = await api('/integrations');
+    const gl = items.find((i) => i.provider === 'gitlab');
+    if (gl) {
+      status.textContent = _t('integ_connected');
+      status.className = 'integ-status ' + gl.status;
+      syncBtn.style.display = '';
+      const parts = [];
+      if (gl.last_synced_at) parts.push(`${_t('integ_last_sync')}: ${new Date(gl.last_synced_at).toLocaleString()}`);
+      if (gl.last_error) parts.push(`Error: ${gl.last_error}`);
+      if (gl.consecutive_failures) parts.push(`Failures: ${gl.consecutive_failures}`);
+      meta.textContent = parts.join(' · ') || gl.status;
+    } else {
+      status.textContent = _t('integ_no_integ');
+      status.className = 'integ-status disabled';
+      syncBtn.style.display = 'none';
+      meta.textContent = '';
+    }
+  } catch (e) { meta.textContent = e.message; }
+}
+$('#integGitlabConnect').onclick = async () => {
+  const url = $('#integGitlabUrl').value.trim();
+  const pat = $('#integGitlabPat').value.trim();
+  if (!url || !pat) { toast(_t('integ_url') + ' + PAT'); return; }
+  const btn = $('#integGitlabConnect'); btn.disabled = true; btn.textContent = _t('loading');
+  try {
+    await api('/integrations/gitlab/connect', { method: 'POST', body: { base_url: url, pat } });
+    toast(_t('integ_connected'));
+    $('#integGitlabPat').value = '';
+    loadIntegrations();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = _t('integ_connect');
+};
+$('#integGitlabSync').onclick = async () => {
+  const btn = $('#integGitlabSync'); btn.disabled = true; btn.textContent = _t('integ_syncing');
+  try {
+    const r = await api('/integrations/gitlab/sync-now', { method: 'POST' });
+    toast(_t('integ_synced')(r.synced));
+    loadIntegrations();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = _t('integ_sync');
 };
 
 // ─── cost view ───

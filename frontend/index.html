@@ -72,6 +72,7 @@
       <button class="nav-item" id="navArchived"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></i><span data-i18n="archived">已归档</span></span></button>
       <button class="nav-item" id="navNotifications"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></i><span data-i18n="notifications">通知</span></span><span class="badge" id="notifBadge" style="display:none">0</span></button>
       <button class="nav-item" id="navTokens"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></i><span data-i18n="tokens">访问令牌</span></span></button>
+      <button class="nav-item" id="navIntegrations"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></i><span data-i18n="integrations">集成</span></span></button>
       <button class="nav-item" id="navAdmin" style="display:none"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg></i><span data-i18n="admin">团队管理</span></span></button>
       <button class="nav-item" id="navCost" style="display:none"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></i><span data-i18n="cost">LLM 成本</span></span></button>
     </div>
@@ -205,6 +206,29 @@
     <div class="center-view" id="costView" style="display:none">
       <div class="ws-header"><div class="ws-title"><h1 data-i18n="cost">LLM 成本</h1><span class="ws-meta" data-i18n="cost_today">今日(UTC) · 团队</span></div></div>
       <div id="costBody"></div>
+    </div>
+
+    <!-- integrations -->
+    <div class="center-view" id="integrationsView" style="display:none">
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="integrations">集成</h1><span class="ws-meta" data-i18n="integrations_sub">连接外部服务</span></div></div>
+      <div class="integ-grid">
+        <div class="integ-card">
+          <div class="integ-head">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 0 1-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 0 1 4.82 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.49h8.1l2.44-7.51A.42.42 0 0 1 18.6 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.51L23 13.45a.84.84 0 0 1-.35.94z"/></svg>
+            <b>GitLab</b>
+            <span class="integ-status" id="integGitlabStatus"></span>
+          </div>
+          <div id="integGitlabBody">
+            <div class="field"><label data-i18n="integ_url">GitLab URL</label><input id="integGitlabUrl" type="text" placeholder="https://gitlab.com" /></div>
+            <div class="field"><label data-i18n="integ_pat">Personal Access Token</label><input id="integGitlabPat" type="password" placeholder="glpat-..." /></div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn btn-primary btn-sm" id="integGitlabConnect" data-i18n="integ_connect">连接</button>
+              <button class="btn btn-ghost btn-sm" id="integGitlabSync" data-i18n="integ_sync" style="display:none">立即同步</button>
+            </div>
+            <div class="integ-meta" id="integGitlabMeta"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- admin: team management (附录 L, admin-only) -->
