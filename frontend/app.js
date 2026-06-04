@@ -256,7 +256,7 @@ let chatSocket = null, chatSession = null;
 const STATUS_IDS = ['todo', 'in_progress', 'blocked', 'review', 'done'];
 const STATUS_I18N = { todo: 's_todo', in_progress: 's_in_progress', blocked: 's_blocked', review: 's_review', done: 's_done' };
 function getStatuses() { return STATUS_IDS.map((id) => ({ id, name: _t(STATUS_I18N[id]) })); }
-function getStatusName(id) { return t(STATUS_I18N[id]) || id; }
+function getStatusName(id) { return _t(STATUS_I18N[id]) || id; }
 const STATUSES = STATUS_IDS.map((id) => ({ id, name: id }));
 const STATUS_NAME = {};
 function refreshStatusNames() { STATUS_IDS.forEach((id) => { STATUS_NAME[id] = _t(STATUS_I18N[id]); }); }
