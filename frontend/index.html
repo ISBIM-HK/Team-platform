@@ -163,19 +163,19 @@
       <div class="ws-header"><div class="ws-title"><h1 data-i18n="tokens">访问令牌</h1><span class="ws-meta">CLI / MCP / Agent</span></div></div>
       <div class="token-grid">
         <div class="token-panel">
-          <div class="field"><label>名称</label><input id="tokenName" type="text" placeholder="laptop-hermes" /></div>
-          <div class="field"><label>Agent</label><input id="tokenAgent" type="text" list="agentOptions" placeholder="hermes" /></div>
+          <div class="field"><label data-i18n="token_name">名称</label><input id="tokenName" type="text" placeholder="laptop-hermes" /></div>
+          <div class="field"><label data-i18n="token_agent">Agent</label><input id="tokenAgent" type="text" list="agentOptions" placeholder="hermes" /></div>
           <datalist id="agentOptions">
             <option value="claude-code"></option>
             <option value="codex"></option>
             <option value="hermes"></option>
             <option value="cli"></option>
           </datalist>
-          <div class="field"><label>备注</label><input id="tokenDesc" type="text" placeholder="本机工作投送" /></div>
-          <div class="token-scope-head">权限范围</div>
-          <label class="token-full"><input id="tokenFullScope" type="checkbox" value="*" /> <b>全权限 (*)</b><span>可读写你的全部数据,只给可信客户端。</span></label>
+          <div class="field"><label data-i18n="token_note">备注</label><input id="tokenDesc" type="text" placeholder="" /></div>
+          <div class="token-scope-head" data-i18n="token_scopes">权限范围</div>
+          <label class="token-full"><input id="tokenFullScope" type="checkbox" value="*" /> <b data-i18n="full_scope">全权限 (*)</b><span data-i18n="full_scope_hint">可读写你的全部数据，只给可信客户端。</span></label>
           <div class="scope-grid" id="tokenScopes"></div>
-          <button class="btn btn-primary" id="tokenCreateBtn">创建令牌</button>
+          <button class="btn btn-primary" id="tokenCreateBtn" data-i18n="create_token">创建令牌</button>
           <div id="tokenCreateResult"></div>
         </div>
         <div id="tokensBody"></div>
@@ -185,17 +185,17 @@
     <!-- token reveal modal (shown once after creation) -->
     <div class="overlay" id="tokenRevealOverlay">
       <div class="overlay-card" style="max-width:520px">
-        <h2 style="margin-bottom:6px">令牌已创建</h2>
-        <p class="ws-meta" style="margin-bottom:16px">请立即复制。关闭此窗口后令牌<b style="color:var(--danger)">不再显示</b>,只能删除重建。</p>
-        <div class="field"><label>名称</label><div id="tokenRevealName" style="font-weight:600"></div></div>
-        <div class="field"><label>令牌</label>
+        <h2 style="margin-bottom:6px" data-i18n="token_created">令牌已创建</h2>
+        <p class="ws-meta" style="margin-bottom:16px" data-i18n="token_reveal_hint">请立即复制。关闭此窗口后令牌不再显示，只能删除重建。</p>
+        <div class="field"><label data-i18n="token_name">名称</label><div id="tokenRevealName" style="font-weight:600"></div></div>
+        <div class="field"><label>Token</label>
           <div class="token-secret" style="margin-top:0">
             <span id="tokenRevealValue" style="word-break:break-all;white-space:normal"></span>
           </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-          <button class="btn btn-primary" id="tokenRevealCopy">复制令牌</button>
-          <button class="btn btn-ghost" id="tokenRevealClose">我已保存,关闭</button>
+          <button class="btn btn-primary" id="tokenRevealCopy" data-i18n="copy_token">复制令牌</button>
+          <button class="btn btn-ghost" id="tokenRevealClose" data-i18n="saved_close">我已保存，关闭</button>
         </div>
       </div>
     </div>

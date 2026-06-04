@@ -270,31 +270,14 @@ function getNext(status) { return (NEXT_MAP[status] || []).map(([to, key]) => [t
 const NEXT = NEXT_MAP;
 function getSugLabel(type) { return _t({ decompose: 'task_decompose', create_task: 'create_task', assign: 'assign_sug' }[type] || type); }
 const DEFAULT_TOKEN_SCOPES = ['contributions:write', 'contributions:read', 'projects:read'];
-const TOKEN_SCOPE_OPTIONS = [
-  ['contributions:write', '投送工作'],
-  ['contributions:read', '查看投送'],
-  ['projects:read', '查看项目'],
-  ['projects:write', '管理项目'],
-  ['tasks:read', '查看任务'],
-  ['tasks:write', '管理任务'],
-  ['suggestions:read', '查看建议'],
-  ['suggestions:write', '处理建议'],
-  ['notifications:read', '查看通知'],
-  ['notifications:write', '标记通知'],
-  ['assistant:read', '读取助手'],
-  ['assistant:write', '修改助手'],
-  ['chat:read', '读取聊天'],
-  ['chat:write', '发送聊天'],
-  ['users:read', '查看成员'],
-  ['profile:read', '读取资料'],
-  ['integrations:read', '查看集成'],
-  ['integrations:write', '管理集成'],
-  ['decompose', 'AI 拆解'],
-  ['brief', '生成简报'],
-  ['pm', 'PM 观测'],
-  ['admin', '管理后台'],
-  ['tokens:manage', '管理令牌'],
-];
+const SCOPE_I18N = {
+  'zh-CN': { 'contributions:write': '投送工作', 'contributions:read': '查看投送', 'projects:read': '查看项目', 'projects:write': '管理项目', 'tasks:read': '查看任务', 'tasks:write': '管理任务', 'suggestions:read': '查看建议', 'suggestions:write': '处理建议', 'notifications:read': '查看通知', 'notifications:write': '标记通知', 'assistant:read': '读取助手', 'assistant:write': '修改助手', 'chat:read': '读取聊天', 'chat:write': '发送聊天', 'users:read': '查看成员', 'profile:read': '读取资料', 'integrations:read': '查看集成', 'integrations:write': '管理集成', decompose: 'AI 拆解', brief: '生成简报', pm: 'PM 观测', admin: '管理后台', 'tokens:manage': '管理令牌' },
+  'zh-HK': { 'contributions:write': '投送工作', 'contributions:read': '查看投送', 'projects:read': '查看項目', 'projects:write': '管理項目', 'tasks:read': '查看任務', 'tasks:write': '管理任務', 'suggestions:read': '查看建議', 'suggestions:write': '處理建議', 'notifications:read': '查看通知', 'notifications:write': '標記通知', 'assistant:read': '讀取助手', 'assistant:write': '修改助手', 'chat:read': '讀取聊天', 'chat:write': '發送聊天', 'users:read': '查看成員', 'profile:read': '讀取資料', 'integrations:read': '查看集成', 'integrations:write': '管理集成', decompose: 'AI 拆解', brief: '生成簡報', pm: 'PM 觀測', admin: '管理後台', 'tokens:manage': '管理令牌' },
+  en: { 'contributions:write': 'Push Work', 'contributions:read': 'View Work', 'projects:read': 'View Projects', 'projects:write': 'Manage Projects', 'tasks:read': 'View Tasks', 'tasks:write': 'Manage Tasks', 'suggestions:read': 'View Suggestions', 'suggestions:write': 'Handle Suggestions', 'notifications:read': 'View Notifications', 'notifications:write': 'Mark Notifications', 'assistant:read': 'Read Assistant', 'assistant:write': 'Edit Assistant', 'chat:read': 'Read Chat', 'chat:write': 'Send Chat', 'users:read': 'View Members', 'profile:read': 'Read Profile', 'integrations:read': 'View Integrations', 'integrations:write': 'Manage Integrations', decompose: 'AI Decompose', brief: 'Generate Brief', pm: 'PM Observe', admin: 'Admin', 'tokens:manage': 'Manage Tokens' },
+};
+function getScopeLabel(scope) { return (SCOPE_I18N[currentLang] || SCOPE_I18N['zh-CN'])[scope] || scope; }
+const SCOPE_KEYS = ['contributions:write', 'contributions:read', 'projects:read', 'projects:write', 'tasks:read', 'tasks:write', 'suggestions:read', 'suggestions:write', 'notifications:read', 'notifications:write', 'assistant:read', 'assistant:write', 'chat:read', 'chat:write', 'users:read', 'profile:read', 'integrations:read', 'integrations:write', 'decompose', 'brief', 'pm', 'admin', 'tokens:manage'];
+const TOKEN_SCOPE_OPTIONS = SCOPE_KEYS.map((k) => [k, getScopeLabel(k)]);
 
 // ─── starfield + mouse-triggered connections ───
 function initStarfield() {
@@ -866,9 +849,9 @@ $('#navNotifications').onclick = loadNotifications;
 // ─── personal access tokens ───
 function renderTokenScopePicker() {
   const box = $('#tokenScopes');
-  if (!box || box.dataset.ready) return;
-  box.innerHTML = TOKEN_SCOPE_OPTIONS.map(([scope, label]) => (
-    `<label class="scope-option"><input type="checkbox" value="${scope}" ${DEFAULT_TOKEN_SCOPES.includes(scope) ? 'checked' : ''}><span>${escapeHtml(label)}</span><code>${scope}</code></label>`
+  if (!box) return;
+  box.innerHTML = SCOPE_KEYS.map((scope) => (
+    `<label class="scope-option"><input type="checkbox" value="${scope}" ${DEFAULT_TOKEN_SCOPES.includes(scope) ? 'checked' : ''}><span>${escapeHtml(getScopeLabel(scope))}</span><code>${scope}</code></label>`
   )).join('');
   const full = $('#tokenFullScope');
   const checks = Array.from(box.querySelectorAll('input[type="checkbox"]'));
@@ -883,7 +866,7 @@ function renderTokenScopePicker() {
       }
     };
   });
-  box.dataset.ready = '1';
+  // no ready flag — allow re-render on language change
 }
 function selectedTokenScopes() {
   if ($('#tokenFullScope').checked) return ['*'];
@@ -919,7 +902,7 @@ $('#tokenCreateBtn').onclick = async () => {
   if (!name) { $('#tokenName').focus(); return; }
   const scopes = selectedTokenScopes();
   if (!scopes.length) { toast(_t('keep_one')); return; }
-  if (scopes.includes('*') && !confirm('创建全权限令牌？它可读写你的全部数据。')) return;
+  if (scopes.includes('*') && !confirm(_t('confirm_full_scope'))) return;
   const body = {
     name,
     scopes,
