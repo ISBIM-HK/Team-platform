@@ -615,15 +615,15 @@ function card(t, i, nChildren) {
 async function claim(id) {
   try {
     await api(`/tasks/${id}/claim`, { method: 'POST' });
-    toast(_t('claimed')); updateNotifBadge(); loadBoard(); refreshProjMeta();
+    toast(_t('claimed')); updateNotifBadge(); if (currentProjectId) { loadBoard(); refreshProjMeta(); }
     // auto AI implementation hint for the claimed leaf task (附录 I.2) — async, refresh when ready
     api(`/tasks/${id}/impl-hint`, { method: 'POST' })
-      .then((r) => { if (r && r.impl_hint && !r.skipped) { toast(_t('ai_hint')); loadBoard(); if ($('#tab-plan').style.display === 'block') renderPlanImplHints(); } })
+      .then((r) => { if (r && r.impl_hint && !r.skipped) { toast(_t('ai_hint')); if (currentProjectId) loadBoard(); if ($('#tab-plan').style.display === 'block') renderPlanImplHints(); } })
       .catch(() => {});
   } catch (e) { toast(e.message); }
 }
-async function move(id, to) { try { await api(`/tasks/${id}`, { method: 'PATCH', body: { status: to } }); loadBoard(); refreshProjMeta(); } catch (e) { toast(e.message); } }
-async function refreshProjMeta() { try { const p = await api(`/projects/${currentProjectId}`); const idx = projects.findIndex((x) => x.id === p.id); if (idx >= 0) projects[idx] = p; $('#pvMeta').textContent = `${p.task_count} ${_t('tasks_unit')} · ${_t('completion')} ${Math.round(p.completion * 100)}%`; const item = document.querySelectorAll('.proj-item')[idx]; if (item) item.querySelector('.pcount').textContent = p.task_count; } catch {} }
+async function move(id, to) { try { await api(`/tasks/${id}`, { method: 'PATCH', body: { status: to } }); if (currentProjectId) { loadBoard(); refreshProjMeta(); } } catch (e) { toast(e.message); } }
+async function refreshProjMeta() { if (!currentProjectId) return; try { const p = await api(`/projects/${currentProjectId}`); const idx = projects.findIndex((x) => x.id === p.id); if (idx >= 0) projects[idx] = p; $('#pvMeta').textContent = `${p.task_count} ${_t('tasks_unit')} · ${_t('completion')} ${Math.round(p.completion * 100)}%`; const item = document.querySelectorAll('.proj-item')[idx]; if (item) item.querySelector('.pcount').textContent = p.task_count; } catch {} }
 
 // ─── task detail ───
 function openTaskDetail(t, nChildren) {
