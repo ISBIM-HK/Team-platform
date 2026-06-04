@@ -61,6 +61,6 @@ async def suggest_assignment(
     result = await get_dispatch_agent().run(prompt)
     if record is not None:
         from src.ai.usage import record_run
-        await record_run(record, result, get_settings().llm_model_strong,
-                         int((time.monotonic() - t0) * 1000))
+
+        await record_run(record, result, get_settings().llm_model_strong, int((time.monotonic() - t0) * 1000))
     return result.output

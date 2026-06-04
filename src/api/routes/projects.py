@@ -22,6 +22,7 @@ from src.repositories.project_workspace_repo import ProjectWorkspaceRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
 from src.schemas.task import TaskResponse
+from src.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -369,6 +370,11 @@ async def project_brief(
             model_used=get_settings().llm_model_strong,
         )
     )
+    await NotificationService(session, current_user.tenant_id).brief_generated(
+        p.id,
+        p.name,
+        current_user.id,
+    )
     await session.commit()
     return brief
 
@@ -432,6 +438,9 @@ async def add_member(
     if not target or target.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="User not found")
     await ProjectMemberRepository(session).add(current_user.tenant_id, project_id, req.user_id, role=req.role)
+    p = await ProjectRepository(session).get_by_id(project_id)
+    if p:
+        await NotificationService(session, current_user.tenant_id).member_added(project_id, p.name, req.user_id)
     return await _members_payload(project_id, current_user, session)
 
 
@@ -532,14 +541,23 @@ async def patch_workspace(
         updated_by=current_user.id,
         expected_version=req.version,
     )
-    session.add(AuditLog(
-        tenant_id=current_user.tenant_id,
-        actor_id=current_user.id,
-        action="project_workspace.patch",
-        target_type="project_workspace",
-        target_id=ws.id,
-        detail={"project_id": str(project_id), "version": ws.version},
-    ))
+    session.add(
+        AuditLog(
+            tenant_id=current_user.tenant_id,
+            actor_id=current_user.id,
+            action="project_workspace.patch",
+            target_type="project_workspace",
+            target_id=ws.id,
+            detail={"project_id": str(project_id), "version": ws.version},
+        )
+    )
+    p = await ProjectRepository(session).get_by_id(project_id)
+    if p:
+        await NotificationService(session, current_user.tenant_id).project_workspace_edited(
+            project_id,
+            p.name,
+            current_user.id,
+        )
     return WorkspaceResponse(
         background_md=ws.background_md,
         context_md=ws.context_md,

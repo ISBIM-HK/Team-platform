@@ -15,7 +15,13 @@ class ChatRepository:
 
     # ── Sessions ──
 
-    async def create_session(self, user_id: uuid.UUID, tenant_id: uuid.UUID, title: str | None = None, project_id: uuid.UUID | None = None) -> ChatSession:
+    async def create_session(
+        self,
+        user_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        title: str | None = None,
+        project_id: uuid.UUID | None = None,
+    ) -> ChatSession:
         cs = ChatSession(tenant_id=tenant_id, user_id=user_id, title=title, project_id=project_id)
         self.session.add(cs)
         await self.session.flush()
@@ -82,7 +88,4 @@ class ChatRepository:
     async def get_context_messages(self, session_id: uuid.UUID, limit: int = 20) -> list[dict]:
         """Return recent messages as dicts suitable for LLM context."""
         messages = await self.get_messages(session_id, limit=limit)
-        return [
-            {"role": m.role.value, "content": m.content}
-            for m in messages
-        ]
+        return [{"role": m.role.value, "content": m.content} for m in messages]

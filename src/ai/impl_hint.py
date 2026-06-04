@@ -33,7 +33,5 @@ async def suggest_impl_hint(task_title: str, task_description: str = "", record=
     if record is not None:
         from src.ai.usage import record_run
 
-        await record_run(
-            record, result, get_settings().llm_model_cheap, int((time.monotonic() - t0) * 1000)
-        )
+        await record_run(record, result, get_settings().llm_model_cheap, int((time.monotonic() - t0) * 1000))
     return result.output

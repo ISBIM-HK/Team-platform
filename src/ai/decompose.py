@@ -27,6 +27,7 @@ def resolve_model(model_str: str) -> Model | str:
         return OpenAIChatModel(name, provider=DeepSeekProvider(api_key=settings.llm_api_key))
     return model_str
 
+
 # System prompt for the decomposition agent
 DECOMPOSE_SYSTEM_PROMPT = """你是一个资深技术项目经理，擅长将复杂目标拆解为可执行的子任务。
 
@@ -48,6 +49,7 @@ DECOMPOSE_SYSTEM_PROMPT = """你是一个资深技术项目经理，擅长将复
 - rationale：解释你为什么这样拆，每个子任务的选取逻辑
 - subtasks：每条包含 title / description / priority / estimated_hours / suggested_owner_hint
 """
+
 
 def get_decompose_agent(model: str | None = None) -> Agent[None, DecompositionPlan]:
     """Create a decomposition agent.
@@ -93,5 +95,6 @@ async def decompose_goal(
     result = await agent.run(user_prompt)
     if record is not None:
         from src.ai.usage import record_run
+
         await record_run(record, result, model_name, int((time.monotonic() - t0) * 1000))
     return result.output

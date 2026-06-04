@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 class SubtaskSuggestion(BaseModel):
     """A single subtask proposed by the decomposition agent."""
+
     title: str = Field(description="子任务标题，简洁明确")
     description: str = Field(default="", description="子任务描述，包含验收标准")
     priority: int = Field(default=1, description="优先级：0=low, 1=normal, 2=high, 3=urgent")
@@ -20,6 +21,7 @@ class SubtaskSuggestion(BaseModel):
 
 class DecompositionPlan(BaseModel):
     """AI output for task decomposition: goal → parent + subtasks."""
+
     title: str = Field(description="父任务标题")
     description: str = Field(description="父任务描述，概述整体目标")
     rationale: str = Field(description="为什么这样拆解的理由")
@@ -32,6 +34,7 @@ class DecompositionPlan(BaseModel):
 
 class AssignmentSuggestion(BaseModel):
     """AI output for single-task assignment recommendation."""
+
     user_id: str = Field(description="建议分配给的用户 ID")
     user_name: str = Field(description="用户显示名")
     rationale: str = Field(description="为什么推荐这个人的理由")

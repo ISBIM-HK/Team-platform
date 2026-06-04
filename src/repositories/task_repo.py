@@ -38,9 +38,7 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_by_project(
-        self, project_id: uuid.UUID, status: TaskStatus | None = None
-    ) -> list[Task]:
+    async def list_by_project(self, project_id: uuid.UUID, status: TaskStatus | None = None) -> list[Task]:
         stmt = select(Task).where(Task.project_id == project_id)
         if status:
             stmt = stmt.where(Task.status == status)
@@ -91,9 +89,7 @@ class TaskRepository:
         await self.session.refresh(task)
         return task
 
-    async def update_status(
-        self, task: Task, new_status: TaskStatus, changed_by: uuid.UUID
-    ) -> Task:
+    async def update_status(self, task: Task, new_status: TaskStatus, changed_by: uuid.UUID) -> Task:
         old_status = task.status
         task.status = new_status
         task.updated_at = utcnow()

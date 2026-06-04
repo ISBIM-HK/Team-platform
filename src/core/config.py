@@ -48,12 +48,7 @@ class Settings(BaseSettings):
 
     @property
     def sso_enabled(self) -> bool:
-        return bool(
-            self.oidc_issuer
-            and self.oidc_client_id
-            and self.oidc_client_secret
-            and self.oidc_redirect_uri
-        )
+        return bool(self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret and self.oidc_redirect_uri)
 
     # LLM — DeepSeek (cheap=Flash 量大窄任务, strong=Pro 拆解/分发/写作)
     # NOTE: 确认真实 provider:model 字符串与 DeepSeek API key 接入方式后再定稿。

@@ -41,5 +41,6 @@ async def generate_brief(context: str, record=None) -> ProgressBrief:
     result = await _agent().run(context)
     if record is not None:
         from src.ai.usage import record_run
+
         await record_run(record, result, get_settings().llm_model_strong, int((time.monotonic() - t0) * 1000))
     return result.output

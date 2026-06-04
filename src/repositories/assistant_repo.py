@@ -17,9 +17,7 @@ class AssistantWorkspaceRepository:
 
     async def get(self, user_id: uuid.UUID) -> AssistantWorkspace | None:
         return (
-            await self.session.execute(
-                select(AssistantWorkspace).where(AssistantWorkspace.user_id == user_id)
-            )
+            await self.session.execute(select(AssistantWorkspace).where(AssistantWorkspace.user_id == user_id))
         ).scalar_one_or_none()
 
     async def ensure(self, tenant_id: uuid.UUID, user_id: uuid.UUID) -> AssistantWorkspace:

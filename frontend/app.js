@@ -300,9 +300,44 @@ async function loadBoard() {
   for (const col of STATUSES) {
     const items = boardTasks.filter((t) => t.status === col.id);
     const el = document.createElement('div'); el.className = 'col';
+    el.dataset.status = col.id;
     el.innerHTML = `<div class="col-head"><span class="dot ${col.id}"></span><span class="name">${col.name}</span><span class="count">${items.length}</span></div>`;
     if (!items.length) el.insertAdjacentHTML('beforeend', `<div class="col-empty">—</div>`);
     items.forEach((t, i) => el.appendChild(card(t, i, childCount[t.id] || 0)));
+
+    // drop target
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const taskId = e.dataTransfer.types.includes('text/plain');
+      if (!taskId) return;
+      const dragging = document.querySelector('.card.dragging');
+      if (!dragging) return;
+      const fromStatus = dragging.dataset.status;
+      const validTargets = (NEXT[fromStatus] || []).map(([s]) => s);
+      if (validTargets.includes(col.id)) {
+        e.dataTransfer.dropEffect = 'move';
+        el.classList.add('drag-over');
+        el.classList.remove('drag-invalid');
+      } else {
+        e.dataTransfer.dropEffect = 'none';
+        el.classList.add('drag-invalid');
+        el.classList.remove('drag-over');
+      }
+    });
+    el.addEventListener('dragleave', () => { el.classList.remove('drag-over', 'drag-invalid'); });
+    el.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over', 'drag-invalid');
+      const taskId = e.dataTransfer.getData('text/plain');
+      if (!taskId) return;
+      const dragging = document.querySelector('.card.dragging');
+      if (!dragging) return;
+      const fromStatus = dragging.dataset.status;
+      const validTargets = (NEXT[fromStatus] || []).map(([s]) => s);
+      if (!validTargets.includes(col.id)) { toast('不允许的状态转换'); return; }
+      await move(taskId, col.id);
+    });
+
     board.appendChild(el);
   }
   renderArchivedFold(boardTasks.filter((t) => t.status === 'archived'), childCount);
@@ -320,6 +355,8 @@ function renderArchivedFold(archived, childCount) {
 }
 function card(t, i, nChildren) {
   const el = document.createElement('div'); el.className = 'card'; el.style.animationDelay = (i * 0.03) + 's';
+  el.dataset.taskId = t.id;
+  el.dataset.status = t.status;
   const isAI = (t.created_by || '').startsWith('ai_auto');
   const ownerName = t.owner_user_id ? (userMap[t.owner_user_id] || '成员') : null;
   const [pcls, plabel] = PRIO[t.priority] || PRIO[1];
@@ -329,12 +366,29 @@ function card(t, i, nChildren) {
   if (nChildren) bits.push(`<span class="subc">◧ ${nChildren} 子任务</span>`);
   if (plabel) bits.push(`<span class="prio ${pcls}">${plabel}</span>`);
   if (isAI) bits.push('<span class="ai-tag">AI</span>');
-  el.innerHTML = `<div class="ctitle">${escapeHtml(t.title)}</div>${t.description ? `<div class="cdesc">${escapeHtml(t.description)}</div>` : ''}<div class="cmeta">${bits.join('')}</div><div class="actions"></div>`;
+  el.innerHTML = `<span class="drag-handle" draggable="true" title="拖动">⠿</span><div class="ctitle">${escapeHtml(t.title)}</div>${t.description ? `<div class="cdesc">${escapeHtml(t.description)}</div>` : ''}<div class="cmeta">${bits.join('')}</div><div class="actions"></div>`;
   const actions = el.querySelector('.actions');
   const addBtn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; actions.appendChild(b); };
   if (!t.owner_user_id) addBtn('认领', () => claim(t.id));
   (NEXT[t.status] || []).forEach(([to, label]) => addBtn(label, () => move(t.id, to)));
-  el.onclick = () => openTaskDetail(t, nChildren);
+  el.onclick = (e) => { if (!e.target.closest('.drag-handle')) openTaskDetail(t, nChildren); };
+
+  // drag events on handle
+  const handle = el.querySelector('.drag-handle');
+  handle.addEventListener('dragstart', (e) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', t.id);
+    e.dataTransfer.setDragImage(el, 20, 20);
+    requestAnimationFrame(() => el.classList.add('dragging'));
+    const validTargets = (NEXT[t.status] || []).map(([s]) => s);
+    document.querySelectorAll('.col').forEach((col) => {
+      if (validTargets.includes(col.dataset.status)) col.classList.add('drop-ready');
+    });
+  });
+  handle.addEventListener('dragend', () => {
+    el.classList.remove('dragging');
+    document.querySelectorAll('.col').forEach((c) => c.classList.remove('drag-over', 'drag-invalid', 'drop-ready'));
+  });
   return el;
 }
 async function claim(id) {

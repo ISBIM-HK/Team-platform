@@ -31,10 +31,12 @@ def new_uuid() -> uuid.UUID:
 
 class TimestampMixin(SQLModel):
     """Common timestamp fields."""
+
     created_at: datetime = Field(default_factory=utcnow)
 
 
 # ─── Enums ───
+
 
 class TaskStatus(str, Enum):
     todo = "todo"

@@ -21,7 +21,9 @@ class AssistantSkillRepository:
                     .where(AssistantSkill.workspace_id == workspace_id)
                     .order_by(AssistantSkill.created_at)
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
     async def list_enabled(self, workspace_id: uuid.UUID) -> list[AssistantSkill]:
@@ -35,7 +37,9 @@ class AssistantSkillRepository:
                     )
                     .order_by(AssistantSkill.created_at)
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
     async def get(self, skill_id: uuid.UUID) -> AssistantSkill | None:
@@ -43,12 +47,16 @@ class AssistantSkillRepository:
 
     async def get_by_name(self, workspace_id: uuid.UUID, name: str) -> AssistantSkill | None:
         return (
-            await self.session.execute(
-                select(AssistantSkill).where(
-                    AssistantSkill.workspace_id == workspace_id, AssistantSkill.name == name
+            (
+                await self.session.execute(
+                    select(AssistantSkill).where(
+                        AssistantSkill.workspace_id == workspace_id, AssistantSkill.name == name
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
     async def create(self, skill: AssistantSkill) -> AssistantSkill:
         self.session.add(skill)

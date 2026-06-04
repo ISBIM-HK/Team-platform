@@ -62,9 +62,7 @@ def _fail(reason: str) -> RedirectResponse:
 
 
 @router.get("/callback")
-async def sso_callback(
-    request: Request, session: DBSession, code: str | None = None, state: str | None = None
-):
+async def sso_callback(request: Request, session: DBSession, code: str | None = None, state: str | None = None):
     _require_enabled()
     settings = get_settings()
     cookie_state = request.cookies.get(_STATE_COOKIE)
@@ -93,8 +91,12 @@ async def sso_callback(
     token = create_session_token(str(user.id))
     resp = RedirectResponse("/", status_code=302)
     resp.set_cookie(
-        "session_token", token, httponly=True, secure=settings.is_production,
-        samesite="lax", max_age=7 * 86400,
+        "session_token",
+        token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+        max_age=7 * 86400,
     )
     resp.delete_cookie(_STATE_COOKIE, path="/")
     resp.delete_cookie(_NONCE_COOKIE, path="/")
@@ -129,8 +131,12 @@ async def sso_dev_login(payload: _DevLoginRequest, session: DBSession):
 
     resp = JSONResponse({"ok": True})
     resp.set_cookie(
-        "session_token", create_session_token(str(user.id)), httponly=True,
-        secure=settings.is_production, samesite="lax", max_age=7 * 86400,
+        "session_token",
+        create_session_token(str(user.id)),
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+        max_age=7 * 86400,
     )
     return resp
 

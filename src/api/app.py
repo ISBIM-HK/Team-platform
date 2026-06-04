@@ -63,12 +63,12 @@ async def _no_cache_spa(request: Request, call_next):
 
 # ─── RFC 7807 Problem Details error format (设计 §6.1) ───
 
+
 def _problem(status: int, title: str, detail: str, instance: str) -> JSONResponse:
     return JSONResponse(
         status_code=status,
         media_type="application/problem+json",
-        content={"type": "about:blank", "title": title, "status": status,
-                 "detail": detail, "instance": instance},
+        content={"type": "about:blank", "title": title, "status": status, "detail": detail, "instance": instance},
     )
 
 

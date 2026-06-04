@@ -115,12 +115,19 @@ async def proxy_login(req: ProxyLoginRequest, response: Response, session: DBSes
         await session.commit()
         token = create_session_token(str(existing.id))
         response.set_cookie(
-            key="session_token", value=token, httponly=True,
-            secure=get_settings().is_production, samesite="lax", max_age=7 * 86400,
+            key="session_token",
+            value=token,
+            httponly=True,
+            secure=get_settings().is_production,
+            samesite="lax",
+            max_age=7 * 86400,
         )
         return LoginResponse(
-            user_id=str(existing.id), email=existing.email,
-            display_name=existing.display_name, is_pm=existing.is_pm, is_admin=existing.is_admin,
+            user_id=str(existing.id),
+            email=existing.email,
+            display_name=existing.display_name,
+            is_pm=existing.is_pm,
+            is_admin=existing.is_admin,
         )
 
     # Then try JarvisBIM
@@ -138,11 +145,7 @@ async def proxy_login(req: ProxyLoginRequest, response: Response, session: DBSes
             await tenant_repo.create(tenant)
         is_first = len(await user_repo.list_by_tenant(tenant.id)) == 0
         remote_user = remote.get("userData", {}) if isinstance(remote, dict) else {}
-        display_name = (
-            remote_user.get("userName")
-            or remote_user.get("name")
-            or req.email.split("@")[0]
-        )
+        display_name = remote_user.get("userName") or remote_user.get("name") or req.email.split("@")[0]
         user = User(
             tenant_id=tenant.id,
             email=req.email.strip().lower(),

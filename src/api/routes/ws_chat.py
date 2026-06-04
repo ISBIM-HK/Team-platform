@@ -100,9 +100,7 @@ async def ws_chat(websocket: WebSocket, session_id: uuid.UUID):
                 continue
 
             # Process the message (optional current project context for tools, 附录 I.1)
-            await _handle_user_message(
-                websocket, session_id, user, content, data.get("project_id")
-            )
+            await _handle_user_message(websocket, session_id, user, content, data.get("project_id"))
 
     except WebSocketDisconnect:
         pass
@@ -142,6 +140,7 @@ async def _handle_user_message(
             try:
                 pid_candidate = uuid.UUID(project_id)
                 from src.repositories.project_member_repo import ProjectMemberRepository
+
                 role = await ProjectMemberRepository(db).role_of(pid_candidate, user.id)
                 if role is not None or user.is_pm or user.is_admin:
                     current_pid = pid_candidate
@@ -155,8 +154,9 @@ async def _handle_user_message(
         )
 
         # Call AI (record cost to llm_calls)
-        rec = RecordCtx(session=db, tenant_id=user.tenant_id, user_id=user.id,
-                        trigger=LLMTrigger.chat, triggered_by_id=session_id)
+        rec = RecordCtx(
+            session=db, tenant_id=user.tenant_id, user_id=user.id, trigger=LLMTrigger.chat, triggered_by_id=session_id
+        )
         try:
             response_text = await chat_turn(content, history, deps, record=rec)
         except Exception as e:
@@ -176,8 +176,10 @@ async def _handle_user_message(
         await db.commit()
 
         # Send response to client
-        await websocket.send_json({
-            "type": "assistant_done",
-            "message_id": str(msg.id),
-            "content": response_text,
-        })
+        await websocket.send_json(
+            {
+                "type": "assistant_done",
+                "message_id": str(msg.id),
+                "content": response_text,
+            }
+        )

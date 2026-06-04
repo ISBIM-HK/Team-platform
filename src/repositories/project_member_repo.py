@@ -13,9 +13,7 @@ class ProjectMemberRepository:
         self.session = session
 
     async def get(self, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMember | None:
-        stmt = select(ProjectMember).where(
-            ProjectMember.project_id == project_id, ProjectMember.user_id == user_id
-        )
+        stmt = select(ProjectMember).where(ProjectMember.project_id == project_id, ProjectMember.user_id == user_id)
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def role_of(self, project_id: uuid.UUID, user_id: uuid.UUID) -> str | None:
@@ -27,9 +25,7 @@ class ProjectMemberRepository:
 
     async def list_by_project(self, project_id: uuid.UUID) -> list[ProjectMember]:
         stmt = (
-            select(ProjectMember)
-            .where(ProjectMember.project_id == project_id)
-            .order_by(ProjectMember.added_at.asc())
+            select(ProjectMember).where(ProjectMember.project_id == project_id).order_by(ProjectMember.added_at.asc())
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
@@ -56,9 +52,7 @@ class ProjectMemberRepository:
                 self.session.add(existing)
                 await self.session.flush()
             return existing
-        m = ProjectMember(
-            tenant_id=tenant_id, project_id=project_id, user_id=user_id, role=role
-        )
+        m = ProjectMember(tenant_id=tenant_id, project_id=project_id, user_id=user_id, role=role)
         self.session.add(m)
         await self.session.flush()
         await self.session.refresh(m)

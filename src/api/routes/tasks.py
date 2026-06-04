@@ -13,15 +13,12 @@ from src.api.deps import CurrentUser, DBSession, require_any_scope, require_scop
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import (
     LLMTrigger,
-    NotificationKind,
     SuggestionStatus,
     SuggestionType,
     TaskStatus,
     utcnow,
 )
-from src.models.notification import Notification
 from src.models.task import Task
-from src.repositories.notification_repo import NotificationRepository
 from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.task_repo import TaskRepository
@@ -32,6 +29,7 @@ from src.schemas.task import (
     TaskResponse,
     TaskUpdate,
 )
+from src.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -153,7 +151,16 @@ async def update_task(
                 status_code=422,
                 detail=f"Cannot transition from {task.status.value} to {req.status.value}",
             )
+        old_status = task.status.value
         task = await repo.update_status(task, req.status, current_user.id)
+        await NotificationService(session, current_user.tenant_id).task_status_changed(
+            task.id,
+            task.title,
+            old_status,
+            req.status.value,
+            task.owner_user_id,
+            current_user.id,
+        )
 
     # Apply other field updates
     for field, value in req.model_dump(exclude_unset=True, exclude={"status"}).items():
@@ -186,15 +193,10 @@ async def claim_task(
     task = await repo.claim_task(task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=409, detail="Task already claimed or not found")
-    # Self-notification into the inbox (附录 I.3)
-    await NotificationRepository(session).create(
-        Notification(
-            tenant_id=current_user.tenant_id,
-            recipient_user_id=current_user.id,
-            kind=NotificationKind.task_claimed,
-            title=f"已认领:{task.title}",
-            source_ref={"task_id": str(task.id), "project_id": str(task.project_id)},
-        )
+    await NotificationService(session, current_user.tenant_id).task_claimed(
+        task.project_id,
+        task.title,
+        current_user.id,
     )
     return TaskResponse.model_validate(task)
 

@@ -11,9 +11,7 @@ from src.models.common import EventSource, EventType, TimestampMixin, new_uuid, 
 
 class EventCache(TimestampMixin, table=True):
     __tablename__ = "events_cache"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "source", "external_id", name="uq_event_dedupe"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "source", "external_id", name="uq_event_dedupe"),)
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)

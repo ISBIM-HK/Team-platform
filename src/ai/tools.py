@@ -15,6 +15,7 @@ from pydantic_ai import RunContext
 @dataclass
 class AssistantDeps:
     """Dependencies injected into tool functions at runtime."""
+
     session: object  # AsyncSession
     user_id: uuid.UUID
     tenant_id: uuid.UUID
@@ -52,9 +53,7 @@ async def query_team_tasks(ctx: RunContext[AssistantDeps], status: str = "") -> 
 
     repo = TaskRepository(ctx.deps.session)
     task_status = TaskStatus(status) if status else None
-    tasks = await repo.list_by_tenant(
-        ctx.deps.tenant_id, status=task_status, limit=50
-    )
+    tasks = await repo.list_by_tenant(ctx.deps.tenant_id, status=task_status, limit=50)
     if not tasks:
         return "团队当前没有任务。"
 
@@ -116,9 +115,7 @@ async def create_task_suggestion(
     return f"已创建任务建议「{title}」，请在建议列表中确认。"
 
 
-async def decompose_into_project(
-    ctx: RunContext[AssistantDeps], goal: str, project_id: str = ""
-) -> str:
+async def decompose_into_project(ctx: RunContext[AssistantDeps], goal: str, project_id: str = "") -> str:
     """把一个新需求/目标拆解成子任务，归到指定项目（默认当前打开的项目）。走 ai_suggestions 等用户确认（附录 I.1）。"""
     from src.ai.decompose import decompose_goal
     from src.ai.usage import RecordCtx
@@ -131,14 +128,14 @@ async def decompose_into_project(
         return "请先打开一个项目，或直接告诉我把这个需求拆进哪个项目。"
 
     members = await UserRepository(ctx.deps.session).list_by_tenant(ctx.deps.tenant_id)
-    team = "\n".join(
-        f"- {m.display_name}（{'PM' if m.is_pm else '成员'}，ID: {m.id}）" for m in members
-    )
+    team = "\n".join(f"- {m.display_name}（{'PM' if m.is_pm else '成员'}，ID: {m.id}）" for m in members)
     team_context = "## 团队成员\n" + team if team else ""
 
     rec = RecordCtx(
-        session=ctx.deps.session, tenant_id=ctx.deps.tenant_id,
-        user_id=ctx.deps.user_id, trigger=LLMTrigger.dispatch,
+        session=ctx.deps.session,
+        tenant_id=ctx.deps.tenant_id,
+        user_id=ctx.deps.user_id,
+        trigger=LLMTrigger.dispatch,
     )
     plan = await decompose_goal(goal, team_context, record=rec)
     target_ref = {
@@ -231,20 +228,20 @@ async def rewrite_memory(ctx: RunContext[AssistantDeps], markdown: str) -> str:
     return "记忆已重写。"
 
 
-async def save_skill(
-    ctx: RunContext[AssistantDeps], name: str, description: str = "", instruction: str = ""
-) -> str:
+async def save_skill(ctx: RunContext[AssistantDeps], name: str, description: str = "", instruction: str = "") -> str:
     """发现可复用的做法时,把它沉淀成一个技能(默认启用,跨会话保留),附录 J.5。"""
     from src.models.assistant_skill import AssistantSkill
     from src.repositories.assistant_repo import AssistantWorkspaceRepository
     from src.repositories.assistant_skill_repo import AssistantSkillRepository
 
-    ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(
-        ctx.deps.tenant_id, ctx.deps.user_id
-    )
+    ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(ctx.deps.tenant_id, ctx.deps.user_id)
     skill = AssistantSkill(
-        workspace_id=ws.id, tenant_id=ctx.deps.tenant_id,
-        name=name, description=description, instruction_md=instruction, enabled=True,
+        workspace_id=ws.id,
+        tenant_id=ctx.deps.tenant_id,
+        name=name,
+        description=description,
+        instruction_md=instruction,
+        enabled=True,
     )
     await AssistantSkillRepository(ctx.deps.session).create(skill)
     return f"已沉淀技能「{name}」并启用。"
@@ -255,9 +252,7 @@ async def improve_skill(ctx: RunContext[AssistantDeps], name: str, instruction: 
     from src.repositories.assistant_repo import AssistantWorkspaceRepository
     from src.repositories.assistant_skill_repo import AssistantSkillRepository
 
-    ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(
-        ctx.deps.tenant_id, ctx.deps.user_id
-    )
+    ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(ctx.deps.tenant_id, ctx.deps.user_id)
     repo = AssistantSkillRepository(ctx.deps.session)
     skill = await repo.get_by_name(ws.id, name)
     if not skill:
