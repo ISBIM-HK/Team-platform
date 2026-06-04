@@ -142,25 +142,25 @@
 
     <!-- suggestions inbox -->
     <div class="center-view" id="suggestionsView" style="display:none">
-      <div class="ws-header"><div class="ws-title"><h1>待处理建议</h1><span class="ws-meta" id="sugMeta"></span></div></div>
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="suggestions">待处理建议</h1><span class="ws-meta" id="sugMeta"></span></div></div>
       <div id="suggestionsBody" class="sug-grid"></div>
     </div>
 
     <!-- archived projects -->
     <div class="center-view" id="archivedView" style="display:none">
-      <div class="ws-header"><div class="ws-title"><h1>已归档</h1><span class="ws-meta" id="archivedMeta"></span></div></div>
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="archived">已归档</h1><span class="ws-meta" id="archivedMeta"></span></div></div>
       <div id="archivedProjectsBody"></div>
     </div>
 
     <!-- notifications inbox (附录 I.3 — separate from AI suggestions) -->
     <div class="center-view" id="notificationsView" style="display:none">
-      <div class="ws-header"><div class="ws-title"><h1>通知</h1><span class="ws-meta" id="notifMeta"></span></div></div>
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="notif_title">通知</h1><span class="ws-meta" id="notifMeta"></span></div></div>
       <div id="notificationsBody"></div>
     </div>
 
     <!-- personal access tokens -->
     <div class="center-view" id="tokenView" style="display:none">
-      <div class="ws-header"><div class="ws-title"><h1>访问令牌</h1><span class="ws-meta">本地 CLI / MCP / agent</span></div></div>
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="tokens">访问令牌</h1><span class="ws-meta">CLI / MCP / Agent</span></div></div>
       <div class="token-grid">
         <div class="token-panel">
           <div class="field"><label>名称</label><input id="tokenName" type="text" placeholder="laptop-hermes" /></div>
@@ -202,13 +202,13 @@
 
     <!-- LLM cost -->
     <div class="center-view" id="costView" style="display:none">
-      <div class="ws-header"><div class="ws-title"><h1>LLM 成本</h1><span class="ws-meta">今日(UTC) · 团队</span></div></div>
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="cost">LLM 成本</h1><span class="ws-meta" data-i18n="cost_today">今日(UTC) · 团队</span></div></div>
       <div id="costBody"></div>
     </div>
 
     <!-- admin: team management (附录 L, admin-only) -->
     <div class="center-view" id="adminView" style="display:none">
-      <div class="ws-header"><div class="ws-title"><h1>团队管理</h1><span class="ws-meta">设置成员角色(admin / pm)</span></div></div>
+      <div class="ws-header"><div class="ws-title"><h1 data-i18n="admin_title">团队管理</h1><span class="ws-meta" data-i18n="set_roles">设置成员角色(admin / pm)</span></div></div>
       <div id="adminBody"></div>
     </div>
   </main>
