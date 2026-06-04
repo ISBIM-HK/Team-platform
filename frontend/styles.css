@@ -646,6 +646,7 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .notif { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-sm, 8px); padding: 10px 14px; }
 .notif.read { opacity: .55; border-left-color: var(--border); }
 .notif .ntext { font-size: 14px; }
+.notif .nbody { font-size: 13px; color: var(--text-2); margin-top: 6px; padding: 8px 10px; background: var(--surface-2); border-radius: 6px; line-height: 1.5; white-space: pre-wrap; }
 .notif .nmeta { font-size: 12px; color: var(--text-3); margin-top: 3px; }
 
 /* ─── personal access tokens ─── */

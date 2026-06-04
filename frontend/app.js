@@ -496,7 +496,7 @@ function selectProject(id) {
   document.querySelectorAll('.proj-item').forEach((el, i) => el.classList.toggle('active', projects[i] && projects[i].id === id));
   const p = projects.find((x) => x.id === id); if (!p) return;
   $('#pvName').textContent = p.name;
-  $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`;
+  $('#pvMeta').textContent = `${p.task_count} ${_t('tasks_unit')} · ${_t('completion')} ${Math.round(p.completion * 100)}%`;
   switchTab('board');
 }
 function switchTab(tab) {
@@ -568,7 +568,7 @@ function renderArchivedFold(archived, childCount) {
   if (!archived.length) return;
   const head = document.createElement('button');
   head.className = 'arch-head';
-  head.innerHTML = `<span class="arch-arrow">▶</span>已归档 (${archived.length})`;
+  head.innerHTML = `<span class="arch-arrow">▶</span>${_t('archived')} (${archived.length})`;
   const body = document.createElement('div'); body.className = 'arch-body';
   archived.forEach((t, i) => body.appendChild(card(t, i, childCount[t.id] || 0)));
   head.onclick = () => { head.classList.toggle('open'); body.classList.toggle('open'); };
@@ -582,12 +582,12 @@ function card(t, i, nChildren) {
   const ownerName = t.owner_user_id ? (userMap[t.owner_user_id] || _t('members')) : null;
   const [pcls, plabel] = PRIO[t.priority] || PRIO[1];
   const bits = [];
-  if (ownerName) bits.push(`<span class="owner"><span class="avatar">${initials(ownerName)}</span>${escapeHtml(ownerName)}</span>`); else bits.push('<span>未认领</span>');
+  if (ownerName) bits.push(`<span class="owner"><span class="avatar">${initials(ownerName)}</span>${escapeHtml(ownerName)}</span>`); else bits.push(`<span>${_t('unclaimed')}</span>`);
   if (t.estimated_hours) bits.push(`<span class="est">${t.estimated_hours}h</span>`);
-  if (nChildren) bits.push(`<span class="subc">◧ ${nChildren} 子任务</span>`);
+  if (nChildren) bits.push(`<span class="subc">◧ ${nChildren} ${_t('subtasks')}</span>`);
   if (plabel) bits.push(`<span class="prio ${pcls}">${plabel}</span>`);
   if (isAI) bits.push('<span class="ai-tag">AI</span>');
-  el.innerHTML = `<span class="drag-handle" draggable="true" title="拖动">⠿</span><div class="ctitle">${escapeHtml(t.title)}</div>${t.description ? `<div class="cdesc">${escapeHtml(t.description)}</div>` : ''}<div class="cmeta">${bits.join('')}</div><div class="actions"></div>`;
+  el.innerHTML = `<span class="drag-handle" draggable="true" title="drag">⠿</span><div class="ctitle">${escapeHtml(t.title)}</div>${t.description ? `<div class="cdesc">${escapeHtml(t.description)}</div>` : ''}<div class="cmeta">${bits.join('')}</div><div class="actions"></div>`;
   const actions = el.querySelector('.actions');
   const addBtn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; actions.appendChild(b); };
   if (!t.owner_user_id) addBtn(_t('claim'), () => claim(t.id));
@@ -623,7 +623,7 @@ async function claim(id) {
   } catch (e) { toast(e.message); }
 }
 async function move(id, to) { try { await api(`/tasks/${id}`, { method: 'PATCH', body: { status: to } }); loadBoard(); refreshProjMeta(); } catch (e) { toast(e.message); } }
-async function refreshProjMeta() { try { const p = await api(`/projects/${currentProjectId}`); const idx = projects.findIndex((x) => x.id === p.id); if (idx >= 0) projects[idx] = p; $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`; const item = document.querySelectorAll('.proj-item')[idx]; if (item) item.querySelector('.pcount').textContent = p.task_count; } catch {} }
+async function refreshProjMeta() { try { const p = await api(`/projects/${currentProjectId}`); const idx = projects.findIndex((x) => x.id === p.id); if (idx >= 0) projects[idx] = p; $('#pvMeta').textContent = `${p.task_count} ${_t('tasks_unit')} · ${_t('completion')} ${Math.round(p.completion * 100)}%`; const item = document.querySelectorAll('.proj-item')[idx]; if (item) item.querySelector('.pcount').textContent = p.task_count; } catch {} }
 
 // ─── task detail ───
 function openTaskDetail(t, nChildren) {
@@ -632,17 +632,17 @@ function openTaskDetail(t, nChildren) {
   const owner = t.owner_user_id ? (userMap[t.owner_user_id] || _t('members')) : _t('unclaimed');
   const children = boardTasks.filter((x) => x.parent_task_id === t.id);
   const childHtml = children.length
-    ? `<div class="td-field"><div class="lbl">子任务 (${children.length})</div>${children.map((c) => `<div class="td-sub"><span class="st-status">${STATUS_NAME[c.status]}</span>${escapeHtml(c.title)}${c.estimated_hours ? ` · ${c.estimated_hours}h` : ''}</div>`).join('')}</div>` : '';
+    ? `<div class="td-field"><div class="lbl">${_t('subtasks')} (${children.length})</div>${children.map((c) => `<div class="td-sub"><span class="st-status">${getStatusName(c.status)}</span>${escapeHtml(c.title)}${c.estimated_hours ? ` · ${c.estimated_hours}h` : ''}</div>`).join('')}</div>` : '';
   $('#tdBody').innerHTML = `
-    ${t.description ? `<div class="td-field"><div class="lbl">描述</div><div class="val">${escapeHtml(t.description)}</div></div>` : '<div class="td-field"><div class="lbl">描述</div><div class="val" style="color:var(--text-3)">（无）</div></div>'}
-    <div class="td-field"><div class="lbl">负责人</div><div class="val">${escapeHtml(owner)}</div></div>
-    <div class="td-field"><div class="lbl">优先级 · 估时</div><div class="val">${(PRIO[t.priority] || PRIO[1])[0]}${t.estimated_hours ? ` · ${t.estimated_hours}h` : ''}</div></div>
-    ${t.impl_hint ? `<div class="td-field"><div class="lbl">AI 实现思路</div><div class="val">${escapeHtml(t.impl_hint)}</div></div>` : ''}
+    ${t.description ? `<div class="td-field"><div class="lbl">${_t('description')}</div><div class="val">${escapeHtml(t.description)}</div></div>` : `<div class="td-field"><div class="lbl">${_t('description')}</div><div class="val" style="color:var(--text-3)">${_t('none')}</div></div>`}
+    <div class="td-field"><div class="lbl">${_t('owner')}</div><div class="val">${escapeHtml(owner)}</div></div>
+    <div class="td-field"><div class="lbl">${_t('priority_time')}</div><div class="val">${(PRIO[t.priority] || PRIO[1])[0]}${t.estimated_hours ? ` · ${t.estimated_hours}h` : ''}</div></div>
+    ${t.impl_hint ? `<div class="td-field"><div class="lbl">${_t('ai_hint')}</div><div class="val">${escapeHtml(t.impl_hint)}</div></div>` : ''}
     ${childHtml}`;
   const foot = $('#tdFoot'); foot.innerHTML = '';
-  if (!t.owner_user_id) { const b = document.createElement('button'); b.className = 'btn btn-soft'; b.textContent = '认领'; b.onclick = async () => { await claim(t.id); $('#taskOverlay').classList.remove('show'); }; foot.appendChild(b); }
-  (NEXT[t.status] || []).forEach(([to, label]) => { const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = label; b.onclick = async () => { await move(t.id, to); $('#taskOverlay').classList.remove('show'); }; foot.appendChild(b); });
-  const close = document.createElement('button'); close.className = 'btn btn-primary'; close.textContent = '关闭'; close.onclick = () => $('#taskOverlay').classList.remove('show'); foot.appendChild(close);
+  if (!t.owner_user_id) { const b = document.createElement('button'); b.className = 'btn btn-soft'; b.textContent = _t('claim'); b.onclick = async () => { await claim(t.id); $('#taskOverlay').classList.remove('show'); }; foot.appendChild(b); }
+  getNext(t.status).forEach(([to, label]) => { const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = label; b.onclick = async () => { await move(t.id, to); $('#taskOverlay').classList.remove('show'); }; foot.appendChild(b); });
+  const close = document.createElement('button'); close.className = 'btn btn-primary'; close.textContent = _t('close'); close.onclick = () => $('#taskOverlay').classList.remove('show'); foot.appendChild(close);
   $('#taskOverlay').classList.add('show');
 }
 
@@ -650,10 +650,12 @@ function openTaskDetail(t, nChildren) {
 function briefSections(b) {
   const list = (title, items, cls) => items && items.length
     ? `<div class="brief-sec ${cls}"><div class="brief-sec-t">${title}</div><ul>${items.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : '';
+  const hl = {en: ['Highlights', 'Blockers & Risks', 'Next Steps'], 'zh-CN': ['进展亮点', '阻塞与风险', '下一步'], 'zh-HK': ['進展亮點', '阻塞與風險', '下一步']};
+  const titles = hl[currentLang] || hl['zh-CN'];
   return `<div class="brief-summary">${escapeHtml(b.summary)}</div>`
-    + list(_t('share')=='Progress'?'Highlights':'进展亮点', b.highlights, 'hl')
-    + list('阻塞与风险', b.risks, 'risk')
-    + list('下一步', b.next_steps, 'next');
+    + list(titles[0], b.highlights, 'hl')
+    + list(titles[1], b.risks, 'risk')
+    + list(titles[2], b.next_steps, 'next');
 }
 function fmtBriefTime(iso) { if (!iso) return ''; const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleString(); }
 
@@ -661,33 +663,32 @@ async function loadShare() {
   const body = $('#shareBody'); body.innerHTML = '<div class="plan-hint">'+_t('loading')+'</div>';
   let s; try { s = await api(`/projects/${currentProjectId}/share`); } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   const p = s.project, pct = Math.round(p.completion * 100);
-  const chips = STATUSES.map((c) => `<span class="chip">${c.name} ${s.status_counts[c.id] || 0}</span>`).join('');
+  const chips = getStatuses().map((c) => `<span class="chip">${c.name} ${s.status_counts[c.id] || 0}</span>`).join('');
   const byParent = {}, roots = [];
   s.tasks.forEach((t) => { if (t.parent_task_id) (byParent[t.parent_task_id] = byParent[t.parent_task_id] || []).push(t); else roots.push(t); });
-  const row = (t, child) => `<div class="share-task ${child ? 'child' : ''}"><span class="st-status">${STATUS_NAME[t.status]}</span><span>${escapeHtml(t.title)}</span>${t.owner_user_id ? `<span class="avatar" style="margin-left:auto">${initials(userMap[t.owner_user_id] || '·')}</span>` : ''}</div>`;
+  const row = (t, child) => `<div class="share-task ${child ? 'child' : ''}"><span class="st-status">${getStatusName(t.status)}</span><span>${escapeHtml(t.title)}</span>${t.owner_user_id ? `<span class="avatar" style="margin-left:auto">${initials(userMap[t.owner_user_id] || '·')}</span>` : ''}</div>`;
   let flow = ''; roots.forEach((r) => { flow += row(r, false); (byParent[r.id] || []).forEach((ch) => flow += row(ch, true)); });
-  // persisted brief (附录 H.4): show the latest if present, never auto-regenerate on open
   const hasBrief = !!s.brief;
-  const briefBodyHtml = hasBrief ? briefSections(s.brief) : '<div class="plan-hint">点「生成简报」让 AI 汇总任务进展与成员投送的工作痕迹。</div>';
-  const metaHtml = hasBrief ? `上次生成于 ${escapeHtml(fmtBriefTime(s.brief_generated_at))}` : '';
-  body.innerHTML = `<div class="share-summary"><div class="big">${pct}%</div><div class="ws-meta">完成度 · ${p.done_count}/${p.task_count} 个任务</div><div class="progress-bar"><i style="width:${pct}%"></i></div><div class="status-chips">${chips}</div></div>`
-    + `<div class="brief-card" id="briefCard"><div class="brief-head"><span class="section-title" style="font-size:15px">AI 进展简报</span><span id="briefMeta" style="font-size:12px;color:var(--text-3);margin-left:auto;margin-right:8px">${metaHtml}</span><button class="btn btn-soft btn-sm" id="briefGenBtn">${hasBrief ? '重新生成' : '生成简报'}</button></div><div class="brief-body" id="briefBody">${briefBodyHtml}</div></div>`
-    + `<div class="section-title" style="font-size:15px;margin-bottom:10px">任务流程</div><div class="share-flow">${flow || '<div class="plan-hint">还没有任务。</div>'}</div>`;
+  const briefBodyHtml = hasBrief ? briefSections(s.brief) : `<div class="plan-hint">${_t('gen_brief_hint')}</div>`;
+  const metaHtml = hasBrief ? `${_t('last_generated')} ${escapeHtml(fmtBriefTime(s.brief_generated_at))}` : '';
+  body.innerHTML = `<div class="share-summary"><div class="big">${pct}%</div><div class="ws-meta">${_t('completion_rate')} · ${p.done_count}/${p.task_count} ${_t('tasks_unit')}</div><div class="progress-bar"><i style="width:${pct}%"></i></div><div class="status-chips">${chips}</div></div>`
+    + `<div class="brief-card" id="briefCard"><div class="brief-head"><span class="section-title" style="font-size:15px">${_t('ai_brief')}</span><span id="briefMeta" style="font-size:12px;color:var(--text-3);margin-left:auto;margin-right:8px">${metaHtml}</span><button class="btn btn-soft btn-sm" id="briefGenBtn">${hasBrief ? _t('regen_brief') : _t('gen_brief')}</button></div><div class="brief-body" id="briefBody">${briefBodyHtml}</div></div>`
+    + `<div class="section-title" style="font-size:15px;margin-bottom:10px">${_t('task_flow')}</div><div class="share-flow">${flow || '<div class="plan-hint">'+_t('no_tasks_yet')+'</div>'}</div>`;
   $('#briefGenBtn').onclick = generateBrief;
 }
 
 async function generateBrief() {
   const btn = $('#briefGenBtn'), bb = $('#briefBody');
-  btn.disabled = true; btn.textContent = '生成中…';
-  bb.innerHTML = '<div class="plan-hint">AI 正在汇总进展，请稍候…</div>';
+  btn.disabled = true; btn.textContent = _t('generating');
+  bb.innerHTML = '<div class="plan-hint">'+_t('generating')+'</div>';
   try {
     const b = await api(`/projects/${currentProjectId}/brief`, { method: 'POST' });
     bb.innerHTML = briefSections(b);
-    const meta = $('#briefMeta'); if (meta) meta.textContent = '刚刚生成';
-    btn.textContent = '重新生成';
+    const meta = $('#briefMeta'); if (meta) meta.textContent = _t('just_generated');
+    btn.textContent = _t('regen_brief');
   } catch (e) {
     bb.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`;
-    btn.textContent = '生成简报';
+    btn.textContent = _t('gen_brief');
   }
   btn.disabled = false;
 }
@@ -770,7 +771,7 @@ $('#navArchived').onclick = async () => { showView('archivedView'); await loadAr
 function renderPlanSuggestions() {
   const mine = allSuggestions.filter((s) => (s.target_ref || {}).project_id === currentProjectId);
   const body = $('#planSuggestions'); body.innerHTML = '';
-  if (!mine.length) { body.innerHTML = '<div class="plan-hint">本项目暂无待处理 AI 建议。补充拆解后会出现在这里。</div>'; return; }
+  if (!mine.length) { body.innerHTML = `<div class="plan-hint">${_t('no_proj_suggestions')}</div>`; return; }
   mine.forEach((s) => body.appendChild(sugCard(s, () => { renderPlanSuggestions(); loadBoard(); refreshProjMeta(); })));
 }
 
@@ -780,7 +781,7 @@ async function renderPlanImplHints() {
   let tasks; try { tasks = await api(`/projects/${currentProjectId}/tasks`); } catch { tasks = []; }
   const parents = new Set(tasks.filter((t) => t.parent_task_id).map((t) => t.parent_task_id));
   const mine = tasks.filter((t) => t.owner_user_id === me.id && !parents.has(t.id)); // my leaf tasks
-  if (!mine.length) { body.innerHTML = '<div class="plan-hint">认领任务后，AI 会在这里给出实现思路。</div>'; return; }
+  if (!mine.length) { body.innerHTML = `<div class="plan-hint">${_t('claim_hint')}</div>`; return; }
   body.innerHTML = '';
   mine.forEach((t) => {
     const el = document.createElement('div'); el.className = 'ih-card';
@@ -836,11 +837,16 @@ async function loadNotifications() {
   body.innerHTML = '';
   items.forEach((n) => {
     const el = document.createElement('div'); el.className = 'notif' + (n.read_at ? ' read' : '');
-    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div><div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))}${n.read_at ? ' · '+_t('read') : ''}</div>`;
-    if (!n.read_at) {
-      el.style.cursor = 'pointer';
-      el.onclick = async () => { try { await api(`/me/notifications/${n.id}/read`, { method: 'POST' }); el.classList.add('read'); el.querySelector('.nmeta').textContent += ' · '+_t('read'); el.onclick = null; updateNotifBadge(); } catch {} };
-    }
+    const hasBody = n.body && n.body.trim();
+    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div>${hasBody ? `<div class="nbody" style="display:none">${escapeHtml(n.body)}</div>` : ''}<div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))}${n.read_at ? ' · '+_t('read') : ''}${n.kind === 'teammate_message' ? ' · teammate' : ''}</div>`;
+    el.style.cursor = 'pointer';
+    el.onclick = async () => {
+      const bd = el.querySelector('.nbody');
+      if (bd) bd.style.display = bd.style.display === 'none' ? 'block' : 'none';
+      if (!n.read_at) {
+        try { await api(`/me/notifications/${n.id}/read`, { method: 'POST' }); el.classList.add('read'); n.read_at = true; el.querySelector('.nmeta').textContent += ' · '+_t('read'); updateNotifBadge(); } catch {}
+      }
+    };
     body.appendChild(el);
   });
 }
