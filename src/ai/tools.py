@@ -334,3 +334,106 @@ async def get_project_members(ctx: RunContext[AssistantDeps]) -> str:
     names = {u.id: u.display_name for u in await UserRepository(ctx.deps.session).list_by_tenant(ctx.deps.tenant_id)}
     lines = [f"- {names.get(m.user_id, '?')}（{m.role}）" for m in members]
     return f"项目成员 {len(members)} 人：\n" + "\n".join(lines)
+
+
+async def web_search(ctx: RunContext[AssistantDeps], query: str) -> str:
+    """搜索互联网，返回相关网页标题和摘要。用于调研客户、查行业资料、查技术方案等。"""
+    from src.ai.web_search import search
+
+    results = await search(query, max_results=5)
+    if not results:
+        return f"搜索「{query}」没有找到结果。"
+    lines = []
+    for r in results:
+        lines.append(f"- **{r['title']}**\n  {r['url']}\n  {r['snippet']}")
+    return f"搜索「{query}」找到 {len(results)} 条结果：\n\n" + "\n\n".join(lines)
+
+
+async def fetch_url(ctx: RunContext[AssistantDeps], url: str) -> str:
+    """读取指定网页的文本内容（用于深入了解搜索结果）。最多返回前 3000 字。"""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "TeamPlatform/1.0"})
+        if resp.status_code != 200:
+            return f"无法访问该页面（HTTP {resp.status_code}）。"
+        import re
+
+        text = re.sub(r"<script[^>]*>.*?</script>", "", resp.text, flags=re.DOTALL)
+        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) > 3000:
+            text = text[:3000] + "...(已截断)"
+        return text if text else "页面内容为空。"
+    except Exception as e:
+        return f"读取失败：{e}"
+
+
+async def notify_teammate(ctx: RunContext[AssistantDeps], recipient_name: str, message: str) -> str:
+    """向当前项目的某个成员发送一条消息通知。只能发给当前项目成员。
+    用户说"告诉张三……"或"提醒李四……"时调用。消息会以通知形式送达对方。"""
+    from src.models.audit_log import AuditLog
+    from src.models.common import NotificationKind
+    from src.models.notification import Notification
+    from src.repositories.notification_repo import NotificationRepository
+    from src.repositories.project_member_repo import ProjectMemberRepository
+    from src.repositories.user_repo import UserRepository
+    from src.services.sse_bus import notify
+
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目才能发送消息给同事。"
+
+    members = await ProjectMemberRepository(ctx.deps.session).list_by_project(pid)
+    member_ids = [m.user_id for m in members]
+    if ctx.deps.user_id not in member_ids:
+        return "你不是当前项目的成员。"
+
+    users = await UserRepository(ctx.deps.session).list_by_tenant(ctx.deps.tenant_id)
+    name_map = {u.display_name.lower(): u for u in users}
+    target = name_map.get(recipient_name.lower())
+    if not target:
+        for u in users:
+            if recipient_name.lower() in u.display_name.lower():
+                target = u
+                break
+    if not target or target.id not in member_ids:
+        names = "、".join(u.display_name for u in users if u.id in member_ids and u.id != ctx.deps.user_id)
+        return f"在当前项目中找不到「{recipient_name}」。项目成员：{names}"
+
+    sender = next((u for u in users if u.id == ctx.deps.user_id), None)
+    sender_name = sender.display_name if sender else "同事"
+
+    if len(message) > 500:
+        message = message[:500]
+
+    n = Notification(
+        tenant_id=ctx.deps.tenant_id,
+        recipient_user_id=target.id,
+        kind=NotificationKind.teammate_message,
+        title=f"{sender_name} 通过助手发送：{message[:60]}",
+        body=message,
+        source_ref={
+            "sender_user_id": str(ctx.deps.user_id),
+            "project_id": str(pid),
+        },
+    )
+    await NotificationRepository(ctx.deps.session).create(n)
+    ctx.deps.session.add(
+        AuditLog(
+            tenant_id=ctx.deps.tenant_id,
+            actor_id=ctx.deps.user_id,
+            action="teammate_message.send",
+            target_type="notification",
+            target_id=n.id,
+            detail={
+                "recipient": str(target.id),
+                "project_id": str(pid),
+            },
+        )
+    )
+    await ctx.deps.session.flush()
+    notify(target.id, {"type": "notification", "kind": "teammate_message", "title": n.title})
+    return f"已发送给 {target.display_name}：{message}"

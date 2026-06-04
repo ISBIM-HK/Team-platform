@@ -136,6 +136,7 @@ class NotificationKind(str, Enum):
     system = "system"
     task_assigned = "task_assigned"
     task_claimed = "task_claimed"
+    teammate_message = "teammate_message"
 
 
 class LLMTrigger(str, Enum):

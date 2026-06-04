@@ -199,7 +199,7 @@ async function boot() {
   $('#pmPill').style.display = me.is_pm ? 'inline' : 'none';
   $('#navCost').style.display = me.is_pm ? 'flex' : 'none';
   $('#navAdmin').style.display = me.is_admin ? 'flex' : 'none';
-  await loadUsers(); await loadProjects(); await loadSuggestions(); updateNotifBadge(); await initChat();
+  await loadUsers(); await loadProjects(); await loadSuggestions(); updateNotifBadge(); connectNotifSSE(); await initChat();
 }
 async function loadUsers() { try { const r = await api('/users'); (Array.isArray(r) ? r : r.items || []).forEach((u) => userMap[u.id] = u.display_name); } catch {} }
 
@@ -583,6 +583,21 @@ async function updateNotifBadge() {
     const c = await api('/me/notifications/unread-count');
     const b = $('#notifBadge'); b.style.display = c.unread ? 'inline-grid' : 'none'; b.textContent = c.unread;
   } catch {}
+}
+let notifSSE = null;
+function connectNotifSSE() {
+  if (notifSSE) notifSSE.close();
+  notifSSE = new EventSource(API + '/me/notifications/stream');
+  notifSSE.onmessage = (ev) => {
+    try {
+      const d = JSON.parse(ev.data);
+      if (d.type === 'notification') {
+        updateNotifBadge();
+        toast(d.title || '新通知');
+      }
+    } catch {}
+  };
+  notifSSE.onerror = () => { notifSSE.close(); setTimeout(connectNotifSSE, 10000); };
 }
 async function loadNotifications() {
   showView('notificationsView');

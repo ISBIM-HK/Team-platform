@@ -153,7 +153,8 @@ async def update_task(
             )
         old_status = task.status.value
         task = await repo.update_status(task, req.status, current_user.id)
-        await NotificationService(session, current_user.tenant_id).task_status_changed(
+        notif_svc = NotificationService(session, current_user.tenant_id)
+        await notif_svc.task_status_changed(
             task.id,
             task.title,
             old_status,
@@ -161,13 +162,17 @@ async def update_task(
             task.owner_user_id,
             current_user.id,
         )
+    else:
+        notif_svc = None
 
     # Apply other field updates
     for field, value in req.model_dump(exclude_unset=True, exclude={"status"}).items():
         setattr(task, field, value)
     task.updated_at = utcnow()
     session.add(task)
-    await session.flush()
+    await session.commit()
+    if notif_svc:
+        notif_svc.flush_sse()
     await session.refresh(task)
 
     return TaskResponse.model_validate(task)
@@ -193,11 +198,10 @@ async def claim_task(
     task = await repo.claim_task(task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=409, detail="Task already claimed or not found")
-    await NotificationService(session, current_user.tenant_id).task_claimed(
-        task.project_id,
-        task.title,
-        current_user.id,
-    )
+    notif_svc = NotificationService(session, current_user.tenant_id)
+    await notif_svc.task_claimed(task.project_id, task.title, current_user.id)
+    await session.commit()
+    notif_svc.flush_sse()
     return TaskResponse.model_validate(task)
 
 

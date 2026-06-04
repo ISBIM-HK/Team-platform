@@ -12,6 +12,7 @@ from src.models.common import NotificationKind
 from src.models.notification import Notification
 from src.repositories.notification_repo import NotificationRepository
 from src.repositories.project_member_repo import ProjectMemberRepository
+from src.services.sse_bus import notify_many
 
 
 class NotificationService:
@@ -19,6 +20,7 @@ class NotificationService:
         self.session = session
         self.tenant_id = tenant_id
         self.repo = NotificationRepository(session)
+        self._pending_sse: list[tuple[list[uuid.UUID], dict]] = []
 
     async def _notify(
         self,
@@ -40,7 +42,15 @@ class NotificationService:
             )
             await self.repo.create(n)
             created.append(n)
+        if recipients:
+            self._pending_sse.append((list(recipients), {"type": "notification", "kind": kind.value, "title": title}))
         return created
+
+    def flush_sse(self):
+        """Push SSE signals. Call AFTER session.commit() to avoid ghost notifications."""
+        for user_ids, data in self._pending_sse:
+            notify_many(user_ids, data)
+        self._pending_sse.clear()
 
     async def _project_member_ids(self, project_id: uuid.UUID, exclude: uuid.UUID | None = None) -> list[uuid.UUID]:
         members = await ProjectMemberRepository(self.session).list_by_project(project_id)

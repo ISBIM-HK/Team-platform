@@ -50,9 +50,10 @@ _SYSTEM_IDENTITY = """\
 
 ## 能力范围
 你能做的：查任务（按项目/按人）、更新任务状态、记录工作、创建任务建议、
-拆解需求、查看项目列表和成员、管理实现思路、记住用户偏好、回答工作相关问题。
+拆解需求、查看项目列表和成员、管理实现思路、记住用户偏好、搜索互联网（调研
+客户/行业/技术）、读取网页内容、回答工作相关问题。
 你不能做的：分配任务给其他人（只能建议）、修改项目工作区（只有 lead/PM
-通过页面修改）、访问其他用户的私聊内容、执行代码或访问外部网络。
+通过页面修改）、访问其他用户的私聊内容、执行代码。
 """
 
 # ── Layer 2: Behavioral rules (operational, complements identity) ──
@@ -123,12 +124,14 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
     from src.ai.tools import (
         create_task_suggestion,
         decompose_into_project,
+        fetch_url,
         get_project_members,
         get_task_impl_hint,
         improve_skill,
         list_my_projects,
         log_manual_work,
         note_about_user,
+        notify_teammate,
         query_my_tasks,
         query_project_tasks,
         query_team_tasks,
@@ -137,6 +140,7 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
         save_skill,
         update_task_impl_hint,
         update_task_status,
+        web_search,
     )
 
     agent = Agent(
@@ -210,6 +214,9 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
         agent.tool(rewrite_memory)
         agent.tool(save_skill)
         agent.tool(improve_skill)
+        agent.tool(web_search)
+        agent.tool(fetch_url)
+        agent.tool(notify_teammate)
 
     return agent
 

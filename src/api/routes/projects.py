@@ -370,12 +370,10 @@ async def project_brief(
             model_used=get_settings().llm_model_strong,
         )
     )
-    await NotificationService(session, current_user.tenant_id).brief_generated(
-        p.id,
-        p.name,
-        current_user.id,
-    )
+    notif_svc = NotificationService(session, current_user.tenant_id)
+    await notif_svc.brief_generated(p.id, p.name, current_user.id)
     await session.commit()
+    notif_svc.flush_sse()
     return brief
 
 
@@ -438,10 +436,14 @@ async def add_member(
     if not target or target.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="User not found")
     await ProjectMemberRepository(session).add(current_user.tenant_id, project_id, req.user_id, role=req.role)
+    notif_svc = NotificationService(session, current_user.tenant_id)
     p = await ProjectRepository(session).get_by_id(project_id)
     if p:
-        await NotificationService(session, current_user.tenant_id).member_added(project_id, p.name, req.user_id)
-    return await _members_payload(project_id, current_user, session)
+        await notif_svc.member_added(project_id, p.name, req.user_id)
+    payload = await _members_payload(project_id, current_user, session)
+    await session.commit()
+    notif_svc.flush_sse()
+    return payload
 
 
 @router.patch("/{project_id}/members/{user_id}", response_model=list[MemberResponse])
@@ -551,13 +553,12 @@ async def patch_workspace(
             detail={"project_id": str(project_id), "version": ws.version},
         )
     )
+    notif_svc = NotificationService(session, current_user.tenant_id)
     p = await ProjectRepository(session).get_by_id(project_id)
     if p:
-        await NotificationService(session, current_user.tenant_id).project_workspace_edited(
-            project_id,
-            p.name,
-            current_user.id,
-        )
+        await notif_svc.project_workspace_edited(project_id, p.name, current_user.id)
+    await session.commit()
+    notif_svc.flush_sse()
     return WorkspaceResponse(
         background_md=ws.background_md,
         context_md=ws.context_md,
