@@ -54,7 +54,7 @@ const I18N = {
     settings_hint: '人格决定助手风格；记忆/画像由助手在对话中自动积累，你也可手动编辑。仅你可见。',
     persona: '人格（SOUL）', memory: '记忆（MEMORY）', profile: '关于我（USER 画像）',
     skills: '技能（指令包）· 启用的会注入助手', add_skill: '添加技能', save_edit: '保存修改',
-    settings_saved: '助手设置已保存',
+    settings_saved: '助手设置已保存', edit: '编辑', delete_btn: '删除', no_skills: '还没有技能，下面添加。',
     // workspace
     ws_bg: '项目背景', ws_ctx: '上下文', ws_focus: '当前重点', ws_save: '保存', ws_saving: '保存中…',
     ws_readonly: '只读 — 项目 lead 或 PM 可编辑', ws_saved: '工作区已保存',
@@ -116,7 +116,7 @@ const I18N = {
     settings_hint: '人格決定助手風格；記憶/畫像由助手在對話中自動積累，你也可手動編輯。僅你可見。',
     persona: '人格（SOUL）', memory: '記憶（MEMORY）', profile: '關於我（USER 畫像）',
     skills: '技能（指令包）· 啟用的會注入助手', add_skill: '添加技能', save_edit: '儲存修改',
-    settings_saved: '助手設定已儲存',
+    settings_saved: '助手設定已儲存', edit: '編輯', delete_btn: '刪除', no_skills: '還沒有技能，下面添加。',
     ws_bg: '項目背景', ws_ctx: '上下文', ws_focus: '當前重點', ws_save: '儲存', ws_saving: '儲存中…',
     ws_readonly: '唯讀 — 項目 lead 或 PM 可編輯', ws_saved: '工作區已儲存',
     cost_title: 'LLM 成本', cost_today: '今日(UTC) · 團隊', calls: '次調用',
@@ -175,7 +175,7 @@ const I18N = {
     settings_hint: 'Persona sets the assistant style; memory/profile accumulate from conversations. You can also edit manually. Only visible to you.',
     persona: 'Persona (SOUL)', memory: 'Memory (MEMORY)', profile: 'About Me (USER Profile)',
     skills: 'Skills (instruction packs) · enabled ones injected into assistant', add_skill: 'Add Skill', save_edit: 'Save Changes',
-    settings_saved: 'Assistant settings saved',
+    settings_saved: 'Assistant settings saved', edit: 'Edit', delete_btn: 'Delete', no_skills: 'No skills yet. Add one below.',
     ws_bg: 'Background', ws_ctx: 'Context', ws_focus: 'Current Focus', ws_save: 'Save', ws_saving: 'Saving…',
     ws_readonly: 'Read-only — project lead or PM can edit', ws_saved: 'Workspace saved',
     cost_title: 'LLM Cost', cost_today: 'Today (UTC) · Team', calls: 'calls',
@@ -1262,19 +1262,19 @@ $('#awSave').onclick = async () => {
 
 // assistant skills (附录 J.5)
 let awEditingSkill = null;
-function resetSkillForm() { awEditingSkill = null; $('#awSkillName').value = ''; $('#awSkillDesc').value = ''; $('#awSkillInstr').value = ''; $('#awSkillSave').textContent = '添加技能'; }
+function resetSkillForm() { awEditingSkill = null; $('#awSkillName').value = ''; $('#awSkillDesc').value = ''; $('#awSkillInstr').value = ''; $('#awSkillSave').textContent = _t('add_skill'); }
 async function renderSkills() {
   const box = $('#awSkills'); box.innerHTML = '<div class="plan-hint">'+_t('loading')+'</div>';
   let items; try { items = (await api('/me/assistant/skills')).items || []; } catch (e) { box.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
-  if (!items.length) { box.innerHTML = '<div class="plan-hint">还没有技能,下面添加。</div>'; return; }
+  if (!items.length) { box.innerHTML = `<div class="plan-hint">${_t('no_skills')}</div>`; return; }
   box.innerHTML = '';
   items.forEach((s) => {
     const row = document.createElement('div'); row.className = 'aw-skill-row';
-    row.innerHTML = `<label class="aw-sk-on"><input type="checkbox" ${s.enabled ? 'checked' : ''}><b>${escapeHtml(s.name)}</b></label><span class="ws-meta aw-sk-desc">${escapeHtml(s.description || '')}</span><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm">删除</button>`;
+    row.innerHTML = `<label class="aw-sk-on"><input type="checkbox" ${s.enabled ? 'checked' : ''}><b>${escapeHtml(s.name)}</b></label><span class="ws-meta aw-sk-desc">${escapeHtml(s.description || '')}</span><button class="btn btn-ghost btn-sm">${_t('edit')}</button><button class="btn btn-ghost btn-sm">${_t('delete_btn')}</button>`;
     const chk = row.querySelector('input');
     const [editBtn, delBtn] = row.querySelectorAll('button');
     chk.onchange = async () => { try { await api(`/me/assistant/skills/${s.id}`, { method: 'PATCH', body: { enabled: chk.checked } }); } catch (e) { toast(e.message); chk.checked = !chk.checked; } };
-    editBtn.onclick = () => { awEditingSkill = s.id; $('#awSkillName').value = s.name; $('#awSkillDesc').value = s.description || ''; $('#awSkillInstr').value = s.instruction_md || ''; $('#awSkillSave').textContent = '保存修改'; $('#awSkillName').focus(); };
+    editBtn.onclick = () => { awEditingSkill = s.id; $('#awSkillName').value = s.name; $('#awSkillDesc').value = s.description || ''; $('#awSkillInstr').value = s.instruction_md || ''; $('#awSkillSave').textContent = _t('save_edit'); $('#awSkillName').focus(); };
     delBtn.onclick = async () => { try { await api(`/me/assistant/skills/${s.id}`, { method: 'DELETE' }); if (awEditingSkill === s.id) resetSkillForm(); renderSkills(); } catch (e) { toast(e.message); } };
     box.appendChild(row);
   });
