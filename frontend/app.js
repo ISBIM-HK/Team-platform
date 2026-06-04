@@ -987,24 +987,24 @@ async function openMembers(pid) {
   catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   const myRole = (members.find((m) => m.user_id === me.id) || {}).role;
   const canManage = myRole === 'lead' || me.is_pm || me.is_admin;
-  $('#membersTitle').textContent = `成员 · ${members.length}`;
-  $('#membersHint').textContent = canManage ? 'lead 可加/移成员、改角色;成员只能查看。' : '你是项目成员,可查看名单。';
+  $('#membersTitle').textContent = `${_t('members')} · ${members.length}`;
+  $('#membersHint').textContent = canManage ? _t('members_hint_lead') : _t('members_hint_member');
   body.innerHTML = '';
   const memberIds = new Set(members.map((m) => m.user_id));
   members.forEach((m) => {
     const isLead = m.role === 'lead';
     const row = document.createElement('div'); row.className = 'members-row';
     row.innerHTML = `<span class="avatar">${initials(m.name)}</span>`
-      + `<span class="mr-name"><b>${escapeHtml(m.name)}${m.user_id === me.id ? ' <span class="ws-meta">（你）</span>' : ''}</b></span>`
+      + `<span class="mr-name"><b>${escapeHtml(m.name)}${m.user_id === me.id ? ` <span class="ws-meta">${_t('you')}</span>` : ''}</b></span>`
       + `<span class="mr-role ${isLead ? '' : 'member'}">${isLead ? 'lead' : 'member'}</span>`;
     if (canManage) {
       const toggle = document.createElement('button'); toggle.className = 'btn btn-ghost btn-sm';
-      toggle.textContent = isLead ? '设为成员' : '设为 lead';
+      toggle.textContent = isLead ? _t('set_member') : _t('set_lead');
       toggle.onclick = async () => {
         try { await api(`/projects/${pid}/members/${m.user_id}`, { method: 'PATCH', body: { role: isLead ? 'member' : 'lead' } }); openMembers(pid); }
         catch (e) { toast(e.message); }
       };
-      const rm = document.createElement('button'); rm.className = 'btn btn-ghost btn-sm'; rm.textContent = '移除';
+      const rm = document.createElement('button'); rm.className = 'btn btn-ghost btn-sm'; rm.textContent = _t('remove');
       rm.onclick = async () => {
         try { await api(`/projects/${pid}/members/${m.user_id}`, { method: 'DELETE' }); openMembers(pid); }
         catch (e) { toast(e.message); }
@@ -1018,9 +1018,9 @@ async function openMembers(pid) {
     if (candidates.length) {
       const wrap = document.createElement('div'); wrap.className = 'members-add';
       const sel = document.createElement('select');
-      sel.innerHTML = '<option value="">添加成员…</option>'
+      sel.innerHTML = `<option value="">${_t('add_member')}</option>`
         + candidates.map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
-      const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = '添加';
+      const btn = document.createElement('button'); btn.className = 'btn btn-primary btn-sm'; btn.textContent = _t('add_btn');
       btn.onclick = async () => {
         if (!sel.value) return;
         try { await api(`/projects/${pid}/members`, { method: 'POST', body: { user_id: sel.value } }); openMembers(pid); }
@@ -1029,7 +1029,7 @@ async function openMembers(pid) {
       wrap.appendChild(sel); wrap.appendChild(btn);
       addRow.appendChild(wrap);
     } else {
-      addRow.innerHTML = '<span class="ws-meta">没有可添加的成员了</span>';
+      addRow.innerHTML = `<span class="ws-meta">${_t('no_more_members')}</span>`;
     }
   }
 }
