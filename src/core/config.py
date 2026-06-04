@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     oidc_client_secret: str = ""
     oidc_redirect_uri: str = ""  # e.g. https://app.acme.com/api/v1/auth/sso/callback
 
+    # SSO dev stub — LOCAL ONLY. Fakes "company login": enter email → auto-provision +
+    # session, no IdP/crypto. A full auth bypass; startup fail-fasts and the route 404s
+    # in production regardless of this flag. Never set in a deployed env.
+    sso_dev_stub: bool = False
+
     @property
     def sso_enabled(self) -> bool:
         return bool(

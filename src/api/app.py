@@ -40,6 +40,8 @@ async def lifespan(app: FastAPI):
             raise RuntimeError("CRYPTO_KEY must be set in production")
         if settings.secret_key == "dev-secret-key-not-for-production":
             raise RuntimeError("SECRET_KEY must be overridden in production")
+        if settings.sso_dev_stub:
+            raise RuntimeError("SSO_DEV_STUB must not be set in production")
     yield
 
 

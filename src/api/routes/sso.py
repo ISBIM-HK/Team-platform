@@ -8,7 +8,8 @@ resolve_sso_user is pure DB logic (auto-provision / link) and is unit-tested.
 import secrets
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel
 
 from src.api.deps import DBSession
 from src.core import sso as oidc
@@ -34,8 +35,9 @@ def _require_enabled() -> None:
 
 @router.get("/status")
 async def sso_status():
-    """Public — lets the login page decide whether to show the SSO button."""
-    return {"enabled": get_settings().sso_enabled}
+    """Public — lets the login page decide whether to show the SSO / dev-login button."""
+    s = get_settings()
+    return {"enabled": s.sso_enabled, "dev_stub": s.sso_dev_stub and not s.is_production}
 
 
 @router.get("/login")
@@ -96,6 +98,40 @@ async def sso_callback(
     )
     resp.delete_cookie(_STATE_COOKIE, path="/")
     resp.delete_cookie(_NONCE_COOKIE, path="/")
+    return resp
+
+
+class _DevLoginRequest(BaseModel):
+    email: str
+    name: str | None = None
+
+
+@router.post("/dev-login")
+async def sso_dev_login(payload: _DevLoginRequest, session: DBSession):
+    """LOCAL DEV ONLY — fake an SSO success: provision/login by email, skipping the
+    OIDC handshake entirely. Reuses resolve_sso_user so开户/会话与真 SSO 完全一致.
+
+    Hard 404 in production (defense in depth — startup also fail-fasts on the flag)."""
+    settings = get_settings()
+    if settings.is_production or not settings.sso_dev_stub:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=422, detail="valid email required")
+    name = (payload.name or "").strip() or email.split("@")[0]
+
+    try:
+        user = await resolve_sso_user(session, sub=f"devstub:{email}", email=email, name=name)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="email domain not allowed") from None
+    await session.commit()
+
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(
+        "session_token", create_session_token(str(user.id)), httponly=True,
+        secure=settings.is_production, samesite="lax", max_age=7 * 86400,
+    )
     return resp
 
 
