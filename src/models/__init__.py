@@ -12,6 +12,7 @@ from src.models.notification import Notification
 from src.models.pat import PersonalAccessToken
 from src.models.project import Project
 from src.models.project_member import ProjectMember
+from src.models.project_workspace import ProjectWorkspace
 from src.models.report import Report
 from src.models.scheduled_job import ScheduledJob
 from src.models.task import Task, TaskHistory, TaskLink
@@ -25,4 +26,5 @@ __all__ = [
     "AISuggestion", "Report", "AuditLog", "LLMCall",
     "ScheduledJob", "Notification", "PersonalAccessToken",
     "AssistantWorkspace", "AssistantSkill",
+    "ProjectWorkspace",
 ]

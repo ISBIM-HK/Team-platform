@@ -26,3 +26,8 @@ class RegisterResponse(BaseModel):
     user_id: str
     email: str
     display_name: str
+
+
+class ProxyLoginRequest(BaseModel):
+    email: str
+    password: str

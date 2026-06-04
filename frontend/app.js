@@ -59,35 +59,142 @@ const TOKEN_SCOPE_OPTIONS = [
   ['tokens:manage', '管理令牌'],
 ];
 
-// ─── auth ───
-let registerMode = false;
-function setMode(reg) {
-  registerMode = reg;
-  $('#nameField').style.display = reg ? 'block' : 'none';
-  $('#loginTitle').textContent = reg ? '创建账号' : '欢迎回来';
-  $('#loginSub').textContent = reg ? '用公司邮箱注册' : '登录到 Team Platform';
-  $('#loginBtn').textContent = reg ? '注 册' : '登 录';
-  $('#toggleText').textContent = reg ? '已有账号？' : '还没有账号？';
-  $('#toggleMode').textContent = reg ? '登录' : '注册';
-  $('#loginErr').textContent = '';
+// ─── starfield + mouse-triggered connections ───
+function initStarfield() {
+  const canvas = $('#starfield'); if (!canvas) return;
+  if (canvas.dataset.init) return; canvas.dataset.init = '1';
+  const ctx = canvas.getContext('2d');
+  let w, h, stars;
+  const mouse = { x: -9999, y: -9999 };
+  const MOUSE_R = 200, LINK_R = 150;
+
+  function resize() {
+    w = canvas.width = canvas.parentElement.clientWidth;
+    h = canvas.height = canvas.parentElement.clientHeight;
+  }
+
+  function create() {
+    const count = Math.floor((w * h) / 6000);
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.18,
+      vy: (Math.random() - 0.5) * 0.18,
+      r: Math.random() < 0.12 ? Math.random() * 2 + 1.8 : Math.random() * 1.2 + 0.4,
+      base: Math.random() * 0.45 + 0.15,
+      phase: Math.random() * Math.PI * 2,
+      freq: Math.random() * 0.015 + 0.004,
+    }));
+  }
+
+  let t = 0;
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+
+    for (let i = 0; i < stars.length; i++) {
+      const a = stars[i];
+      a.x += a.vx; a.y += a.vy;
+      if (a.x < 0) a.x += w; if (a.x > w) a.x -= w;
+      if (a.y < 0) a.y += h; if (a.y > h) a.y -= h;
+
+      // twinkle
+      const flicker = a.base + (1 - a.base) * (0.5 + 0.5 * Math.sin(t * a.freq + a.phase));
+
+      // mouse proximity glow
+      const mdx = a.x - mouse.x, mdy = a.y - mouse.y;
+      const md = Math.sqrt(mdx * mdx + mdy * mdy);
+      const boost = md < MOUSE_R ? (1 - md / MOUSE_R) * 0.5 : 0;
+      const alpha = Math.min(flicker + boost, 1);
+
+      // draw star
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.r * (1 + boost * 0.6), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200, 220, 240, ' + alpha + ')';
+      ctx.fill();
+
+      // mouse → star lines
+      if (md < MOUSE_R) {
+        ctx.beginPath();
+        ctx.moveTo(mouse.x, mouse.y); ctx.lineTo(a.x, a.y);
+        ctx.strokeStyle = 'rgba(60, 200, 235, ' + (1 - md / MOUSE_R) * 0.75 + ')';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // star ↔ star lines near mouse
+      if (md < MOUSE_R * 1.3) {
+        for (let j = i + 1; j < stars.length; j++) {
+          const b = stars[j];
+          const bd = Math.sqrt((b.x - mouse.x) ** 2 + (b.y - mouse.y) ** 2);
+          if (bd > MOUSE_R * 1.3) continue;
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < LINK_R) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = 'rgba(60, 200, 235, ' + (1 - d / LINK_R) * 0.55 + ')';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+
+  const wrap = canvas.parentElement;
+  wrap.addEventListener('mousemove', (e) => {
+    const r = wrap.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+  });
+  wrap.addEventListener('mouseleave', () => { mouse.x = -9999; mouse.y = -9999; });
+  window.addEventListener('resize', () => { resize(); create(); });
+  resize(); create(); draw();
 }
-$('#toggleMode').onclick = () => setMode(!registerMode);
-$('#loginBtn').onclick = async () => {
-  const email = $('#email').value.trim(), password = $('#password').value, display_name = $('#dispName').value.trim();
+
+// ─── auth ───
+// SSO entry → JarvisBIM auth page
+$('#ssoEntryBtn').onclick = () => {
+  $('#login').style.display = 'none';
+  $('#ssoLogin').style.display = 'block';
+  initStarfield();
+  const saved = localStorage.getItem('remembered_email');
+  if (saved) { $('#email').value = saved; $('#rememberEmail').checked = true; $('#password').focus(); }
+  else { $('#email').focus(); }
+};
+$('#ssoBackBtn').onclick = () => {
+  $('#ssoLogin').style.display = 'none';
+  $('#login').style.display = 'grid';
   $('#loginErr').textContent = '';
+};
+$('#loginBtn').onclick = async () => {
+  const email = $('#email').value.trim(), password = $('#password').value;
+  $('#loginErr').textContent = '';
+  if (!email || !password) { $('#loginErr').textContent = '请输入邮箱和密码'; return; }
+  const btn = $('#loginBtn'); btn.disabled = true; btn.textContent = '验证中…';
   try {
-    if (registerMode) await api('/auth/register', { method: 'POST', body: { email, password, display_name } });
-    await api('/auth/login', { method: 'POST', body: { email, password } });
+    await api('/auth/proxy-login', { method: 'POST', body: { email, password } });
+    if ($('#rememberEmail').checked) localStorage.setItem('remembered_email', email);
+    else localStorage.removeItem('remembered_email');
     await boot();
   } catch (e) { $('#loginErr').textContent = e.message; }
+  btn.disabled = false; btn.textContent = '登 录';
 };
 $('#password').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#loginBtn').click(); });
+$('#pwToggle').onclick = () => {
+  const pw = $('#password'), isHidden = pw.type === 'password';
+  pw.type = isHidden ? 'text' : 'password';
+  $('#eyeOpen').style.display = isHidden ? 'none' : 'block';
+  $('#eyeClosed').style.display = isHidden ? 'block' : 'none';
+};
 $('#logoutBtn').onclick = async () => { try { await api('/auth/logout', { method: 'POST' }); } catch {} if (chatSocket) chatSocket.close(); location.reload(); };
 
 // ─── boot ───
 async function boot() {
-  try { me = await api('/auth/me'); } catch { $('#login').style.display = 'grid'; $('#app').classList.remove('active'); return; }
-  $('#login').style.display = 'none'; $('#app').classList.add('active');
+  try { me = await api('/auth/me'); } catch { $('#ssoLogin').style.display = 'none'; $('#login').style.display = 'grid'; $('#app').classList.remove('active'); return; }
+  $('#login').style.display = 'none'; $('#ssoLogin').style.display = 'none'; $('#app').classList.add('active');
   $('#whoName').textContent = me.display_name; $('#meAvatar').textContent = initials(me.display_name);
   $('#pmPill').style.display = me.is_pm ? 'inline' : 'none';
   $('#navCost').style.display = me.is_pm ? 'flex' : 'none';
@@ -115,10 +222,24 @@ async function loadProjects(selectId) {
   try { projects = await api('/projects'); } catch (e) { toast(e.message); projects = []; }
   const list = $('#projectList'); list.innerHTML = '';
   projects.forEach((p) => {
-    const el = document.createElement('button');
+    const el = document.createElement('div');
     el.className = 'proj-item' + (p.id === currentProjectId ? ' active' : '');
-    el.innerHTML = `<span class="pdot"></span><span class="pname">${escapeHtml(p.name)}</span><span class="pcount">${p.task_count}</span>`;
-    el.onclick = () => selectProject(p.id);
+    el.innerHTML = `<span class="pdot"></span><span class="pname">${escapeHtml(p.name)}</span><span class="pcount">${p.task_count}</span>`
+      + (p.name !== '未分类' ? `<button class="proj-menu-btn" title="更多">···</button><div class="proj-menu"><button data-action="archive">归档项目</button><button data-action="delete" class="danger">删除项目</button></div>` : '');
+    el.querySelector('.pname').onclick = () => selectProject(p.id);
+    el.querySelector('.pdot').onclick = () => selectProject(p.id);
+    const menuBtn = el.querySelector('.proj-menu-btn');
+    if (menuBtn) {
+      menuBtn.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.proj-menu.open').forEach((m) => m.classList.remove('open')); el.querySelector('.proj-menu').classList.toggle('open'); };
+      el.querySelector('[data-action="archive"]').onclick = async (e) => {
+        e.stopPropagation(); if (!confirm(`归档项目「${p.name}」？`)) return;
+        try { await api(`/projects/${p.id}`, { method: 'PATCH', body: { status: 'archived' } }); toast('已归档'); if (currentProjectId === p.id) { currentProjectId = null; showView('emptyState'); } await loadProjects(); await loadSuggestions(); } catch (err) { toast(err.message); }
+      };
+      el.querySelector('[data-action="delete"]').onclick = async (e) => {
+        e.stopPropagation(); if (!confirm(`删除项目「${p.name}」？此操作不可恢复。`)) return;
+        try { await api(`/projects/${p.id}`, { method: 'DELETE' }); toast('已删除'); if (currentProjectId === p.id) { currentProjectId = null; showView('emptyState'); } await loadProjects(); await loadSuggestions(); } catch (err) { toast(err.message); }
+      };
+    }
     list.appendChild(el);
   });
   if (selectId) selectProject(selectId);
@@ -155,36 +276,20 @@ function selectProject(id) {
   const p = projects.find((x) => x.id === id); if (!p) return;
   $('#pvName').textContent = p.name;
   $('#pvMeta').textContent = `${p.task_count} 个任务 · 完成 ${Math.round(p.completion * 100)}%`;
-  updateProjectActions(p);
   switchTab('board');
-}
-async function updateProjectActions(p) {
-  const archiveBtn = $('#pvDeleteBtn');
-  const deleteBtn = $('#pvHardDeleteBtn');
-  archiveBtn.style.display = 'none';
-  deleteBtn.style.display = 'none';
-  if (p.name === '未分类' || p.status === 'archived') return;
-  const show = () => {
-    archiveBtn.style.display = '';
-    deleteBtn.style.display = '';
-  };
-  if (me.is_pm || me.is_admin) { show(); return; }
-  const pid = p.id;
-  try {
-    const members = await api(`/projects/${pid}/members`);
-    if (currentProjectId !== pid) return;
-    const mine = members.find((m) => m.user_id === me.id);
-    if (mine && mine.role === 'lead') show();
-  } catch {}
 }
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
-  ['board', 'plan', 'share'].forEach((t) => $(`#tab-${t}`).style.display = t === tab ? 'block' : 'none');
+  document.querySelectorAll('.ws-actions .btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  ['board', 'plan', 'share', 'pwspace'].forEach((t) => $(`#tab-${t}`).style.display = t === tab ? 'block' : 'none');
   if (tab === 'board') loadBoard();
   else if (tab === 'share') loadShare();
   else if (tab === 'plan') { renderPlanSuggestions(); renderPlanImplHints(); }
+  else if (tab === 'pwspace') loadProjectWorkspace();
 }
 document.querySelectorAll('.tab').forEach((t) => t.onclick = () => switchTab(t.dataset.tab));
+$('#pvPlanBtn').onclick = () => switchTab('plan');
+$('#pvWorkspaceBtn').onclick = () => switchTab('pwspace');
 
 // ─── board ───
 async function loadBoard() {
@@ -311,6 +416,55 @@ async function generateBrief() {
   }
   btn.disabled = false;
 }
+
+// ─── project workspace tab ───
+let pwsVersion = 1;
+async function loadProjectWorkspace() {
+  const fields = ['#pwsBg', '#pwsCtx', '#pwsFocus'];
+  fields.forEach((s) => { $(s).value = ''; $(s).disabled = true; });
+  $('#pwsActions').style.display = 'none';
+  $('#pwsReadonly').style.display = 'none';
+  if (!currentProjectId) return;
+  try {
+    const ws = await api(`/projects/${currentProjectId}/workspace`);
+    pwsVersion = ws.version;
+    $('#pwsBg').value = ws.background_md;
+    $('#pwsCtx').value = ws.context_md;
+    $('#pwsFocus').value = ws.current_focus_md;
+    $('#pwsVersion').textContent = `v${ws.version}`;
+    // check if user can edit (lead/pm/admin)
+    const canEdit = me.is_pm || me.is_admin;
+    if (!canEdit) {
+      try {
+        const members = await api(`/projects/${currentProjectId}/members`);
+        const mine = members.find((m) => m.user_id === me.id);
+        if (mine && mine.role === 'lead') { fields.forEach((s) => { $(s).disabled = false; }); $('#pwsActions').style.display = 'flex'; return; }
+      } catch {}
+      $('#pwsReadonly').style.display = 'block';
+    } else {
+      fields.forEach((s) => { $(s).disabled = false; });
+      $('#pwsActions').style.display = 'flex';
+    }
+  } catch (e) { toast(e.message); }
+}
+$('#pwsSaveBtn').onclick = async () => {
+  const btn = $('#pwsSaveBtn'); btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    const ws = await api(`/projects/${currentProjectId}/workspace`, {
+      method: 'PATCH',
+      body: {
+        background_md: $('#pwsBg').value,
+        context_md: $('#pwsCtx').value,
+        current_focus_md: $('#pwsFocus').value,
+        version: pwsVersion,
+      },
+    });
+    pwsVersion = ws.version;
+    $('#pwsVersion').textContent = `v${ws.version}`;
+    toast('工作区已保存');
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = '保存';
+};
 
 // ─── suggestions (shared renderer) ───
 function sugCard(s, onDone) {
@@ -517,31 +671,6 @@ async function loadAdmin() {
 
 // ─── project members (附录 K) ───
 $('#pvMembersBtn').onclick = () => { if (currentProjectId) openMembers(currentProjectId); };
-$('#pvDeleteBtn').onclick = async () => {
-  const p = projects.find((x) => x.id === currentProjectId); if (!p) return;
-  if (!confirm(`归档项目「${p.name}」？归档后从列表隐藏，数据保留，可在“已归档”中恢复。`)) return;
-  try {
-    await api(`/projects/${currentProjectId}`, { method: 'PATCH', body: { status: 'archived' } });
-    toast('项目已归档');
-    currentProjectId = null;
-    await loadProjects();
-    await loadSuggestions();
-    showView('archivedView');
-    await loadArchivedProjects();
-  } catch (e) { toast(e.message); }
-};
-$('#pvHardDeleteBtn').onclick = async () => {
-  const p = projects.find((x) => x.id === currentProjectId); if (!p) return;
-  if (!confirm(`删除项目「${p.name}」？删除后从所有列表隐藏（含已归档），需维护者后台手动彻底清除，普通操作无法恢复。`)) return;
-  try {
-    await api(`/projects/${currentProjectId}`, { method: 'DELETE' });
-    toast('项目已删除');
-    currentProjectId = null;
-    await loadProjects();
-    await loadSuggestions();
-    if (projects.length) selectProject(projects[0].id); else showView('emptyState');
-  } catch (e) { toast(e.message); }
-};
 $('#membersClose').onclick = () => $('#membersOverlay').classList.remove('show');
 async function openMembers(pid) {
   $('#membersOverlay').classList.add('show');
@@ -661,15 +790,65 @@ $('#planAccept').onclick = async () => {
 
 // ─── chat ───
 function addMsg(role, text) { const m = document.createElement('div'); m.className = 'msg ' + role; m.textContent = text; $('#msgs').appendChild(m); $('#msgs').scrollTop = $('#msgs').scrollHeight; return m; }
+let allSessions = [];
+const WELCOME = () => `你好 ${me.display_name}，我是小T，你的工作助手。可以帮你查任务、记录工作、拆解需求，或理清今天要做什么。`;
+
+function renderSessionSelect() {
+  const sel = $('#sessionSelect');
+  sel.innerHTML = allSessions.map((s) => {
+    const d = new Date(s.last_active_at).toLocaleDateString();
+    const label = (s.title || '对话') + ' · ' + d;
+    return `<option value="${s.id}"${s.id === chatSession.id ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+}
+
+async function switchSession(sessionId) {
+  if (chatSocket) chatSocket.close();
+  const s = allSessions.find((x) => x.id === sessionId);
+  if (!s) return;
+  chatSession = s;
+  const msgs = (await api(`/chat/sessions/${sessionId}/messages`)).items || [];
+  $('#msgs').innerHTML = '';
+  if (!msgs.length) addMsg('assistant', WELCOME());
+  msgs.forEach((m) => addMsg(m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system'), m.content));
+  connectWS();
+}
+
+$('#sessionSelect').onchange = (e) => switchSession(e.target.value);
+
+async function startNewChat() {
+  if (chatSocket) chatSocket.close();
+  try {
+    const body = { title: '工作助手' };
+    if (currentProjectId) {
+      const p = projects.find((x) => x.id === currentProjectId);
+      body.title = p ? p.name : '工作助手';
+      body.project_id = currentProjectId;
+    }
+    chatSession = await api('/chat/sessions', { method: 'POST', body });
+    allSessions.unshift(chatSession);
+    renderSessionSelect();
+    $('#msgs').innerHTML = '';
+    addMsg('assistant', WELCOME());
+    connectWS();
+  } catch (e) { toast(e.message); }
+}
+$('#newChatBtn').onclick = startNewChat;
+
 async function initChat() {
   try {
-    const sessions = (await api('/chat/sessions')).items || [];
-    chatSession = sessions[0] || (await api('/chat/sessions', { method: 'POST', body: { title: '工作助手' } }));
+    allSessions = (await api('/chat/sessions')).items || [];
+    if (!allSessions.length) {
+      chatSession = await api('/chat/sessions', { method: 'POST', body: { title: '工作助手' } });
+      allSessions = [chatSession];
+    } else {
+      chatSession = allSessions[0];
+    }
+    renderSessionSelect();
     const msgs = (await api(`/chat/sessions/${chatSession.id}/messages`)).items || [];
-    // render after a frame so the 3-pane grid has settled (avoids first-paint width race)
     requestAnimationFrame(() => {
       $('#msgs').innerHTML = '';
-      if (!msgs.length) addMsg('assistant', `你好 ${me.display_name}，我是你的工作助手。可以让我查任务、记录工作，或帮你理清今天要做什么。`);
+      if (!msgs.length) addMsg('assistant', WELCOME());
       msgs.forEach((m) => addMsg(m.role === 'assistant' ? 'assistant' : (m.role === 'user' ? 'user' : 'system'), m.content));
     });
     connectWS();
@@ -690,7 +869,19 @@ function connectWS() {
 let typingEl = null;
 function showTyping() { typingEl = document.createElement('div'); typingEl.className = 'msg assistant'; typingEl.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>'; $('#msgs').appendChild(typingEl); $('#msgs').scrollTop = $('#msgs').scrollHeight; }
 function removeTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
-function sendChat() { const inp = $('#chatInput'); const text = inp.value.trim(); if (!text || !chatSocket || chatSocket.readyState !== 1) return; addMsg('user', text); inp.value = ''; showTyping(); chatSocket.send(JSON.stringify({ type: 'user_message', content: text, project_id: currentProjectId })); }
+const SLASH_COMMANDS = {
+  '/new': () => { startNewChat(); return true; },
+  '/clear': () => { $('#msgs').innerHTML = ''; addMsg('system', '已清屏（对话历史保留）'); return true; },
+  '/help': () => { addMsg('system', '可用指令：/new 新对话 · /clear 清屏 · /help 帮助'); return true; },
+};
+function sendChat() {
+  const inp = $('#chatInput'); const text = inp.value.trim(); if (!text) return;
+  const cmd = SLASH_COMMANDS[text.toLowerCase().split(/\s/)[0]];
+  if (cmd) { inp.value = ''; cmd(); return; }
+  if (!chatSocket || chatSocket.readyState !== 1) return;
+  addMsg('user', text); inp.value = ''; showTyping();
+  chatSocket.send(JSON.stringify({ type: 'user_message', content: text, project_id: currentProjectId }));
+}
 $('#chatSend').onclick = sendChat;
 $('#chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
@@ -743,33 +934,18 @@ $('#awSkillSave').onclick = async () => {
 };
 
 // ─── responsive + textareas ───
+document.addEventListener('click', () => document.querySelectorAll('.proj-menu.open').forEach((m) => m.classList.remove('open')));
 $('#navToggle').onclick = () => $('#sidebar').classList.toggle('open');
-$('#asstToggle').onclick = () => $('#assistant').classList.toggle('open');
-$('#collapseAsst').onclick = () => $('#assistant').classList.remove('open');
+$('#asstToggle').onclick = () => {
+  const app = $('#app');
+  if (app.classList.contains('asst-collapsed')) { app.classList.remove('asst-collapsed'); }
+  else { $('#assistant').classList.toggle('open'); }
+};
+$('#collapseAsst').onclick = () => {
+  const app = $('#app');
+  if (window.innerWidth > 1100) { app.classList.add('asst-collapsed'); }
+  else { $('#assistant').classList.remove('open'); }
+};
 ['#planGoal', '#npGoal'].forEach((sel) => { const e = $(sel); if (e) e.addEventListener('input', () => { e.style.height = 'auto'; e.style.height = e.scrollHeight + 'px'; }); });
 
-// ─── SSO (附录 M): show "用公司账号登录" when enabled; surface callback errors ───
-$('#ssoBtn').onclick = () => { window.location = '/api/v1/auth/sso/login'; };
-// dev stub (local only): fake SSO by email — provisions + logs in via resolve_sso_user
-$('#devSsoBtn').onclick = async () => {
-  const email = $('#devSsoEmail').value.trim();
-  if (!email) { $('#loginErr').textContent = '请输入邮箱'; return; }
-  try { await api('/auth/sso/dev-login', { method: 'POST', body: { email } }); location.reload(); }
-  catch (e) { $('#loginErr').textContent = e.message; }
-};
-async function initSso() {
-  const err = new URLSearchParams(location.search).get('sso_error');
-  if (err) {
-    const m = { state: '登录校验失败,请重试', token: '与身份提供商通信失败', domain: '你的邮箱域名不被允许', claims: '身份信息不完整' };
-    $('#loginErr').textContent = m[err] || 'SSO 登录失败';
-    history.replaceState(null, '', '/');
-  }
-  try {
-    const st = await api('/auth/sso/status');
-    if (st.enabled) $('#ssoBlock').style.display = 'block';
-    if (st.dev_stub) $('#devSsoBlock').style.display = 'block';
-  } catch {}
-}
-
 boot();
-initSso();

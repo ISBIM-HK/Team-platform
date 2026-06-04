@@ -136,13 +136,17 @@ async def _handle_user_message(
         # Get conversation history for context
         history = await chat_repo.get_context_messages(session_id, limit=20)
 
-        # Prepare deps (current project lets tools default to the open workspace, 附录 I.1)
+        # Prepare deps — validate project membership before trusting frontend project_id
         current_pid = None
         if project_id:
             try:
-                current_pid = uuid.UUID(project_id)
+                pid_candidate = uuid.UUID(project_id)
+                from src.repositories.project_member_repo import ProjectMemberRepository
+                role = await ProjectMemberRepository(db).role_of(pid_candidate, user.id)
+                if role is not None or user.is_pm or user.is_admin:
+                    current_pid = pid_candidate
             except ValueError:
-                current_pid = None
+                pass
         deps = AssistantDeps(
             session=db,
             user_id=user.id,

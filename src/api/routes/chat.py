@@ -37,7 +37,7 @@ async def create_session(
     _scope: None = Depends(require_scope("chat:write")),
 ):
     repo = ChatRepository(session)
-    cs = await repo.create_session(current_user.id, current_user.tenant_id, req.title)
+    cs = await repo.create_session(current_user.id, current_user.tenant_id, req.title, req.project_id)
     return ChatSessionResponse.model_validate(cs)
 
 

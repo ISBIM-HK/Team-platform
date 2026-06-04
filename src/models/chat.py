@@ -16,6 +16,7 @@ class ChatSession(TimestampMixin, table=True):
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     title: str | None = Field(default=None, max_length=500)
+    project_id: uuid.UUID | None = Field(default=None, foreign_key="projects.id", index=True)
     created_at: datetime = Field(default_factory=utcnow)
     last_active_at: datetime = Field(default_factory=utcnow)
     archived_at: datetime | None = Field(default=None)

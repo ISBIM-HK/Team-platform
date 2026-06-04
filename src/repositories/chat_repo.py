@@ -15,8 +15,8 @@ class ChatRepository:
 
     # ── Sessions ──
 
-    async def create_session(self, user_id: uuid.UUID, tenant_id: uuid.UUID, title: str | None = None) -> ChatSession:
-        cs = ChatSession(tenant_id=tenant_id, user_id=user_id, title=title)
+    async def create_session(self, user_id: uuid.UUID, tenant_id: uuid.UUID, title: str | None = None, project_id: uuid.UUID | None = None) -> ChatSession:
+        cs = ChatSession(tenant_id=tenant_id, user_id=user_id, title=title, project_id=project_id)
         self.session.add(cs)
         await self.session.flush()
         await self.session.refresh(cs)

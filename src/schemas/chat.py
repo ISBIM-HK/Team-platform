@@ -8,11 +8,13 @@ from pydantic import BaseModel
 
 class ChatSessionCreate(BaseModel):
     title: str | None = None
+    project_id: uuid.UUID | None = None
 
 
 class ChatSessionResponse(BaseModel):
     id: uuid.UUID
     title: str | None
+    project_id: uuid.UUID | None
     created_at: datetime
     last_active_at: datetime
 

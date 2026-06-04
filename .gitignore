@@ -57,6 +57,7 @@ build/
 .vscode/
 .idea/
 .claude/
+.ccb/
 .superpowers/
 *.swp
 *.swo
@@ -69,3 +70,7 @@ docker-compose.override.yml
 
 # ─── AI eval runs ───
 tests/ai_eval/runs/
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json

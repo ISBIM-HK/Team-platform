@@ -264,3 +264,78 @@ async def improve_skill(ctx: RunContext[AssistantDeps], name: str, instruction: 
         return f"找不到技能「{name}」,可用 save_skill 新建。"
     await repo.update(skill, instruction_md=instruction)
     return f"已改进技能「{name}」。"
+
+
+async def update_task_status(ctx: RunContext[AssistantDeps], task_id: str, new_status: str) -> str:
+    """更新任务状态。new_status: todo/in_progress/blocked/review/done/archived。只能改自己的或未认领的任务。"""
+    from src.models.common import TaskStatus
+    from src.repositories.task_repo import TaskRepository
+
+    try:
+        status = TaskStatus(new_status)
+    except ValueError:
+        return f"无效状态「{new_status}」，可选：todo/in_progress/blocked/review/done/archived。"
+    repo = TaskRepository(ctx.deps.session)
+    task = await repo.get_by_id(uuid.UUID(task_id))
+    if not task or task.tenant_id != ctx.deps.tenant_id:
+        return "找不到这个任务。"
+    if task.owner_user_id and task.owner_user_id != ctx.deps.user_id:
+        return "只能更新你自己的或未认领的任务状态。"
+    old = task.status.value
+    await repo.update_status(task, status, ctx.deps.user_id)
+    return f"已将「{task.title}」从 {old} 改为 {new_status}。"
+
+
+async def list_my_projects(ctx: RunContext[AssistantDeps]) -> str:
+    """列出当前用户参与的所有项目及完成度。"""
+    from src.repositories.project_repo import ProjectRepository
+
+    repo = ProjectRepository(ctx.deps.session)
+    projects = await repo.list_for_member(ctx.deps.tenant_id, ctx.deps.user_id)
+    if not projects:
+        return "你当前没有参与任何项目。"
+    lines = []
+    for p in projects:
+        counts = await repo.status_counts(p.id)
+        total = sum(counts.values())
+        done = counts.get("done", 0)
+        pct = round(done / total * 100) if total else 0
+        lines.append(f"- {p.name}（{total} 个任务，完成 {pct}%）")
+    return f"你参与了 {len(projects)} 个项目：\n" + "\n".join(lines)
+
+
+async def query_project_tasks(ctx: RunContext[AssistantDeps], status: str = "") -> str:
+    """查询当前打开项目的任务列表。可选按状态筛选。"""
+    from src.models.common import TaskStatus
+    from src.repositories.task_repo import TaskRepository
+
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目。"
+    repo = TaskRepository(ctx.deps.session)
+    task_status = TaskStatus(status) if status else None
+    tasks = await repo.list_by_project(pid, status=task_status)
+    if not tasks:
+        return "当前项目没有任务。" + (f"（筛选：{status}）" if status else "")
+    lines = []
+    for t in tasks:
+        owner = f" @{t.owner_user_id}" if t.owner_user_id else " 未认领"
+        est = f" {t.estimated_hours}h" if t.estimated_hours else ""
+        lines.append(f"- [{t.status.value}] {t.title}{owner}{est}（ID: {t.id}）")
+    return f"当前项目共 {len(tasks)} 个任务：\n" + "\n".join(lines)
+
+
+async def get_project_members(ctx: RunContext[AssistantDeps]) -> str:
+    """查看当前打开项目的成员列表。"""
+    from src.repositories.project_member_repo import ProjectMemberRepository
+    from src.repositories.user_repo import UserRepository
+
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目。"
+    members = await ProjectMemberRepository(ctx.deps.session).list_by_project(pid)
+    if not members:
+        return "当前项目没有成员。"
+    names = {u.id: u.display_name for u in await UserRepository(ctx.deps.session).list_by_tenant(ctx.deps.tenant_id)}
+    lines = [f"- {names.get(m.user_id, '?')}（{m.role}）" for m in members]
+    return f"项目成员 {len(members)} 人：\n" + "\n".join(lines)

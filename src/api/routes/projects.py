@@ -18,6 +18,7 @@ from src.models.project import INBOX_NAME, Project
 from src.models.report import Report
 from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
+from src.repositories.project_workspace_repo import ProjectWorkspaceRepository
 from src.repositories.task_repo import TaskRepository
 from src.repositories.user_repo import UserRepository
 from src.schemas.task import TaskResponse
@@ -472,3 +473,78 @@ async def remove_member(
     if m.role == "lead" and await mrepo.count_leads(project_id) <= 1:
         raise HTTPException(status_code=422, detail="Cannot remove the last lead")
     await mrepo.remove(project_id, user_id)
+
+
+# ─── project workspace (shared context) ───
+class WorkspaceResponse(BaseModel):
+    background_md: str
+    context_md: str
+    current_focus_md: str
+    version: int
+    updated_by: str | None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspacePatch(BaseModel):
+    background_md: str | None = None
+    context_md: str | None = None
+    current_focus_md: str | None = None
+    version: int
+
+
+@router.get("/{project_id}/workspace", response_model=WorkspaceResponse)
+async def get_workspace(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:read")),
+):
+    await _get_accessible(project_id, current_user, session)
+    ws = await ProjectWorkspaceRepository(session).ensure(current_user.tenant_id, project_id)
+    return WorkspaceResponse(
+        background_md=ws.background_md,
+        context_md=ws.context_md,
+        current_focus_md=ws.current_focus_md,
+        version=ws.version,
+        updated_by=str(ws.updated_by) if ws.updated_by else None,
+        updated_at=ws.updated_at,
+    )
+
+
+@router.patch("/{project_id}/workspace", response_model=WorkspaceResponse)
+async def patch_workspace(
+    project_id: uuid.UUID,
+    req: WorkspacePatch,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    repo = ProjectWorkspaceRepository(session)
+    ws = await repo.ensure(current_user.tenant_id, project_id)
+    ws = await repo.patch(
+        ws,
+        background_md=req.background_md,
+        context_md=req.context_md,
+        current_focus_md=req.current_focus_md,
+        updated_by=current_user.id,
+        expected_version=req.version,
+    )
+    session.add(AuditLog(
+        tenant_id=current_user.tenant_id,
+        actor_id=current_user.id,
+        action="project_workspace.patch",
+        target_type="project_workspace",
+        target_id=ws.id,
+        detail={"project_id": str(project_id), "version": ws.version},
+    ))
+    return WorkspaceResponse(
+        background_md=ws.background_md,
+        context_md=ws.context_md,
+        current_focus_md=ws.current_focus_md,
+        version=ws.version,
+        updated_by=str(ws.updated_by) if ws.updated_by else None,
+        updated_at=ws.updated_at,
+    )
