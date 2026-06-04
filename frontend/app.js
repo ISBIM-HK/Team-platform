@@ -838,23 +838,44 @@ async function loadNotifications() {
   let items; try { items = (await api('/me/notifications')).items || []; } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   $('#notifMeta').textContent = `${items.length}`;
   if (!items.length) { body.innerHTML = `<div class="empty-hint">${_t('no_notifs')}</div>`; return; }
-  body.innerHTML = '';
+  body.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn btn-ghost btn-sm" id="clearAllNotifs">${_t('cancel')} All</button></div>`;
+  $('#clearAllNotifs').onclick = async () => {
+    if (!confirm('Clear all notifications?')) return;
+    try { await api('/me/notifications', { method: 'DELETE' }); loadNotifications(); updateNotifBadge(); } catch (e) { toast(e.message); }
+  };
   items.forEach((n) => {
     const el = document.createElement('div'); el.className = 'notif' + (n.read_at ? ' read' : '');
-    const bodyText = (n.body && n.body.trim()) || '';
-    const refInfo = n.source_ref ? Object.entries(n.source_ref).map(([k,v]) => `${k}: ${v}`).join(' · ') : '';
-    const detail = bodyText || refInfo;
-    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div>${detail ? `<div class="nbody" style="display:none">${escapeHtml(detail)}</div>` : ''}<div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))} · ${n.kind}${n.read_at ? ' · '+_t('read') : ''}</div>`;
+    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div><div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))} · ${n.kind}${n.read_at ? ' · '+_t('read') : ''}</div>`;
     el.style.cursor = 'pointer';
     el.onclick = async () => {
-      const bd = el.querySelector('.nbody');
-      if (bd) bd.style.display = bd.style.display === 'none' ? 'block' : 'none';
       if (!n.read_at) {
-        try { await api(`/me/notifications/${n.id}/read`, { method: 'POST' }); el.classList.add('read'); n.read_at = true; el.querySelector('.nmeta').textContent += ' · '+_t('read'); updateNotifBadge(); } catch {}
+        try { await api(`/me/notifications/${n.id}/read`, { method: 'POST' }); el.classList.add('read'); n.read_at = true; updateNotifBadge(); } catch {}
       }
+      openNotifDetail(n);
     };
     body.appendChild(el);
   });
+}
+function openNotifDetail(n) {
+  const ref = n.source_ref || {};
+  const bodyText = (n.body && n.body.trim()) || '';
+  const refLines = Object.entries(ref).map(([k, v]) => `<div class="td-field"><div class="lbl">${escapeHtml(k)}</div><div class="val" style="font-family:var(--font-mono);font-size:12px">${escapeHtml(String(v))}</div></div>`).join('');
+  $('#tdStatus').textContent = n.kind;
+  $('#tdTitle').textContent = n.title;
+  $('#tdBody').innerHTML = `
+    <div class="td-field"><div class="lbl">${_t('description')}</div><div class="val">${bodyText ? escapeHtml(bodyText) : `<span style="color:var(--text-3)">${_t('none')}</span>`}</div></div>
+    <div class="td-field"><div class="lbl">Time</div><div class="val">${escapeHtml(fmtBriefTime(n.created_at))}</div></div>
+    ${refLines}`;
+  const foot = $('#tdFoot'); foot.innerHTML = '';
+  const delBtn = document.createElement('button'); delBtn.className = 'btn btn-ghost'; delBtn.textContent = _t('remove');
+  delBtn.onclick = async () => {
+    try { await api(`/me/notifications/${n.id}`, { method: 'DELETE' }); $('#taskOverlay').classList.remove('show'); loadNotifications(); updateNotifBadge(); } catch (e) { toast(e.message); }
+  };
+  foot.appendChild(delBtn);
+  const closeBtn = document.createElement('button'); closeBtn.className = 'btn btn-primary'; closeBtn.textContent = _t('close');
+  closeBtn.onclick = () => $('#taskOverlay').classList.remove('show');
+  foot.appendChild(closeBtn);
+  $('#taskOverlay').classList.add('show');
 }
 $('#navNotifications').onclick = loadNotifications;
 

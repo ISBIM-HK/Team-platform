@@ -74,6 +74,31 @@ async def mark_read(
     return {"status": "read"}
 
 
+@router.delete("/{notification_id}", status_code=204)
+async def delete_notification(
+    notification_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("notifications:write")),
+):
+    repo = NotificationRepository(session)
+    n = await repo.get_by_id(notification_id)
+    if not n or n.recipient_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    await session.delete(n)
+
+
+@router.delete("", status_code=204)
+async def clear_all_notifications(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("notifications:write")),
+):
+    items = await NotificationRepository(session).list_for_user(current_user.id)
+    for n in items:
+        await session.delete(n)
+
+
 @router.get("/stream")
 async def notification_stream(request: Request):
     """SSE endpoint — lightweight auth (cookie only, no DB session held)."""
