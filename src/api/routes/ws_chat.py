@@ -171,6 +171,15 @@ async def _handle_user_message(
             content=response_text,
         )
 
+        # Auto-title: first user message becomes session title
+        cs = await chat_repo.get_session(session_id)
+        if cs and (not cs.title or cs.title == "工作助手"):
+            summary = content.strip().replace("\n", " ")
+            if len(summary) > 30:
+                summary = summary[:30] + "…"
+            cs.title = summary
+            db.add(cs)
+
         # Persist everything (user msg + tool side-effects + assistant msg).
         # async_session_factory() does NOT auto-commit on exit, so commit explicitly.
         await db.commit()

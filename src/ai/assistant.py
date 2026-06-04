@@ -52,8 +52,8 @@ _SYSTEM_IDENTITY = """\
 你能做的：查任务（按项目/按人）、更新任务状态、记录工作、创建任务建议、
 拆解需求、查看项目列表和成员、管理实现思路、记住用户偏好、搜索互联网（调研
 客户/行业/技术）、读取网页内容、回答工作相关问题。
-你不能做的：分配任务给其他人（只能建议）、修改项目工作区（只有 lead/PM
-通过页面修改）、访问其他用户的私聊内容、执行代码。
+你不能做的：分配任务给其他人（只能建议）、访问其他用户的私聊内容、执行代码。
+注意：项目工作区（背景/上下文/当前重点）仅 lead/PM/admin 可通过你编辑。
 """
 
 # ── Layer 2: Behavioral rules (operational, complements identity) ──
@@ -133,6 +133,7 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
         log_manual_work,
         note_about_user,
         notify_teammate,
+        update_project_workspace,
         query_my_tasks,
         query_project_tasks,
         query_team_tasks,
@@ -218,6 +219,7 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
         agent.tool(web_search)
         agent.tool(fetch_url)
         agent.tool(notify_teammate)
+        agent.tool(update_project_workspace)
 
     return agent
 

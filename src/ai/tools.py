@@ -371,6 +371,51 @@ async def fetch_url(ctx: RunContext[AssistantDeps], url: str) -> str:
         return f"读取失败：{e}"
 
 
+async def update_project_workspace(
+    ctx: RunContext[AssistantDeps],
+    field: str,
+    content: str,
+) -> str:
+    """更新当前项目工作区的某个字段。field: background(背景) / context(上下文) / focus(当前重点)。
+    仅 lead/PM/admin 可用。"""
+    from src.repositories.project_member_repo import ProjectMemberRepository
+    from src.repositories.project_workspace_repo import ProjectWorkspaceRepository
+    from src.repositories.user_repo import UserRepository
+
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目。"
+
+    field_map = {
+        "background": "background_md",
+        "context": "context_md",
+        "focus": "current_focus_md",
+        "背景": "background_md",
+        "上下文": "context_md",
+        "当前重点": "current_focus_md",
+    }
+    db_field = field_map.get(field.lower())
+    if not db_field:
+        return f"无效字段「{field}」，可选：background / context / focus。"
+
+    user = await UserRepository(ctx.deps.session).get_by_id(ctx.deps.user_id)
+    if not (user and (user.is_pm or user.is_admin)):
+        role = await ProjectMemberRepository(ctx.deps.session).role_of(pid, ctx.deps.user_id)
+        if role != "lead":
+            return "只有项目 lead、PM 或 admin 才能编辑项目工作区。"
+
+    repo = ProjectWorkspaceRepository(ctx.deps.session)
+    ws = await repo.ensure(ctx.deps.tenant_id, pid)
+    await repo.patch(
+        ws,
+        **{db_field: content},
+        updated_by=ctx.deps.user_id,
+        expected_version=ws.version,
+    )
+    label = {"background_md": "背景", "context_md": "上下文", "current_focus_md": "当前重点"}[db_field]
+    return f"已更新项目工作区的「{label}」。"
+
+
 async def notify_teammate(ctx: RunContext[AssistantDeps], recipient_name: str, message: str) -> str:
     """向当前项目的某个成员发送一条消息通知。只能发给当前项目成员。
     用户说"告诉张三……"或"提醒李四……"时调用。消息会以通知形式送达对方。"""

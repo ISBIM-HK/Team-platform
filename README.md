@@ -1,107 +1,127 @@
 # Team Platform
 
-> 团队内部 AI 原生协作平台 — 替代 PingCode 的下一代任务管理与自动化工具。
+> AI-native team collaboration platform for BIM teams — task decomposition, kanban, personal AI assistant, and real-time notifications.
 
-## 这是什么
+## What is this
 
-为我们 6 人全栈团队定制的内部协作平台。**核心是让 AI 把"目标"变成"分好工的子任务"**：给一个需求/目标，AI 拆解成可执行的子任务并建议由谁来做——你确认后落地，AI 不自动指派、保留"谁有空谁接"的 pull 模式。
+A collaboration platform built for BIM (Building Information Modeling) teams. The core idea: **give AI a goal, it breaks it into assignable subtasks** — you confirm, tasks land on the kanban, team members pull what they can.
 
-围绕这个核心，平台同时消除日常行政开销：从 GitLab / 飞书 / 钉钉 / Notion / 邮箱 / 会议纪要等来源**按需拉取**工作痕迹，自动生成日/周报，免去手动上传与补录。
+Beyond task management, each user gets a **personal AI assistant** (小T) that can search the web, update task status, send messages to teammates, remember context across sessions, and inject project-level shared knowledge into every conversation.
 
-- 🧩 **AI 拆解 + 分发**（核心）：目标 → 子任务 + 建议负责人 + 估时，走建议确认、保留 pull 认领
-- 📊 **AI 自动报告**：工作痕迹自动汇成结构化活动 → 日报每日、周报每周自动产出
-- 🎯 **AI 智能建议**：任务抽取、未认领任务推荐分配、重复任务检测
-- 💬 **个人 AI 助手**：每人专属对话式助手 + 提醒 / 会议通知
+### Key Features
 
-## 当前状态
+- **AI Task Decomposition** — describe a goal, AI splits it into subtasks with suggested owners and time estimates
+- **Kanban Board** — drag-and-drop task cards across status columns (todo → in_progress → review → done)
+- **Personal AI Assistant** — per-user chat agent with 20+ tools (task management, web search, teammate messaging, memory, skills)
+- **Project Workspaces** — shared project context (background, current focus) visible to the AI assistant
+- **Real-time Notifications** — SSE push for task changes, workspace edits, teammate messages, brief generation
+- **JarvisBIM SSO** — proxy authentication against JarvisBIM enterprise accounts, auto-provisioning users
+- **Contribution Tracking** — MCP server + CLI for local AI agents (Claude Code, Codex, Cursor) to push work summaries
 
-🚧 **P1 进行中 — 拆解核心引擎已端到端跑通** — 后端骨架完成（FastAPI + Postgres + Alembic + 邮箱密码登录 + 任务 CRUD + 状态机），且 AI 拆解链路已用 DeepSeek 实测验证：`目标 → AI 拆解子任务（带建议负责人+估时） → ai_suggestions → accept → 落地父+子任务`。
+## Current Status
 
-| Phase | 目标 | 状态 |
-|---|---|---|
-| P0 | 项目骨架 + 登录 + 空看板 | ✅ 完成 |
-| P1 | **核心引擎**：任务拆解 pipeline（目标→子任务+建议负责人）+ 建议确认 UI | 🚧 进行中（后端引擎已通，待助手工具 + 确认 UI） |
-| P2 | **团队协作**：6 人 + 未认领任务分发建议 + pull 认领 + 团队负载视图 + GitLab | — |
-| P3 | 报告自动化：自动日/周报 + 重复检测 + 飞书/钉钉择一 | — |
-| P4 | 完善：剩余集成 + 会议纪要 + 调度通知 + PM 对外汇总 | — |
-| P5 | SSO + 多租户准备（扩张前夜） | — |
+**Demo-ready.** Core features implemented and running on `localhost:3137`.
 
-> 产品重心：**AI 拆解 + 分发为核心（P1/P2），捕获→报告为支撑（P3）**。先验证拆解质量与分发采纳率，再扩报告自动化。
-
-预计：业余强度 3~4 个月 / 全职 5~7 周。
-
-## 技术栈
-
-| 层 | 选型 |
+| Area | Status |
 |---|---|
-| 后端 | Python 3.12 + FastAPI + SQLModel |
-| Agent | [PydanticAI](https://ai.pydantic.dev/)（结构化输出，单 Agent + 工具，非多 Agent 框架） |
-| LLM | DeepSeek V4 Flash（量大窄任务）+ DeepSeek V4 Pro（拆解/分发/写作） |
-| 数据库 | Postgres 16 |
-| 调度 | APScheduler（进程内，cron + 一次性任务，承载提醒/报告/通知） |
-| 前端 | （同事负责，TBD） |
-| 部署 | docker compose + Caddy (TLS) |
-| 鉴权 | OIDC SSO（首选）/ 邮箱密码（回退） |
+| Auth (JarvisBIM proxy + local password fallback) | ✅ |
+| Projects (CRUD, archive, members, ACL) | ✅ |
+| Kanban (task cards, drag-and-drop, state machine) | ✅ |
+| AI Decomposition (goal → subtasks → suggestions → confirm) | ✅ |
+| Personal AI Assistant (chat, 20+ tools, project context) | ✅ |
+| Project Workspace (background/context/focus, optimistic lock) | ✅ |
+| Notifications (6 triggers, SSE real-time push) | ✅ |
+| Chat Sessions (multi-session, project-linked, auto-title) | ✅ |
+| MCP Server + CLI (contribution ingest) | ✅ |
+| PAT (scoped personal access tokens) | ✅ |
+| Report automation (scheduler) | Planned |
+| Non-GitLab integrations (Lark, DingTalk, Notion) | Planned |
+| Multi-tenant expansion | Pre-wired (tenant_id on all tables) |
 
-## 设计原则
+## Tech Stack
 
-1. **AI 建议而非直接执行** — 拆解、分发、抽取等所有 AI 产出走 `ai_suggestions` 表等用户确认；分发只建议、不自动指派，保留扁平 pull 模式（半年观察期后再议自动通道）
-2. **按需拉取，不持续轮询** — 用户/定时器触发时才调外部 API，省 95% 调用量
-3. **隐私基线** — PM 也不能看别人 chat 原文与通知；用户可暂停捕获 / 屏蔽关键词
-4. **A 架构 + B-ready 纪律** — 单体起步，但所有边界按"未来切分布式"设计
-5. **多租户 day 1 就绪** — 所有表带 `tenant_id`，扩张全公司时不大改
+| Layer | Choice |
+|---|---|
+| Backend | Python 3.12 + FastAPI + SQLModel + Alembic |
+| AI Agent | PydanticAI (structured outputs, tool calling) |
+| LLM | DeepSeek V4 Pro (assistant) + V4 Flash (batch tasks) |
+| Database | Postgres 16 (Docker) |
+| Frontend | Vanilla JS SPA (single `app.js` + `styles.css`) |
+| Design | Notion-inspired warm workspace (Inter font, purple accent) |
+| Deploy | docker compose (app + postgres + caddy) |
+| Auth | JarvisBIM proxy SSO + cookie sessions |
 
-## 开发
+## Getting Started
 
-**环境要求：** conda（miniconda）、Docker（Postgres 容器）
+**Requirements:** conda (miniconda), Docker
 
 ```bash
-# 首次 setup
+# Setup
 conda create -n team-platform python=3.12 -y
 conda activate team-platform
 pip install -e ".[dev]"
-cp .env.example .env          # 然后填 LLM_API_KEY + ALLOWED_EMAIL_DOMAINS
-docker start teamplat-postgres   # 或 docker compose up -d postgres
+cp .env.example .env          # fill LLM_API_KEY + CRYPTO_KEY
+docker compose up -d postgres
 alembic upgrade head
 
-# 日常开发
+# Run
 make dev       # uvicorn --reload :3137
 make test      # pytest
-make migrate name=add_xxx   # 新迁移
-make lint      # ruff + mypy
+make lint      # ruff check + format
 ```
 
-- **拆解功能需配置**：`.env` 里填 `LLM_API_KEY`（DeepSeek）；自助注册需设 `ALLOWED_EMAIL_DOMAINS=你们公司域名`（留空=关闭注册）。
-- **出网走代理的同学**：DeepSeek 调用经 SOCKS 代理时需 `pip install socksio`。
+**Configuration (`.env`):**
+- `LLM_API_KEY` — DeepSeek API key (required for AI features)
+- `CRYPTO_KEY` — Fernet key for credential encryption (required)
+- `ALLOWED_EMAIL_DOMAINS` — comma-separated domains for self-registration (empty = closed)
 
-Swagger UI: http://localhost:3137/docs
+**Access:** http://localhost:3137 → click "企业账号登录 (SSO)" → enter JarvisBIM credentials
 
-## 部署
+## Architecture
 
-```bash
-# docker compose 一条命令
-docker compose up -d
-
-# 访问
-https://team.local:8443
+```
+┌─────────────┐   ┌──────────────┐   ┌─────────────────┐
+│  Frontend    │   │  FastAPI     │   │  Postgres 16    │
+│  (SPA)       │──▶│  Monolith    │──▶│  (all state)    │
+│              │   │              │   │                 │
+│  - Kanban    │   │  - REST API  │   │  - users        │
+│  - Chat WS   │   │  - WebSocket │   │  - projects     │
+│  - SSE notif │   │  - SSE push  │   │  - tasks        │
+│              │   │  - PydanticAI│   │  - chat         │
+└─────────────┘   └──────────────┘   │  - notifications│
+                                      │  - workspaces   │
+┌─────────────┐                       └─────────────────┘
+│  MCP Server  │
+│  (local CLI) │── PAT auth ──▶ POST /me/contributions
+└─────────────┘
 ```
 
-详见 `docs/deploy/` (TBD)。
+### Design Principles
 
-## 设计文档
+1. **AI suggests, doesn't execute** — all AI outputs go through `ai_suggestions` for human confirmation (except task status updates and workspace edits by authorized users)
+2. **On-demand pull, not polling** — external data fetched only when needed, 5-min cache dedup
+3. **Privacy floor** — PMs can't read others' chat; `llm_calls` stores metadata only, never prompt/response text
+4. **Multi-tenant day 1** — every table has `tenant_id`, every query filters by it
+5. **404 over 403** — don't leak resource existence to unauthorized callers
 
-完整设计有两份：
+## AI Assistant Tools
 
-- `docs/specs/team-platform-design.html` — **交互式设计文档**（已入库，浏览器直接打开，含 ER 图 / 状态机 / 可折叠聚合）
-- `docs/specs/2026-05-27-team-platform-design.md` — markdown 源（**gitignored，仅本地保留**）
+The personal assistant (小T) has 21 tools:
 
-主要章节：
+| Category | Tools |
+|---|---|
+| Tasks | query_my_tasks, query_team_tasks, query_project_tasks, update_task_status, create_task_suggestion, get/update_task_impl_hint |
+| Projects | list_my_projects, get_project_members, update_project_workspace, decompose_into_project |
+| Memory | remember, note_about_user, rewrite_memory |
+| Skills | save_skill, improve_skill |
+| Communication | notify_teammate, log_manual_work |
+| External | web_search, fetch_url |
 
-- §一 用户故事 · §二 统一语言词典 · §三 ER 图 · §四 DDD 聚合设计
-- §五 命令与领域事件 · §六 业务边界与规则 · §七 MVP 分期 · §八 风险登记
-- §九 开放问题 · §十 决策日志
-- 附录 A 捕获层 · B API 契约 · C 部署 & 运维 · D A → B 演进 · E 测试策略 · F 调度与通知
+## Design Documents
+
+- `docs/specs/team-platform-design.html` — interactive design doc (ER diagrams, state machines)
+- `docs/superpowers/specs/` — contribution + progress sharing design, projects redesign
 
 ## License
 
-内部项目，未开源。
+[AGPL-3.0](LICENSE) — open source. Commercial license available for proprietary use. See [NOTICE](NOTICE) for details.

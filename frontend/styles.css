@@ -450,7 +450,7 @@ main { flex: 1; padding: 28px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .side-divider { height: 1px; background: var(--border); margin: 14px 4px; }
 .nav-item { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 10px; padding-left: 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text-2); transition: background .12s, color .12s; }
 .nav-item:hover { background: var(--surface-2); color: var(--text); }
-.nav-icon { display: inline-block; width: 22px; text-align: center; font-style: normal; margin-right: 4px; }
+.nav-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; font-style: normal; margin-right: 6px; flex-shrink: 0; }
 .nav-item .badge { position: static; }
 .side-foot { margin-top: auto; padding-top: 14px; display: flex; align-items: center; gap: 8px; }
 .side-foot .who { flex: 1; display: flex; align-items: center; gap: 9px; font-size: 13px; }

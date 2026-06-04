@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.api.deps import CurrentUser, DBSession, require_scope
+from src.core.security import read_session_token
 from src.models.common import NotificationKind
 from src.repositories.notification_repo import NotificationRepository
 from src.services.sse_bus import subscribe, unsubscribe
@@ -74,14 +75,18 @@ async def mark_read(
 
 
 @router.get("/stream")
-async def notification_stream(
-    request: Request,
-    current_user: CurrentUser,
-):
-    """SSE endpoint — pushes new notification events in real time."""
+async def notification_stream(request: Request):
+    """SSE endpoint — lightweight auth (cookie only, no DB session held)."""
+    token = request.cookies.get("session_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user_id_str = read_session_token(token)
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    user_id = uuid.UUID(user_id_str)
 
     async def event_generator():
-        q = subscribe(current_user.id)
+        q = subscribe(user_id)
         try:
             while True:
                 if await request.is_disconnected():
@@ -92,7 +97,7 @@ async def notification_stream(
                 except TimeoutError:
                     yield ": keepalive\n\n"
         finally:
-            unsubscribe(current_user.id, q)
+            unsubscribe(user_id, q)
 
     return StreamingResponse(
         event_generator(),
