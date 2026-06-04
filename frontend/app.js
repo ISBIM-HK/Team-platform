@@ -18,7 +18,7 @@ const I18N = {
     s_todo: '待办', s_in_progress: '进行中', s_blocked: '阻塞', s_review: '评审', s_done: '完成',
     unclaimed: '未认领', claim: '认领', start: '开始', submit_review: '提交评审', complete: '完成',
     unblock: '解除阻塞', reject: '退回', archive_task: '归档', restore: '恢复',
-    subtasks: '子任务', archived_tasks: '已归档',
+    subtasks: _t('subtasks'), archived_tasks: '已归档',
     // task detail
     description: '描述', none: '（无）', owner: '负责人', priority_time: '优先级 · 估时', ai_hint: 'AI 实现思路', close: '关闭',
     // share
@@ -471,11 +471,11 @@ async function loadProjects(selectId) {
       menuBtn.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.proj-menu.open').forEach((m) => m.classList.remove('open')); el.querySelector('.proj-menu').classList.toggle('open'); };
       el.querySelector('[data-action="archive"]').onclick = async (e) => {
         e.stopPropagation(); if (!confirm(`归档项目「${p.name}」？`)) return;
-        try { await api(`/projects/${p.id}`, { method: 'PATCH', body: { status: 'archived' } }); toast('已归档'); if (currentProjectId === p.id) { currentProjectId = null; showView('emptyState'); } await loadProjects(); await loadSuggestions(); } catch (err) { toast(err.message); }
+        try { await api(`/projects/${p.id}`, { method: 'PATCH', body: { status: 'archived' } }); toast(_t('proj_archived')); if (currentProjectId === p.id) { currentProjectId = null; showView('emptyState'); } await loadProjects(); await loadSuggestions(); } catch (err) { toast(err.message); }
       };
       el.querySelector('[data-action="delete"]').onclick = async (e) => {
         e.stopPropagation(); if (!confirm(`删除项目「${p.name}」？此操作不可恢复。`)) return;
-        try { await api(`/projects/${p.id}`, { method: 'DELETE' }); toast('已删除'); if (currentProjectId === p.id) { currentProjectId = null; showView('emptyState'); } await loadProjects(); await loadSuggestions(); } catch (err) { toast(err.message); }
+        try { await api(`/projects/${p.id}`, { method: 'DELETE' }); toast(_t('proj_deleted')); if (currentProjectId === p.id) { currentProjectId = null; showView('emptyState'); } await loadProjects(); await loadSuggestions(); } catch (err) { toast(err.message); }
       };
     }
     list.appendChild(el);
@@ -498,7 +498,7 @@ function renderArchivedProjects() {
     row.querySelector('button').onclick = async () => {
       try {
         await api(`/projects/${p.id}`, { method: 'PATCH', body: { status: 'active' } });
-        toast('项目已恢复');
+        toast(_t('restore'));
         await loadProjects(p.id);
         await loadSuggestions();
         await loadArchivedProjects();
@@ -572,7 +572,7 @@ async function loadBoard() {
       if (!dragging) return;
       const fromStatus = dragging.dataset.status;
       const validTargets = (NEXT[fromStatus] || []).map(([s]) => s);
-      if (!validTargets.includes(col.id)) { toast('不允许的状态转换'); return; }
+      if (!validTargets.includes(col.id)) { toast(_t('invalid_transition')); return; }
       await move(taskId, col.id);
     });
 
@@ -596,7 +596,7 @@ function card(t, i, nChildren) {
   el.dataset.taskId = t.id;
   el.dataset.status = t.status;
   const isAI = (t.created_by || '').startsWith('ai_auto');
-  const ownerName = t.owner_user_id ? (userMap[t.owner_user_id] || '成员') : null;
+  const ownerName = t.owner_user_id ? (userMap[t.owner_user_id] || _t('members')) : null;
   const [pcls, plabel] = PRIO[t.priority] || PRIO[1];
   const bits = [];
   if (ownerName) bits.push(`<span class="owner"><span class="avatar">${initials(ownerName)}</span>${escapeHtml(ownerName)}</span>`); else bits.push('<span>未认领</span>');
@@ -632,10 +632,10 @@ function card(t, i, nChildren) {
 async function claim(id) {
   try {
     await api(`/tasks/${id}/claim`, { method: 'POST' });
-    toast('已认领'); updateNotifBadge(); loadBoard(); refreshProjMeta();
+    toast(_t('claimed')); updateNotifBadge(); loadBoard(); refreshProjMeta();
     // auto AI implementation hint for the claimed leaf task (附录 I.2) — async, refresh when ready
     api(`/tasks/${id}/impl-hint`, { method: 'POST' })
-      .then((r) => { if (r && r.impl_hint && !r.skipped) { toast('AI 已给出实现思路（见 AI 方案）'); loadBoard(); if ($('#tab-plan').style.display === 'block') renderPlanImplHints(); } })
+      .then((r) => { if (r && r.impl_hint && !r.skipped) { toast(_t('ai_hint')); loadBoard(); if ($('#tab-plan').style.display === 'block') renderPlanImplHints(); } })
       .catch(() => {});
   } catch (e) { toast(e.message); }
 }
@@ -646,7 +646,7 @@ async function refreshProjMeta() { try { const p = await api(`/projects/${curren
 function openTaskDetail(t, nChildren) {
   $('#tdStatus').textContent = STATUS_NAME[t.status] || t.status;
   $('#tdTitle').textContent = t.title;
-  const owner = t.owner_user_id ? (userMap[t.owner_user_id] || '成员') : '未认领';
+  const owner = t.owner_user_id ? (userMap[t.owner_user_id] || _t('members')) : _t('unclaimed');
   const children = boardTasks.filter((x) => x.parent_task_id === t.id);
   const childHtml = children.length
     ? `<div class="td-field"><div class="lbl">子任务 (${children.length})</div>${children.map((c) => `<div class="td-sub"><span class="st-status">${STATUS_NAME[c.status]}</span>${escapeHtml(c.title)}${c.estimated_hours ? ` · ${c.estimated_hours}h` : ''}</div>`).join('')}</div>` : '';
@@ -668,14 +668,14 @@ function briefSections(b) {
   const list = (title, items, cls) => items && items.length
     ? `<div class="brief-sec ${cls}"><div class="brief-sec-t">${title}</div><ul>${items.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : '';
   return `<div class="brief-summary">${escapeHtml(b.summary)}</div>`
-    + list('进展亮点', b.highlights, 'hl')
+    + list(_t('share')=='Progress'?'Highlights':'进展亮点', b.highlights, 'hl')
     + list('阻塞与风险', b.risks, 'risk')
     + list('下一步', b.next_steps, 'next');
 }
 function fmtBriefTime(iso) { if (!iso) return ''; const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleString(); }
 
 async function loadShare() {
-  const body = $('#shareBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  const body = $('#shareBody'); body.innerHTML = '<div class="plan-hint">'+_t('loading')+'</div>';
   let s; try { s = await api(`/projects/${currentProjectId}/share`); } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   const p = s.project, pct = Math.round(p.completion * 100);
   const chips = STATUSES.map((c) => `<span class="chip">${c.name} ${s.status_counts[c.id] || 0}</span>`).join('');
@@ -753,17 +753,17 @@ $('#pwsSaveBtn').onclick = async () => {
     });
     pwsVersion = ws.version;
     $('#pwsVersion').textContent = `v${ws.version}`;
-    toast('工作区已保存');
+    toast(_t('ws_saved'));
   } catch (e) { toast(e.message); }
   btn.disabled = false; btn.textContent = '保存';
 };
 
 // ─── suggestions (shared renderer) ───
 function sugCard(s, onDone) {
-  const ref = s.target_ref || {}; const text = ref.project_name || ref.title || (SUG_LABEL[s.suggestion_type] || s.suggestion_type);
+  const ref = s.target_ref || {}; const text = ref.project_name || ref.title || (getSugLabel(s.suggestion_type));
   const el = document.createElement('div'); el.className = 'sug';
   const n = (ref.subtasks || []).length;
-  el.innerHTML = `<div class="stype">${SUG_LABEL[s.suggestion_type] || s.suggestion_type} · ${Math.round(s.confidence * 100)}%${n ? ` · ${n} 子任务` : ''}</div><div class="stext">${escapeHtml(text)}</div><div class="sration">${escapeHtml(s.rationale || '')}</div><div class="sact"><button class="btn btn-primary btn-sm">接受</button><button class="btn btn-ghost btn-sm">拒绝</button></div>`;
+  el.innerHTML = `<div class="stype">${getSugLabel(s.suggestion_type)} · ${Math.round(s.confidence * 100)}%${n ? ` · ${n} 子任务` : ''}</div><div class="stext">${escapeHtml(text)}</div><div class="sration">${escapeHtml(s.rationale || '')}</div><div class="sact"><button class="btn btn-primary btn-sm">'+_t('accept')+'</button><button class="btn btn-ghost btn-sm">'+_t('reject_sug')+'</button></div>`;
   const [acc, rej] = el.querySelectorAll('button');
   acc.onclick = async () => { try { const r = await api(`/suggestions/${s.id}/accept`, { method: 'POST' }); toast(`已创建 ${r.created_tasks.length} 个任务`); await loadProjects(); await loadSuggestions(); updateNotifBadge(); onDone && onDone(); } catch (e) { toast(e.message); } };
   rej.onclick = async () => { try { await api(`/suggestions/${s.id}/reject`, { method: 'POST', body: { reason: 'rejected' } }); await loadSuggestions(); onDone && onDone(); } catch (e) { toast(e.message); } };
@@ -776,9 +776,9 @@ async function loadSuggestions() {
   if ($('#tab-plan').style.display === 'block') renderPlanSuggestions();
 }
 function renderSuggestionsView() {
-  $('#sugMeta').textContent = `${allSuggestions.length} 条待处理`;
+  $('#sugMeta').textContent = `${allSuggestions.length} ${_t('pending_count')}`;
   const body = $('#suggestionsBody'); body.innerHTML = '';
-  if (!allSuggestions.length) { body.innerHTML = '<div class="empty-hint">没有待处理的建议。</div>'; return; }
+  if (!allSuggestions.length) { body.innerHTML = `<div class="empty-hint">${_t('no_suggestions')}</div>`; return; }
   allSuggestions.forEach((s) => body.appendChild(sugCard(s, renderSuggestionsView)));
 }
 $('#navSuggestions').onclick = () => { showView('suggestionsView'); renderSuggestionsView(); };
@@ -846,17 +846,17 @@ window.addEventListener('beforeunload', () => {
 });
 async function loadNotifications() {
   showView('notificationsView');
-  const body = $('#notificationsBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  const body = $('#notificationsBody'); body.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
   let items; try { items = (await api('/me/notifications')).items || []; } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
-  $('#notifMeta').textContent = `${items.length} 条`;
-  if (!items.length) { body.innerHTML = '<div class="empty-hint">还没有通知。</div>'; return; }
+  $('#notifMeta').textContent = `${items.length}`;
+  if (!items.length) { body.innerHTML = `<div class="empty-hint">${_t('no_notifs')}</div>`; return; }
   body.innerHTML = '';
   items.forEach((n) => {
     const el = document.createElement('div'); el.className = 'notif' + (n.read_at ? ' read' : '');
-    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div><div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))}${n.read_at ? ' · 已读' : ''}</div>`;
+    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div><div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))}${n.read_at ? ' · '+_t('read') : ''}</div>`;
     if (!n.read_at) {
       el.style.cursor = 'pointer';
-      el.onclick = async () => { try { await api(`/me/notifications/${n.id}/read`, { method: 'POST' }); el.classList.add('read'); el.querySelector('.nmeta').textContent += ' · 已读'; el.onclick = null; updateNotifBadge(); } catch {} };
+      el.onclick = async () => { try { await api(`/me/notifications/${n.id}/read`, { method: 'POST' }); el.classList.add('read'); el.querySelector('.nmeta').textContent += ' · '+_t('read'); el.onclick = null; updateNotifBadge(); } catch {} };
     }
     body.appendChild(el);
   });
@@ -895,19 +895,19 @@ function scopeTags(scopes) {
 async function loadTokens() {
   showView('tokenView');
   renderTokenScopePicker();
-  const body = $('#tokensBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  const body = $('#tokensBody'); body.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
   let items;
   try { items = await api('/me/tokens'); }
   catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
-  if (!items.length) { body.innerHTML = '<div class="empty-hint">还没有访问令牌。</div>'; return; }
+  if (!items.length) { body.innerHTML = `<div class="empty-hint">${_t('no_data')}</div>`; return; }
   body.innerHTML = '';
   items.forEach((t) => {
     const row = document.createElement('div'); row.className = 'token-row';
     const agent = t.agent_name ? `<span class="ws-meta">${escapeHtml(t.agent_name)}</span>` : '';
-    row.innerHTML = `<div class="token-main"><b>${escapeHtml(t.name)}</b>${agent}<div class="token-scopes">${scopeTags(t.scopes)}</div><span class="ws-meta">${t.last_used_at ? `最近使用 ${escapeHtml(fmtBriefTime(t.last_used_at))}` : '尚未使用'}</span></div><button class="btn btn-ghost btn-sm">撤销</button>`;
+    row.innerHTML = `<div class="token-main"><b>${escapeHtml(t.name)}</b>${agent}<div class="token-scopes">${scopeTags(t.scopes)}</div><span class="ws-meta">${t.last_used_at ? `${_t('last_used')} ${escapeHtml(fmtBriefTime(t.last_used_at))}` : _t('never_used')}</span></div><button class="btn btn-ghost btn-sm">${_t('revoke')}</button>`;
     row.querySelector('button').onclick = async () => {
-      if (!confirm(`撤销令牌「${t.name}」？`)) return;
-      try { await api(`/me/tokens/${t.id}`, { method: 'DELETE' }); await loadTokens(); toast('令牌已撤销'); }
+      if (!confirm(_t('revoke_confirm')(t.name))) return;
+      try { await api(`/me/tokens/${t.id}`, { method: 'DELETE' }); await loadTokens(); toast(_t('token_revoked')); }
       catch (e) { toast(e.message); }
     };
     body.appendChild(row);
@@ -918,7 +918,7 @@ $('#tokenCreateBtn').onclick = async () => {
   const name = $('#tokenName').value.trim();
   if (!name) { $('#tokenName').focus(); return; }
   const scopes = selectedTokenScopes();
-  if (!scopes.length) { toast('至少选择一个权限'); return; }
+  if (!scopes.length) { toast(_t('keep_one')); return; }
   if (scopes.includes('*') && !confirm('创建全权限令牌？它可读写你的全部数据。')) return;
   const body = {
     name,
@@ -933,7 +933,7 @@ $('#tokenCreateBtn').onclick = async () => {
     $('#tokenRevealName').textContent = t.name;
     overlay.classList.add('show');
     $('#tokenRevealCopy').onclick = async () => {
-      try { await navigator.clipboard.writeText(t.token); toast('已复制到剪贴板'); } catch { toast('复制失败'); }
+      try { await navigator.clipboard.writeText(t.token); toast(_t('copy_token')); } catch { toast(_t('error_prefix')); }
     };
     $('#tokenRevealClose').onclick = () => { overlay.classList.remove('show'); };
     $('#tokenName').value = ''; $('#tokenAgent').value = ''; $('#tokenDesc').value = '';
@@ -945,14 +945,14 @@ $('#tokenCreateBtn').onclick = async () => {
 // ─── cost view ───
 $('#navCost').onclick = async () => {
   showView('costView');
-  const body = $('#costBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  const body = $('#costBody'); body.innerHTML = '<div class="plan-hint">'+_t('loading')+'</div>';
   try {
     const d = await api('/pm/llm-usage');
     const rows = d.by_trigger.map((t) => `<div class="cost-row"><span class="ctrigger">${t.trigger}</span><span class="cnums">${t.calls} 次 · ${t.tokens_in + t.tokens_out} tokens</span><span class="ccost">$${t.cost_usd.toFixed(4)}</span></div>`).join('');
     const umRows = (d.by_user_model || []).map((u) => `<div class="cost-row"><span class="ctrigger">${escapeHtml(u.user_name)}</span><span class="cnums" style="flex:1">${escapeHtml(u.model)} · ${u.calls} 次 · ${u.tokens_in + u.tokens_out} tokens</span><span class="ccost">$${u.cost_usd.toFixed(4)}</span></div>`).join('');
-    body.innerHTML = `<div class="cost-total"><div class="big">$${d.total_cost_usd.toFixed(4)}</div><div class="sub">${d.total_calls} 次调用 · ${d.total_tokens_in + d.total_tokens_out} tokens · 自 ${d.since.slice(0, 10)}</div></div>`
-      + `<div class="section-title" style="font-size:14px;margin:16px 0 8px">按触发类型</div><div class="cost-breakdown">${rows || '<div class="plan-hint">今日还没有 LLM 调用。</div>'}</div>`
-      + `<div class="section-title" style="font-size:14px;margin:16px 0 8px">按用户 · 模型</div><div class="cost-breakdown">${umRows || '<div class="plan-hint">无数据</div>'}</div>`;
+    body.innerHTML = `<div class="cost-total"><div class="big">$${d.total_cost_usd.toFixed(4)}</div><div class="sub">${d.total_calls} ${_t('calls')} · ${d.total_tokens_in + d.total_tokens_out} tokens · ${d.since.slice(0, 10)}</div></div>`
+      + `<div class="section-title" style="font-size:14px;margin:16px 0 8px">${_t('by_trigger')}</div><div class="cost-breakdown">${rows || '<div class="plan-hint">'+_t('no_calls_today')+'</div>'}</div>`
+      + `<div class="section-title" style="font-size:14px;margin:16px 0 8px">${_t('by_user_model')}</div><div class="cost-breakdown">${umRows || '<div class="plan-hint">'+_t('no_data')+'</div>'}</div>`;
   } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; }
 };
 
@@ -960,7 +960,7 @@ $('#navCost').onclick = async () => {
 $('#navAdmin').onclick = loadAdmin;
 async function loadAdmin() {
   showView('adminView');
-  const body = $('#adminBody'); body.innerHTML = '<div class="plan-hint">加载中…</div>';
+  const body = $('#adminBody'); body.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
   let items;
   try { items = (await api('/admin/users')).items || []; }
   catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
@@ -969,7 +969,7 @@ async function loadAdmin() {
     const row = document.createElement('div'); row.className = 'admin-row';
     const self = u.id === me.id;
     row.innerHTML = `<span class="avatar">${initials(u.display_name)}</span>`
-      + `<span class="ar-name"><b>${escapeHtml(u.display_name)}${self ? ' <span class="ws-meta">（你）</span>' : ''}</b><span class="ws-meta">${escapeHtml(u.email)}</span></span>`
+      + `<span class="ar-name"><b>${escapeHtml(u.display_name)}${self ? ` <span class="ws-meta">${_t('you')}</span>` : ''}</b><span class="ws-meta">${escapeHtml(u.email)}</span></span>`
       + `<label class="ar-role"><input type="checkbox" data-role="is_admin" ${u.is_admin ? 'checked' : ''}> admin</label>`
       + `<label class="ar-role"><input type="checkbox" data-role="is_pm" ${u.is_pm ? 'checked' : ''}> pm</label>`;
     row.querySelectorAll('input').forEach((chk) => {
@@ -992,7 +992,7 @@ $('#membersClose').onclick = () => $('#membersOverlay').classList.remove('show')
 async function openMembers(pid) {
   $('#membersOverlay').classList.add('show');
   const body = $('#membersBody'); const addRow = $('#membersAddRow');
-  body.innerHTML = '<div class="plan-hint">加载中…</div>'; addRow.innerHTML = '';
+  body.innerHTML = '<div class="plan-hint">'+_t('loading')+'</div>'; addRow.innerHTML = '';
   let members;
   try { members = await api(`/projects/${pid}/members`); }
   catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
@@ -1064,7 +1064,7 @@ $('#npDecomposeBtn').onclick = async () => {
 };
 $('#npManualBtn').onclick = async () => {
   const name = $('#npName').value.trim(); if (!name) { $('#npName').focus(); return; }
-  try { const p = await api('/projects', { method: 'POST', body: { name } }); $('#projectOverlay').classList.remove('show'); await loadProjects(p.id); toast('项目已创建'); }
+  try { const p = await api('/projects', { method: 'POST', body: { name } }); $('#projectOverlay').classList.remove('show'); await loadProjects(p.id); toast(_t('project_created')); }
   catch (e) { toast(e.message); }
 };
 $('#planDecomposeBtn').onclick = async () => {
@@ -1234,7 +1234,7 @@ $('#awCancel').onclick = () => $('#asstSettingsOverlay').classList.remove('show'
 $('#awSave').onclick = async () => {
   try {
     await api('/me/assistant', { method: 'PATCH', body: { persona_md: $('#awPersona').value, memory_md: $('#awMemory').value, profile_md: $('#awProfile').value } });
-    $('#asstSettingsOverlay').classList.remove('show'); toast('助手设置已保存');
+    $('#asstSettingsOverlay').classList.remove('show'); toast(_t('settings_saved'));
   } catch (e) { toast(e.message); }
 };
 
@@ -1242,7 +1242,7 @@ $('#awSave').onclick = async () => {
 let awEditingSkill = null;
 function resetSkillForm() { awEditingSkill = null; $('#awSkillName').value = ''; $('#awSkillDesc').value = ''; $('#awSkillInstr').value = ''; $('#awSkillSave').textContent = '添加技能'; }
 async function renderSkills() {
-  const box = $('#awSkills'); box.innerHTML = '<div class="plan-hint">加载中…</div>';
+  const box = $('#awSkills'); box.innerHTML = '<div class="plan-hint">'+_t('loading')+'</div>';
   let items; try { items = (await api('/me/assistant/skills')).items || []; } catch (e) { box.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   if (!items.length) { box.innerHTML = '<div class="plan-hint">还没有技能,下面添加。</div>'; return; }
   box.innerHTML = '';
