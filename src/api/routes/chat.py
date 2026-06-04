@@ -58,6 +58,23 @@ async def get_messages(
     return ChatMessageListResponse(items=[ChatMessageResponse.model_validate(m) for m in messages])
 
 
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(
+    session_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("chat:write")),
+):
+    repo = ChatRepository(session)
+    cs = await repo.get_session(session_id)
+    if not cs or cs.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    from src.models.common import utcnow
+
+    cs.archived_at = utcnow()
+    session.add(cs)
+
+
 class ChatMessageRequest(BaseModel):
     content: str = Field(max_length=4000)
     session_id: uuid.UUID | None = None

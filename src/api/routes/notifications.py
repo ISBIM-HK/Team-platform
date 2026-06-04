@@ -87,15 +87,18 @@ async def notification_stream(request: Request):
 
     async def event_generator():
         q = subscribe(user_id)
+        alive = 0
         try:
-            while True:
+            while alive < 60:
                 if await request.is_disconnected():
                     break
                 try:
-                    data = await asyncio.wait_for(q.get(), timeout=30)
+                    data = await asyncio.wait_for(q.get(), timeout=15)
                     yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                    alive = 0
                 except TimeoutError:
                     yield ": keepalive\n\n"
+                    alive += 1
         finally:
             unsubscribe(user_id, q)
 

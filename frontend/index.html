@@ -12,13 +12,13 @@
 <div id="login">
   <div class="login-card">
     <div class="brand-mark">T</div>
-    <h1>Team Platform</h1>
-    <p class="sub">使用企业账号安全登录</p>
+    <h1 data-i18n="login_title">Team Platform</h1>
+    <p class="sub" data-i18n="login_sub">使用企业账号安全登录</p>
     <button class="btn btn-sso" id="ssoEntryBtn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      企业账号登录（SSO）
+      <span data-i18n="sso_btn">企业账号登录（SSO）</span>
     </button>
-    <p class="sso-hint">通过 JarvisBIM 身份验证登录</p>
+    <p class="sso-hint" data-i18n="sso_hint">通过 JarvisBIM 身份验证登录</p>
   </div>
 </div>
 
@@ -51,18 +51,28 @@
 
   <!-- LEFT: project nav -->
   <aside class="sidebar" id="sidebar">
-    <div class="side-brand"><div class="brand-mark">T</div><b>Team Platform</b></div>
-    <button class="btn btn-primary new-proj" id="newProjectBtn">＋ 新建项目</button>
-    <div class="side-label">项目</div>
+    <div class="side-brand">
+      <div class="brand-mark">T</div><b>Team Platform</b>
+      <div class="lang-trigger" id="langTrigger" title="Language">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <div class="lang-menu" id="langMenu">
+          <button data-lang="zh-CN">简体中文</button>
+          <button data-lang="zh-HK">繁體中文</button>
+          <button data-lang="en">English</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary new-proj" id="newProjectBtn" data-i18n="new_project">＋ 新建项目</button>
+    <div class="side-label" data-i18n="projects">项目</div>
     <div class="project-list" id="projectList"></div>
 
     <div class="side-global">
-      <button class="nav-item" id="navSuggestions"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></i>待处理建议</span><span class="badge" id="sugBadge" style="display:none">0</span></button>
-      <button class="nav-item" id="navArchived"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></i>已归档</span></button>
-      <button class="nav-item" id="navNotifications"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></i>通知</span><span class="badge" id="notifBadge" style="display:none">0</span></button>
-      <button class="nav-item" id="navTokens"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></i>访问令牌</span></button>
-      <button class="nav-item" id="navAdmin" style="display:none"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg></i>团队管理</span></button>
-      <button class="nav-item" id="navCost" style="display:none"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></i>LLM 成本</span></button>
+      <button class="nav-item" id="navSuggestions"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></i><span data-i18n="suggestions">待处理建议</span></span><span class="badge" id="sugBadge" style="display:none">0</span></button>
+      <button class="nav-item" id="navArchived"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></i><span data-i18n="archived">已归档</span></span></button>
+      <button class="nav-item" id="navNotifications"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></i><span data-i18n="notifications">通知</span></span><span class="badge" id="notifBadge" style="display:none">0</span></button>
+      <button class="nav-item" id="navTokens"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></i><span data-i18n="tokens">访问令牌</span></span></button>
+      <button class="nav-item" id="navAdmin" style="display:none"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg></i><span data-i18n="admin">团队管理</span></span></button>
+      <button class="nav-item" id="navCost" style="display:none"><span><i class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></i><span data-i18n="cost">LLM 成本</span></span></button>
     </div>
     <div class="side-foot">
       <div class="who"><span class="avatar" id="meAvatar">?</span><span><b id="whoName">—</b><span class="pill-pm" id="pmPill" style="display:none">PM</span></span></div>
@@ -74,7 +84,7 @@
   <main class="workspace" id="workspace">
     <!-- empty -->
     <div class="center-view" id="emptyState">
-      <div class="empty-state"><div class="es-mark">◇</div><h2>选一个项目开始</h2><p>从左侧选项目,或点「＋ 新建项目」让 AI 把一个目标拆成分好工的子任务。</p></div>
+      <div class="empty-state"><div class="es-mark">◇</div><h2 data-i18n="empty_title">选一个项目开始</h2><p data-i18n="empty_desc">从左侧选项目，或点「＋ 新建项目」让 AI 把一个目标拆成分好工的子任务。</p></div>
     </div>
 
     <!-- project workspace -->
@@ -83,14 +93,14 @@
         <div class="ws-title">
           <h1 id="pvName">—</h1><span class="ws-meta" id="pvMeta"></span>
           <div class="ws-actions">
-            <button class="btn btn-soft btn-sm" data-tab="plan" id="pvPlanBtn">AI 方案</button>
-            <button class="btn btn-soft btn-sm" data-tab="pwspace" id="pvWorkspaceBtn">工作区</button>
+            <button class="btn btn-soft btn-sm" data-tab="plan" id="pvPlanBtn" data-i18n="ai_plan">AI 方案</button>
+            <button class="btn btn-soft btn-sm" data-tab="pwspace" id="pvWorkspaceBtn" data-i18n="proj_info">项目信息</button>
           </div>
         </div>
         <div class="tabs">
-          <button class="tab active" data-tab="board">看板</button>
-          <button class="tab" data-tab="share">进度分享</button>
-          <button class="tab tab-members" id="pvMembersBtn" title="项目成员"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>成员</button>
+          <button class="tab active" data-tab="board" data-i18n="board">看板</button>
+          <button class="tab" data-tab="share" data-i18n="share">进度分享</button>
+          <button class="tab tab-members" id="pvMembersBtn" title="项目成员"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span data-i18n="members">成员</span></button>
         </div>
       </div>
       <div class="tab-panel" id="tab-board"><div class="board" id="board"></div><div id="archivedFold"></div></div>
@@ -108,23 +118,23 @@
       <div class="tab-panel" id="tab-pwspace" style="display:none">
         <div class="pws-grid">
           <div class="pws-section">
-            <div class="lbl">项目背景</div>
+            <div class="lbl" data-i18n="ws_bg">项目背景</div>
             <textarea id="pwsBg" class="pws-text" rows="4" placeholder="项目背景、目标、约束…" disabled></textarea>
           </div>
           <div class="pws-section">
-            <div class="lbl">上下文</div>
+            <div class="lbl" data-i18n="ws_ctx">上下文</div>
             <textarea id="pwsCtx" class="pws-text" rows="4" placeholder="当前阶段、技术栈、相关方…" disabled></textarea>
           </div>
           <div class="pws-section">
-            <div class="lbl">当前重点</div>
+            <div class="lbl" data-i18n="ws_focus">当前重点</div>
             <textarea id="pwsFocus" class="pws-text" rows="3" placeholder="本周/本阶段关注的重点…" disabled></textarea>
           </div>
           <div class="pws-actions" id="pwsActions" style="display:none">
             <span class="ws-meta" id="pwsVersion"></span>
-            <button class="btn btn-primary btn-sm" id="pwsSaveBtn">保存</button>
+            <button class="btn btn-primary btn-sm" id="pwsSaveBtn" data-i18n="ws_save">保存</button>
           </div>
           <div class="pws-readonly-hint" id="pwsReadonly" style="display:none">
-            <span class="ws-meta">只读 — 项目 lead 或 PM 可编辑</span>
+            <span class="ws-meta" data-i18n="ws_readonly">只读 — 项目 lead 或 PM 可编辑</span>
           </div>
         </div>
       </div>
@@ -206,7 +216,7 @@
   <!-- RIGHT: fixed assistant -->
   <aside class="assistant" id="assistant">
     <div class="ahead">
-      <span class="pulse"></span><b>个人助手</b><span id="aStatus">在线</span>
+      <span class="pulse"></span><b data-i18n="assistant">个人助手</b><span id="aStatus" data-i18n="online">在线</span>
       <div class="ahead-actions">
         <button class="ahead-btn" id="newChatBtn" title="新对话"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
         <button class="ahead-btn" id="asstSettingsBtn" title="助手设置"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -215,9 +225,10 @@
     </div>
     <div class="session-bar">
       <select id="sessionSelect" title="切换对话"></select>
+      <button class="session-del" id="sessionDelBtn" title="删除此对话"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
     </div>
     <div class="msgs" id="msgs"></div>
-    <div class="composer-chat"><input id="chatInput" type="text" placeholder="问我,或让我记录工作…" /><button class="send" id="chatSend" title="发送"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+    <div class="composer-chat"><input id="chatInput" type="text" placeholder="问我,或让我记录工作…" data-i18n-placeholder="chat_placeholder" /><button class="send" id="chatSend" title="发送"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
   </aside>
   <button id="asstToggle" class="floating-toggle" title="助手" style="right:14px;display:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
 </div>
@@ -226,13 +237,13 @@
 <div class="overlay" id="projectOverlay">
   <div class="modal">
     <button class="modal-close" id="npClose" title="关闭（Esc）">✕</button>
-    <div class="mhead"><div class="eyebrow">新建项目</div><h3>用一个目标,让 AI 拆成项目</h3><div class="rationale">描述你要做的事,AI 提议项目名 + 子任务;你确认后创建。</div></div>
+    <div class="mhead"><div class="eyebrow" data-i18n="new_proj_eyebrow">新建项目</div><h3 data-i18n="new_proj_goal_sub">用一个目标，让 AI 拆成项目</h3><div class="rationale" data-i18n="new_proj_goal_hint">描述你要做的事，AI 提议项目名 + 子任务；你确认后创建。</div></div>
     <div class="mbody">
-      <textarea id="npGoal" rows="3" class="np-goal" placeholder="例如:做一个客户工单自动分类的功能…"></textarea>
-      <div class="np-or">或</div>
-      <input id="npName" type="text" class="np-name" placeholder="手建空项目:直接填项目名" />
+      <textarea id="npGoal" rows="3" class="np-goal" data-i18n-placeholder="goal_placeholder" placeholder="例如：做一个客户工单自动分类的功能…"></textarea>
+      <div class="np-or" data-i18n="or_text">或</div>
+      <input id="npName" type="text" class="np-name" data-i18n-placeholder="manual_name_placeholder" placeholder="手建空项目：直接填项目名" />
     </div>
-    <div class="mfoot"><button class="btn btn-ghost" id="npCancel">取消</button><button class="btn btn-ghost" id="npManualBtn">建空项目</button><button class="btn btn-primary" id="npDecomposeBtn">AI 拆解 →</button></div>
+    <div class="mfoot"><button class="btn btn-ghost" id="npCancel" data-i18n="cancel">取消</button><button class="btn btn-ghost" id="npManualBtn" data-i18n="create_empty">建空项目</button><button class="btn btn-primary" id="npDecomposeBtn" data-i18n="ai_decompose">AI 拆解 →</button></div>
   </div>
 </div>
 
@@ -267,23 +278,23 @@
 <!-- ─── Assistant settings modal (附录 J) ─── -->
 <div class="overlay" id="asstSettingsOverlay">
   <div class="modal">
-    <div class="mhead"><div class="eyebrow">助手设置</div><h3>人格 · 记忆 · 画像</h3><div class="rationale">人格决定助手风格;记忆/画像由助手在对话中自动积累,你也可手动编辑。仅你可见。</div></div>
+    <div class="mhead"><div class="eyebrow" data-i18n="settings_eyebrow">助手设置</div><h3 data-i18n="settings_title">人格 · 记忆 · 画像</h3><div class="rationale" data-i18n="settings_hint">人格决定助手风格；记忆/画像由助手在对话中自动积累，你也可手动编辑。仅你可见。</div></div>
     <div class="mbody">
-      <div class="td-field"><div class="lbl">人格（SOUL）</div><textarea id="awPersona" class="aw-text" rows="4" placeholder="例如:你是简洁直接的工程助手,回答短、给可执行步骤…"></textarea></div>
-      <div class="td-field"><div class="lbl">记忆（MEMORY）</div><textarea id="awMemory" class="aw-text" rows="5" placeholder="助手会把值得长期记住的事记在这里"></textarea></div>
-      <div class="td-field"><div class="lbl">关于我（USER 画像）</div><textarea id="awProfile" class="aw-text" rows="4" placeholder="助手对你的了解:偏好、角色、工作方式…"></textarea></div>
+      <div class="td-field"><div class="lbl" data-i18n="persona">人格（SOUL）</div><textarea id="awPersona" class="aw-text" rows="4" placeholder="例如：你是简洁直接的工程助手，回答短、给可执行步骤…"></textarea></div>
+      <div class="td-field"><div class="lbl" data-i18n="memory">记忆（MEMORY）</div><textarea id="awMemory" class="aw-text" rows="5" placeholder="助手会把值得长期记住的事记在这里"></textarea></div>
+      <div class="td-field"><div class="lbl" data-i18n="profile">关于我（USER 画像）</div><textarea id="awProfile" class="aw-text" rows="4" placeholder="助手对你的了解：偏好、角色、工作方式…"></textarea></div>
       <div class="td-field">
-        <div class="lbl">技能（指令包）· 启用的会注入助手</div>
+        <div class="lbl" data-i18n="skills">技能（指令包）· 启用的会注入助手</div>
         <div id="awSkills" class="aw-skills"></div>
         <div class="aw-skill-form">
           <input id="awSkillName" class="aw-text" placeholder="技能名,如:代码评审" />
           <input id="awSkillDesc" class="aw-text" placeholder="一句话描述(可选)" />
           <textarea id="awSkillInstr" class="aw-text" rows="2" placeholder="指令/playbook,启用时注入系统提示…"></textarea>
-          <button class="btn btn-soft btn-sm" id="awSkillSave">添加技能</button>
+          <button class="btn btn-soft btn-sm" id="awSkillSave" data-i18n="add_skill">添加技能</button>
         </div>
       </div>
     </div>
-    <div class="mfoot"><button class="btn btn-ghost" id="awCancel">取消</button><button class="btn btn-primary" id="awSave">保存</button></div>
+    <div class="mfoot"><button class="btn btn-ghost" id="awCancel" data-i18n="cancel">取消</button><button class="btn btn-primary" id="awSave" data-i18n="ws_save">保存</button></div>
   </div>
 </div>
 
