@@ -809,20 +809,24 @@ async function updateNotifBadge() {
 let notifSSE = null;
 function connectNotifSSE() {
   if (notifSSE) { notifSSE.close(); notifSSE = null; }
-  notifSSE = new EventSource(API + '/me/notifications/stream');
-  notifSSE.onmessage = (ev) => {
-    try {
-      const d = JSON.parse(ev.data);
-      if (d.type === 'notification') {
-        updateNotifBadge();
-        toast(d.title || '新通知');
-      }
-    } catch {}
-  };
-  notifSSE.onerror = () => {
-    if (notifSSE) { notifSSE.close(); notifSSE = null; }
-    setTimeout(connectNotifSSE, 30000);
-  };
+  // delay SSE to avoid blocking initial page load API calls
+  setTimeout(() => {
+    if (!me) return;
+    notifSSE = new EventSource(API + '/me/notifications/stream');
+    notifSSE.onmessage = (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        if (d.type === 'notification') {
+          updateNotifBadge();
+          toast(d.title || _t('notifications'));
+        }
+      } catch {}
+    };
+    notifSSE.onerror = () => {
+      if (notifSSE) { notifSSE.close(); notifSSE = null; }
+      if (me) setTimeout(connectNotifSSE, 60000);
+    };
+  }, 3000);
 }
 window.addEventListener('beforeunload', () => {
   if (notifSSE) { notifSSE.close(); notifSSE = null; }
