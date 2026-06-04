@@ -18,7 +18,7 @@ const I18N = {
     s_todo: '待办', s_in_progress: '进行中', s_blocked: '阻塞', s_review: '评审', s_done: '完成',
     unclaimed: '未认领', claim: '认领', start: '开始', submit_review: '提交评审', complete: '完成',
     unblock: '解除阻塞', reject: '退回', archive_task: '归档', restore: '恢复',
-    subtasks: _t('subtasks'), archived_tasks: '已归档',
+    subtasks: '子任务', archived_tasks: '已归档',
     // task detail
     description: '描述', none: '（无）', owner: '负责人', priority_time: '优先级 · 估时', ai_hint: 'AI 实现思路', close: '关闭',
     // share
