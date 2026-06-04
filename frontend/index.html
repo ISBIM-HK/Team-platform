@@ -258,6 +258,22 @@
             <div class="integ-meta" id="integDingtalkMeta"></div>
           </div>
         </div>
+        <div class="integ-card">
+          <div class="integ-head">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <b data-i18n="integ_wecom_mail">企业微信邮箱</b>
+            <span class="integ-status" id="integWecomStatus"></span>
+          </div>
+          <div id="integWecomBody">
+            <div class="field"><label>Email</label><input id="integWecomEmail" type="email" placeholder="you@company.com" /></div>
+            <div class="field"><label data-i18n="integ_pat">Password</label><input id="integWecomPwd" type="password" placeholder="IMAP password" /></div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn btn-primary btn-sm" id="integWecomConnect" data-i18n="integ_connect">连接</button>
+              <button class="btn btn-ghost btn-sm" id="integWecomSync" data-i18n="integ_sync" style="display:none">立即同步</button>
+            </div>
+            <div class="integ-meta" id="integWecomMeta"></div>
+          </div>
+        </div>
       </div>
     </div>
 

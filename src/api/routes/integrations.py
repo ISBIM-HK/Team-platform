@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.api.deps import CurrentUser, DBSession, require_scope
-from src.capture.sync import sync_github, sync_gitlab
+from src.capture.sync import sync_github, sync_gitlab, sync_wecom_mail
 from src.core.crypto import encrypt_credential
 from src.models.common import IntegrationProvider, IntegrationStatus
 from src.models.integration import Integration
@@ -27,6 +27,13 @@ class GithubConnectRequest(BaseModel):
 class DingtalkConnectRequest(BaseModel):
     app_key: str
     app_secret: str
+
+
+class WecomMailConnectRequest(BaseModel):
+    email: str
+    password: str
+    host: str = "imap.exmail.qq.com"
+    port: int = 993
 
 
 class IntegrationResponse(BaseModel):
@@ -192,6 +199,63 @@ async def connect_dingtalk(
     await session.flush()
     await session.refresh(integ)
     return _to_response(integ)
+
+
+@router.post("/wecom-mail/connect", response_model=IntegrationResponse)
+async def connect_wecom_mail(
+    req: WecomMailConnectRequest,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    """Store encrypted WeCom Mail IMAP credentials. Tests login on connect."""
+    import imaplib
+
+    try:
+        imap = imaplib.IMAP4_SSL(req.host, req.port)
+        imap.login(req.email, req.password)
+        imap.logout()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"IMAP login failed: {e}")
+
+    cred = encrypt_credential({"email": req.email, "password": req.password, "host": req.host, "port": req.port})
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.wecom_mail)
+    if integ:
+        integ.credential = cred
+        integ.enabled = True
+        integ.status = IntegrationStatus.active
+        integ.consecutive_failures = 0
+        integ.last_error = None
+    else:
+        integ = Integration(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            provider=IntegrationProvider.wecom_mail,
+            credential=cred,
+            scope="imap",
+            enabled=True,
+            consecutive_failures=0,
+        )
+    session.add(integ)
+    await session.flush()
+    await session.refresh(integ)
+    return _to_response(integ)
+
+
+@router.post("/wecom-mail/sync-now", response_model=SyncResponse)
+async def wecom_mail_sync_now(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.wecom_mail)
+    if not integ or not integ.enabled:
+        raise HTTPException(status_code=404, detail="No enabled WeCom Mail integration")
+    try:
+        n = await sync_wecom_mail(session, integ)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"WeCom Mail sync failed: {e}")
+    return SyncResponse(synced=n)
 
 
 def _to_response(i: Integration) -> IntegrationResponse:

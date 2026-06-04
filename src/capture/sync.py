@@ -15,6 +15,9 @@ from src.capture.github import fetch_events as gh_fetch
 from src.capture.github import map_event_type as gh_map
 from src.capture.github import parse_occurred_at as gh_parse
 from src.capture.gitlab import fetch_events, map_event_type, parse_occurred_at
+from src.capture.wecom_mail import fetch_emails as wm_fetch
+from src.capture.wecom_mail import map_event_type as wm_map
+from src.capture.wecom_mail import parse_occurred_at as wm_parse
 from src.core.crypto import decrypt_credential
 from src.models.common import EventSource, IntegrationStatus, utcnow
 from src.models.event_cache import EventCache
@@ -141,6 +144,75 @@ async def sync_github(session: AsyncSession, integration: Integration, window_ho
                 external_id=eid,
                 payload=ev,
                 occurred_at=gh_parse(ev),
+            )
+        )
+        inserted += 1
+
+    integration.last_synced_at = utcnow()
+    integration.last_error = None
+    integration.consecutive_failures = 0
+    integration.status = IntegrationStatus.active
+    session.add(integration)
+    await session.flush()
+    return inserted
+
+
+async def sync_wecom_mail(session: AsyncSession, integration: Integration, window_hours: int = 168) -> int:
+    """Pull recent emails via IMAP."""
+    if integration.expires_at and integration.expires_at < utcnow():
+        integration.status = IntegrationStatus.expired
+        session.add(integration)
+        await session.flush()
+        raise RuntimeError("WeCom Mail credential expired")
+
+    cred = decrypt_credential(integration.credential)
+    since = utcnow() - timedelta(hours=window_hours)
+
+    try:
+        emails = wm_fetch(
+            cred.get("host", "imap.exmail.qq.com"),
+            int(cred.get("port", 993)),
+            cred["email"],
+            cred["password"],
+            since,
+        )
+    except Exception as e:
+        integration.last_error = str(e)[:1000]
+        integration.consecutive_failures += 1
+        if integration.consecutive_failures >= FAILURE_DISABLE_THRESHOLD:
+            integration.enabled = False
+            integration.status = IntegrationStatus.disabled
+        else:
+            integration.status = IntegrationStatus.error
+        session.add(integration)
+        await session.flush()
+        raise
+
+    ext_ids = [e["id"] for e in emails]
+    existing: set[str] = set()
+    if ext_ids:
+        rows = await session.execute(
+            select(EventCache.external_id).where(
+                EventCache.tenant_id == integration.tenant_id,
+                EventCache.source == EventSource.wecom_mail,
+                EventCache.external_id.in_(ext_ids),
+            )
+        )
+        existing = {r[0] for r in rows}
+
+    inserted = 0
+    for em in emails:
+        if em["id"] in existing:
+            continue
+        session.add(
+            EventCache(
+                tenant_id=integration.tenant_id,
+                source=EventSource.wecom_mail,
+                event_type=wm_map(em),
+                actor_user_id=integration.user_id,
+                external_id=em["id"],
+                payload=em,
+                occurred_at=wm_parse(em.get("date", "")),
             )
         )
         inserted += 1
