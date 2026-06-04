@@ -861,9 +861,11 @@ async function loadNotifications() {
 function openNotifDetail(n) {
   const ref = n.source_ref || {};
   const titles = ref.titles || {};
+  const bodies = ref.bodies || {};
   const localTitle = titles[currentLang] || n.title;
-  const bodyText = (n.body && n.body.trim()) || '';
-  const refDisplay = Object.entries(ref).filter(([k]) => k !== 'titles').map(([k, v]) => `<div class="td-field"><div class="lbl">${escapeHtml(k)}</div><div class="val">${escapeHtml(String(v))}</div></div>`).join('');
+  const bodyText = bodies[currentLang] || (n.body && n.body.trim()) || '';
+  const hiddenKeys = new Set(['titles', 'bodies']);
+  const refDisplay = Object.entries(ref).filter(([k]) => !hiddenKeys.has(k) && typeof k === 'string' && typeof ref[k] !== 'object').map(([k, v]) => `<div class="td-field"><div class="lbl">${escapeHtml(k)}</div><div class="val">${escapeHtml(String(v))}</div></div>`).join('');
   $('#tdStatus').textContent = n.kind;
   $('#tdTitle').textContent = localTitle;
   $('#tdBody').innerHTML = `
