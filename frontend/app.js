@@ -73,6 +73,7 @@ const I18N = {
     integ_connect: '连接', integ_sync: '立即同步', integ_connected: '已连接', integ_syncing: '同步中…',
     integ_synced: (n) => `同步完成，新增 ${n} 条记录`, integ_last_sync: '上次同步', integ_no_integ: '未连接',
     integ_dingtalk: '钉钉', integ_wecom_mail: '企业微信邮箱',
+    integ_wecom_hint: '需管理员在企业微信后台开启 IMAP 权限。若开启了安全登录，请使用客户端授权码（邮箱设置 → 邮箱绑定）。',
     by_trigger: '按触发类型', by_user_model: '按用户 · 模型', no_calls_today: '今日还没有 LLM 调用。',
     // admin
     admin_title: '团队管理', set_roles: '设置成员角色(admin / pm)',
@@ -128,6 +129,7 @@ const I18N = {
     integ_connect: '連接', integ_sync: '立即同步', integ_connected: '已連接', integ_syncing: '同步中…',
     integ_synced: (n) => `同步完成，新增 ${n} 條記錄`, integ_last_sync: '上次同步', integ_no_integ: '未連接',
     integ_dingtalk: '釘釘', integ_wecom_mail: '企業微信郵箱',
+    integ_wecom_hint: '需管理員在企業微信後台開啟 IMAP 權限。若開啟了安全登錄，請使用客戶端授權碼（郵箱設置 → 郵箱綁定）。',
     by_trigger: '按觸發類型', by_user_model: '按用戶 · 模型', no_calls_today: '今日還沒有 LLM 調用。',
     admin_title: '團隊管理', set_roles: '設置成員角色(admin / pm)',
     notif_title: '通知', read: '已讀', no_notifs: '還沒有通知。',
@@ -191,6 +193,7 @@ const I18N = {
     integ_connect: 'Connect', integ_sync: 'Sync Now', integ_connected: 'Connected', integ_syncing: 'Syncing…',
     integ_synced: (n) => `Sync complete, ${n} new events`, integ_last_sync: 'Last synced', integ_no_integ: 'Not connected',
     integ_dingtalk: 'DingTalk', integ_wecom_mail: 'WeCom Mail',
+    integ_wecom_hint: 'Admin must enable IMAP in WeCom backend. If secure login is on, use the client authorization code (Mail Settings → Email Binding).',
     by_trigger: 'By Trigger', by_user_model: 'By User · Model', no_calls_today: 'No LLM calls today.',
     admin_title: 'Team Admin', set_roles: 'Set member roles (admin / pm)',
     notif_title: 'Notifications', read: 'Read', no_notifs: 'No notifications yet.',
