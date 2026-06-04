@@ -845,7 +845,9 @@ async function loadNotifications() {
   };
   items.forEach((n) => {
     const el = document.createElement('div'); el.className = 'notif' + (n.read_at ? ' read' : '');
-    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div><div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))} · ${n.kind}${n.read_at ? ' · '+_t('read') : ''}</div>`;
+    const nTitles = (n.source_ref || {}).titles || {};
+    const nTitle = nTitles[currentLang] || n.title;
+    el.innerHTML = `<div class="ntext">${escapeHtml(nTitle)}</div><div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))} · ${n.kind}${n.read_at ? ' · '+_t('read') : ''}</div>`;
     el.style.cursor = 'pointer';
     el.onclick = async () => {
       if (!n.read_at) {
@@ -858,14 +860,16 @@ async function loadNotifications() {
 }
 function openNotifDetail(n) {
   const ref = n.source_ref || {};
+  const titles = ref.titles || {};
+  const localTitle = titles[currentLang] || n.title;
   const bodyText = (n.body && n.body.trim()) || '';
-  const refLines = Object.entries(ref).map(([k, v]) => `<div class="td-field"><div class="lbl">${escapeHtml(k)}</div><div class="val" style="font-family:var(--font-mono);font-size:12px">${escapeHtml(String(v))}</div></div>`).join('');
+  const refDisplay = Object.entries(ref).filter(([k]) => k !== 'titles').map(([k, v]) => `<div class="td-field"><div class="lbl">${escapeHtml(k)}</div><div class="val">${escapeHtml(String(v))}</div></div>`).join('');
   $('#tdStatus').textContent = n.kind;
-  $('#tdTitle').textContent = n.title;
+  $('#tdTitle').textContent = localTitle;
   $('#tdBody').innerHTML = `
-    <div class="td-field"><div class="lbl">${_t('description')}</div><div class="val">${bodyText ? escapeHtml(bodyText) : `<span style="color:var(--text-3)">${_t('none')}</span>`}</div></div>
+    ${bodyText ? `<div class="td-field"><div class="lbl">${_t('description')}</div><div class="val">${escapeHtml(bodyText)}</div></div>` : ''}
     <div class="td-field"><div class="lbl">Time</div><div class="val">${escapeHtml(fmtBriefTime(n.created_at))}</div></div>
-    ${refLines}`;
+    ${refDisplay}`;
   const foot = $('#tdFoot'); foot.innerHTML = '';
   const delBtn = document.createElement('button'); delBtn.className = 'btn btn-ghost'; delBtn.textContent = _t('remove');
   delBtn.onclick = async () => {
