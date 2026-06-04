@@ -72,6 +72,7 @@ const I18N = {
     integrations: '集成', integrations_sub: '连接外部服务', integ_url: 'GitLab URL', integ_pat: 'Personal Access Token',
     integ_connect: '连接', integ_sync: '立即同步', integ_connected: '已连接', integ_syncing: '同步中…',
     integ_synced: (n) => `同步完成，新增 ${n} 条记录`, integ_last_sync: '上次同步', integ_no_integ: '未连接',
+    integ_dingtalk: '钉钉',
     by_trigger: '按触发类型', by_user_model: '按用户 · 模型', no_calls_today: '今日还没有 LLM 调用。',
     // admin
     admin_title: '团队管理', set_roles: '设置成员角色(admin / pm)',
@@ -126,6 +127,7 @@ const I18N = {
     integrations: '集成', integrations_sub: '連接外部服務', integ_url: 'GitLab URL', integ_pat: 'Personal Access Token',
     integ_connect: '連接', integ_sync: '立即同步', integ_connected: '已連接', integ_syncing: '同步中…',
     integ_synced: (n) => `同步完成，新增 ${n} 條記錄`, integ_last_sync: '上次同步', integ_no_integ: '未連接',
+    integ_dingtalk: '釘釘',
     by_trigger: '按觸發類型', by_user_model: '按用戶 · 模型', no_calls_today: '今日還沒有 LLM 調用。',
     admin_title: '團隊管理', set_roles: '設置成員角色(admin / pm)',
     notif_title: '通知', read: '已讀', no_notifs: '還沒有通知。',
@@ -188,6 +190,7 @@ const I18N = {
     integrations: 'Integrations', integrations_sub: 'Connect external services', integ_url: 'GitLab URL', integ_pat: 'Personal Access Token',
     integ_connect: 'Connect', integ_sync: 'Sync Now', integ_connected: 'Connected', integ_syncing: 'Syncing…',
     integ_synced: (n) => `Sync complete, ${n} new events`, integ_last_sync: 'Last synced', integ_no_integ: 'Not connected',
+    integ_dingtalk: 'DingTalk',
     by_trigger: 'By Trigger', by_user_model: 'By User · Model', no_calls_today: 'No LLM calls today.',
     admin_title: 'Team Admin', set_roles: 'Set member roles (admin / pm)',
     notif_title: 'Notifications', read: 'Read', no_notifs: 'No notifications yet.',
@@ -981,7 +984,7 @@ function _renderIntegCard(items, provider, statusEl, metaEl, syncBtn) {
   if (integ) {
     statusEl.textContent = _t('integ_connected');
     statusEl.className = 'integ-status ' + integ.status;
-    syncBtn.style.display = '';
+    if (syncBtn) syncBtn.style.display = '';
     const parts = [];
     if (integ.last_synced_at) parts.push(`${_t('integ_last_sync')}: ${new Date(integ.last_synced_at).toLocaleString()}`);
     if (integ.last_error) parts.push(`Error: ${integ.last_error}`);
@@ -990,7 +993,7 @@ function _renderIntegCard(items, provider, statusEl, metaEl, syncBtn) {
   } else {
     statusEl.textContent = _t('integ_no_integ');
     statusEl.className = 'integ-status disabled';
-    syncBtn.style.display = 'none';
+    if (syncBtn) syncBtn.style.display = 'none';
     metaEl.textContent = '';
   }
 }
@@ -999,6 +1002,7 @@ async function loadIntegrations() {
     const items = await api('/integrations');
     _renderIntegCard(items, 'gitlab', $('#integGitlabStatus'), $('#integGitlabMeta'), $('#integGitlabSync'));
     _renderIntegCard(items, 'github', $('#integGithubStatus'), $('#integGithubMeta'), $('#integGithubSync'));
+    _renderIntegCard(items, 'dingtalk', $('#integDingtalkStatus'), $('#integDingtalkMeta'), null);
   } catch (e) { toast(e.message); }
 }
 $('#integGitlabConnect').onclick = async () => {
@@ -1045,6 +1049,21 @@ $('#integGithubSync').onclick = async () => {
     loadIntegrations();
   } catch (e) { toast(e.message); }
   btn.disabled = false; btn.textContent = _t('integ_sync');
+};
+
+// DingTalk integration
+$('#integDtConnect').onclick = async () => {
+  const appKey = $('#integDtAppKey').value.trim();
+  const appSecret = $('#integDtAppSecret').value.trim();
+  if (!appKey || !appSecret) { toast('AppKey + AppSecret required'); return; }
+  const btn = $('#integDtConnect'); btn.disabled = true; btn.textContent = _t('loading');
+  try {
+    await api('/integrations/dingtalk/connect', { method: 'POST', body: { app_key: appKey, app_secret: appSecret } });
+    toast(_t('integ_connected'));
+    $('#integDtAppSecret').value = '';
+    loadIntegrations();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = _t('integ_connect');
 };
 
 // ─── cost view ───

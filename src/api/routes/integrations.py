@@ -24,6 +24,11 @@ class GithubConnectRequest(BaseModel):
     pat: str
 
 
+class DingtalkConnectRequest(BaseModel):
+    app_key: str
+    app_secret: str
+
+
 class IntegrationResponse(BaseModel):
     id: str
     provider: str
@@ -148,6 +153,45 @@ async def github_sync_now(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"GitHub sync failed: {e}")
     return SyncResponse(synced=n)
+
+
+@router.post("/dingtalk/connect", response_model=IntegrationResponse)
+async def connect_dingtalk(
+    req: DingtalkConnectRequest,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    """Store encrypted DingTalk AppKey + AppSecret. Verifies credentials on connect."""
+    from src.capture.dingtalk import get_access_token
+
+    try:
+        await get_access_token(req.app_key, req.app_secret)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DingTalk credential invalid: {e}")
+
+    cred = encrypt_credential({"app_key": req.app_key, "app_secret": req.app_secret})
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.dingtalk)
+    if integ:
+        integ.credential = cred
+        integ.enabled = True
+        integ.status = IntegrationStatus.active
+        integ.consecutive_failures = 0
+        integ.last_error = None
+    else:
+        integ = Integration(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            provider=IntegrationProvider.dingtalk,
+            credential=cred,
+            scope="attendance,message",
+            enabled=True,
+            consecutive_failures=0,
+        )
+    session.add(integ)
+    await session.flush()
+    await session.refresh(integ)
+    return _to_response(integ)
 
 
 def _to_response(i: Integration) -> IntegrationResponse:
