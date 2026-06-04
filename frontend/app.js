@@ -841,8 +841,10 @@ async function loadNotifications() {
   body.innerHTML = '';
   items.forEach((n) => {
     const el = document.createElement('div'); el.className = 'notif' + (n.read_at ? ' read' : '');
-    const hasBody = n.body && n.body.trim();
-    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div>${hasBody ? `<div class="nbody" style="display:none">${escapeHtml(n.body)}</div>` : ''}<div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))}${n.read_at ? ' · '+_t('read') : ''}${n.kind === 'teammate_message' ? ' · teammate' : ''}</div>`;
+    const bodyText = (n.body && n.body.trim()) || '';
+    const refInfo = n.source_ref ? Object.entries(n.source_ref).map(([k,v]) => `${k}: ${v}`).join(' · ') : '';
+    const detail = bodyText || refInfo;
+    el.innerHTML = `<div class="ntext">${escapeHtml(n.title)}</div>${detail ? `<div class="nbody" style="display:none">${escapeHtml(detail)}</div>` : ''}<div class="nmeta">${escapeHtml(fmtBriefTime(n.created_at))} · ${n.kind}${n.read_at ? ' · '+_t('read') : ''}</div>`;
     el.style.cursor = 'pointer';
     el.onclick = async () => {
       const bd = el.querySelector('.nbody');
