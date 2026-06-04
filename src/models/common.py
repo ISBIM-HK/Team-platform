@@ -71,6 +71,7 @@ class SuggestionStatus(str, Enum):
 
 
 class EventSource(str, Enum):
+    github = "github"
     gitlab = "gitlab"
     lark = "lark"
     dingtalk = "dingtalk"
@@ -92,6 +93,7 @@ class EventType(str, Enum):
 
 
 class IntegrationProvider(str, Enum):
+    github = "github"
     gitlab = "gitlab"
     lark = "lark"
     dingtalk = "dingtalk"

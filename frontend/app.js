@@ -976,29 +976,30 @@ $('#tokenCreateBtn').onclick = async () => {
 
 // ─── integrations ───
 $('#navIntegrations').onclick = () => { showView('integrationsView'); loadIntegrations(); };
+function _renderIntegCard(items, provider, statusEl, metaEl, syncBtn) {
+  const integ = items.find((i) => i.provider === provider);
+  if (integ) {
+    statusEl.textContent = _t('integ_connected');
+    statusEl.className = 'integ-status ' + integ.status;
+    syncBtn.style.display = '';
+    const parts = [];
+    if (integ.last_synced_at) parts.push(`${_t('integ_last_sync')}: ${new Date(integ.last_synced_at).toLocaleString()}`);
+    if (integ.last_error) parts.push(`Error: ${integ.last_error}`);
+    if (integ.consecutive_failures) parts.push(`Failures: ${integ.consecutive_failures}`);
+    metaEl.textContent = parts.join(' · ') || integ.status;
+  } else {
+    statusEl.textContent = _t('integ_no_integ');
+    statusEl.className = 'integ-status disabled';
+    syncBtn.style.display = 'none';
+    metaEl.textContent = '';
+  }
+}
 async function loadIntegrations() {
-  const status = $('#integGitlabStatus');
-  const meta = $('#integGitlabMeta');
-  const syncBtn = $('#integGitlabSync');
   try {
     const items = await api('/integrations');
-    const gl = items.find((i) => i.provider === 'gitlab');
-    if (gl) {
-      status.textContent = _t('integ_connected');
-      status.className = 'integ-status ' + gl.status;
-      syncBtn.style.display = '';
-      const parts = [];
-      if (gl.last_synced_at) parts.push(`${_t('integ_last_sync')}: ${new Date(gl.last_synced_at).toLocaleString()}`);
-      if (gl.last_error) parts.push(`Error: ${gl.last_error}`);
-      if (gl.consecutive_failures) parts.push(`Failures: ${gl.consecutive_failures}`);
-      meta.textContent = parts.join(' · ') || gl.status;
-    } else {
-      status.textContent = _t('integ_no_integ');
-      status.className = 'integ-status disabled';
-      syncBtn.style.display = 'none';
-      meta.textContent = '';
-    }
-  } catch (e) { meta.textContent = e.message; }
+    _renderIntegCard(items, 'gitlab', $('#integGitlabStatus'), $('#integGitlabMeta'), $('#integGitlabSync'));
+    _renderIntegCard(items, 'github', $('#integGithubStatus'), $('#integGithubMeta'), $('#integGithubSync'));
+  } catch (e) { toast(e.message); }
 }
 $('#integGitlabConnect').onclick = async () => {
   const url = $('#integGitlabUrl').value.trim();
@@ -1017,6 +1018,29 @@ $('#integGitlabSync').onclick = async () => {
   const btn = $('#integGitlabSync'); btn.disabled = true; btn.textContent = _t('integ_syncing');
   try {
     const r = await api('/integrations/gitlab/sync-now', { method: 'POST' });
+    toast(_t('integ_synced')(r.synced));
+    loadIntegrations();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = _t('integ_sync');
+};
+
+// GitHub integration
+$('#integGithubConnect').onclick = async () => {
+  const pat = $('#integGithubPat').value.trim();
+  if (!pat) { toast('PAT required'); return; }
+  const btn = $('#integGithubConnect'); btn.disabled = true; btn.textContent = _t('loading');
+  try {
+    await api('/integrations/github/connect', { method: 'POST', body: { pat } });
+    toast(_t('integ_connected'));
+    $('#integGithubPat').value = '';
+    loadIntegrations();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = _t('integ_connect');
+};
+$('#integGithubSync').onclick = async () => {
+  const btn = $('#integGithubSync'); btn.disabled = true; btn.textContent = _t('integ_syncing');
+  try {
+    const r = await api('/integrations/github/sync-now', { method: 'POST' });
     toast(_t('integ_synced')(r.synced));
     loadIntegrations();
   } catch (e) { toast(e.message); }

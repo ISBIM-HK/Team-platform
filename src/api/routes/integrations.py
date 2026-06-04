@@ -1,4 +1,4 @@
-"""Integration routes — connect GitLab (PAT), list, sync-now."""
+"""Integration routes — connect GitLab/GitHub (PAT), list, sync-now."""
 
 from datetime import datetime
 
@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.api.deps import CurrentUser, DBSession, require_scope
-from src.capture.sync import sync_gitlab
+from src.capture.sync import sync_github, sync_gitlab
 from src.core.crypto import encrypt_credential
 from src.models.common import IntegrationProvider, IntegrationStatus
 from src.models.integration import Integration
@@ -18,6 +18,10 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 class GitlabConnectRequest(BaseModel):
     pat: str
     base_url: str
+
+
+class GithubConnectRequest(BaseModel):
+    pat: str
 
 
 class IntegrationResponse(BaseModel):
@@ -95,6 +99,54 @@ async def sync_now(
         n = await sync_gitlab(session, integ)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"GitLab sync failed: {e}")
+    return SyncResponse(synced=n)
+
+
+@router.post("/github/connect", response_model=IntegrationResponse)
+async def connect_github(
+    req: GithubConnectRequest,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    """Store (encrypted) the user's GitHub PAT. Idempotent."""
+    cred = encrypt_credential({"pat": req.pat})
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.github)
+    if integ:
+        integ.credential = cred
+        integ.enabled = True
+        integ.status = IntegrationStatus.active
+        integ.consecutive_failures = 0
+        integ.last_error = None
+    else:
+        integ = Integration(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            provider=IntegrationProvider.github,
+            credential=cred,
+            scope="repo,read:user",
+            enabled=True,
+            consecutive_failures=0,
+        )
+    session.add(integ)
+    await session.flush()
+    await session.refresh(integ)
+    return _to_response(integ)
+
+
+@router.post("/github/sync-now", response_model=SyncResponse)
+async def github_sync_now(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.github)
+    if not integ or not integ.enabled:
+        raise HTTPException(status_code=404, detail="No enabled GitHub integration")
+    try:
+        n = await sync_github(session, integ)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"GitHub sync failed: {e}")
     return SyncResponse(synced=n)
 
 
