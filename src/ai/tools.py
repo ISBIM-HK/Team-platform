@@ -490,7 +490,6 @@ async def create_page(ctx: RunContext[AssistantDeps], title: str, content_md: st
     title: 文档标题。content_md: Markdown 正文。parent_page_id: 可选，父文档 ID（用于创建子文档）。"""
     from src.models.common import utcnow
     from src.models.page import Page
-    from src.repositories.page_repo import PageRepository
     from src.repositories.project_member_repo import ProjectMemberRepository
 
     pid = ctx.deps.current_project_id
@@ -512,8 +511,7 @@ async def create_page(ctx: RunContext[AssistantDeps], title: str, content_md: st
         created_at=utcnow(),
         updated_at=utcnow(),
     )
-    repo = PageRepository(ctx.deps.session)
-    page = await repo.create(page)
+    ctx.deps.session.add(page)
     return f"已创建文档「{title}」。"
 
 
@@ -521,6 +519,7 @@ async def update_page(ctx: RunContext[AssistantDeps], page_title: str, content_m
     """更新当前项目文档库中已有文档的内容。通过标题匹配文档。
     用户说"把技术规范里的评分标准改一下"、"更新会议纪要"时调用。
     page_title: 要更新的文档标题（模糊匹配）。content_md: 新的完整 Markdown 正文。"""
+    from src.models.common import utcnow
     from src.repositories.page_repo import PageRepository
     from src.repositories.project_member_repo import ProjectMemberRepository
 
@@ -548,10 +547,9 @@ async def update_page(ctx: RunContext[AssistantDeps], page_title: str, content_m
         titles = "、".join(p.title for p in pages[:10])
         return f"找不到文档「{page_title}」。当前文档：{titles or '（空）'}"
 
-    try:
-        target.content_md = content_md
-        target.updated_by = ctx.deps.user_id
-        await repo.update(target, target.version)
-    except ValueError:
-        return "文档版本冲突，请稍后重试。"
+    target.content_md = content_md
+    target.updated_by = ctx.deps.user_id
+    target.version += 1
+    target.updated_at = utcnow()
+    ctx.deps.session.add(target)
     return f"已更新文档「{target.title}」（v{target.version}）。"
