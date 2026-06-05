@@ -29,6 +29,52 @@ from src.models.common import ChatRole, LLMTrigger
 from src.repositories.chat_repo import ChatRepository
 from src.repositories.user_repo import UserRepository
 
+
+async def _auto_process_doc(db, user, project_id, content: str) -> str:
+    """Auto-save uploaded doc to wiki + fill project workspace. Returns summary."""
+    from src.models.common import utcnow
+    from src.models.page import Page
+    from src.repositories.project_workspace_repo import ProjectWorkspaceRepository
+
+    lines = content.split("\n", 2)
+    filename = lines[0].replace("📄", "").strip()
+    body = lines[2].strip() if len(lines) > 2 else ""
+    if not body:
+        return ""
+
+    done = []
+
+    # 1. Save to wiki
+    page = Page(
+        tenant_id=user.tenant_id,
+        project_id=project_id,
+        title=filename or "上传文档",
+        content_md=body[:30000],
+        created_by=user.id,
+        updated_by=user.id,
+        created_at=utcnow(),
+        updated_at=utcnow(),
+    )
+    db.add(page)
+    done.append(f"文档已存入项目Wiki「{page.title}」")
+
+    # 2. Auto-fill project workspace background (first 2000 chars as initial background)
+    pws_repo = ProjectWorkspaceRepository(db)
+    ws = await pws_repo.ensure(user.tenant_id, project_id)
+    if not ws.background_md or not ws.background_md.strip():
+        preview = body[:2000]
+        if len(body) > 2000:
+            preview += "\n\n...(已截断)"
+        await pws_repo.patch(
+            ws,
+            background_md=preview,
+            updated_by=user.id,
+            expected_version=ws.version,
+        )
+        done.append("项目背景已自动填写")
+
+    return "；".join(done)
+
 router = APIRouter(tags=["ws"])
 
 
@@ -153,6 +199,11 @@ async def _handle_user_message(
             current_project_id=current_pid,
         )
 
+        # Auto-process uploaded documents: save to wiki + fill workspace
+        doc_note = ""
+        if content.startswith("📄") and current_pid:
+            doc_note = await _auto_process_doc(db, user, current_pid, content)
+
         # Load user's model preference
         from src.repositories.assistant_repo import AssistantWorkspaceRepository
 
@@ -163,8 +214,11 @@ async def _handle_user_message(
         rec = RecordCtx(
             session=db, tenant_id=user.tenant_id, user_id=user.id, trigger=LLMTrigger.chat, triggered_by_id=session_id
         )
+        ai_content = content
+        if doc_note:
+            ai_content = content + f"\n\n[系统已自动完成：{doc_note}。请基于文档内容分析需求并拆解成子任务。]"
         try:
-            response_text = await chat_turn(content, history, deps, record=rec, user_model=user_model)
+            response_text = await chat_turn(ai_content, history, deps, record=rec, user_model=user_model)
         except Exception as e:
             await websocket.send_json({"type": "error", "message": f"AI error: {e}"})
             return
