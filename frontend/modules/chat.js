@@ -16,8 +16,16 @@ function showTyping() {
   typingEl = document.createElement('div'); typingEl.className = 'msg assistant typing-msg';
   typingEl.innerHTML = `<div class="logo-anim">
     <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
-      <path class="logo-part-a" d="M8 34L56 10L40 26L31 38Z" fill="#1a1a1a"/>
-      <path class="logo-part-b" d="M8 34L31 38L42 54Z" fill="#1a1a1a"/>
+      <defs>
+        <clipPath id="clipA"><rect x="0" y="0" width="64" height="30"/></clipPath>
+        <clipPath id="clipB"><rect x="0" y="30" width="64" height="34"/></clipPath>
+      </defs>
+      <g class="logo-part-a" clip-path="url(#clipA)">
+        <path fill="#1a1a1a" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
+      </g>
+      <g class="logo-part-b" clip-path="url(#clipB)">
+        <path fill="#1a1a1a" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
+      </g>
       <rect class="logo-dot" x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/>
     </svg>
   </div>`;
