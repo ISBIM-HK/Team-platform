@@ -98,13 +98,59 @@ export function initFileUpload(onText) {
       toast('不支持的文件格式'); return;
     }
     toast(`解析 ${file.name}…`);
+    let text;
     try {
-      const text = await parseFile(file);
+      text = await parseFile(file);
       if (!text.trim()) { toast('文档内容为空'); return; }
-      onText(`📄 ${file.name}\n\n${text}`);
     } catch (e) {
-      toast(`解析失败：${e.message}`);
+      toast(`解析失败：${e.message}`); return;
     }
+    showDocPreview(file.name, text, onText);
+  }
+
+  function showDocPreview(filename, text, onSend) {
+    const preview = text.length > 500 ? text.slice(0, 500) + '…' : text;
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay show';
+    overlay.style.zIndex = '90';
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.maxWidth = '500px';
+    modal.innerHTML = `
+      <div class="mhead">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gold)">文档上传</div>
+        <h3 style="font-size:16px;margin-top:2px">📄 ${escapeHtml(filename)}</h3>
+        <div style="font-size:11px;color:var(--text-3)">${text.length} 字</div>
+      </div>
+      <div class="mbody">
+        <div style="font-size:12px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;max-height:150px;overflow-y:auto;line-height:1.5;white-space:pre-line;margin-bottom:10px">${escapeHtml(preview)}</div>
+        <div class="field">
+          <label>附加说明（可选）</label>
+          <input id="__doc_note" type="text" placeholder="如：请拆解第三章的需求…" style="width:100%">
+        </div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-ghost" id="__doc_cancel">取消</button>
+        <button class="btn btn-primary" id="__doc_send">发送给助手</button>
+      </div>`;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    const noteInput = modal.querySelector('#__doc_note');
+    noteInput.focus();
+    const cleanup = () => overlay.remove();
+    modal.querySelector('#__doc_cancel').onclick = cleanup;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+    modal.querySelector('#__doc_send').onclick = () => {
+      const note = noteInput.value.trim();
+      let msg = `📄 ${filename}\n\n${text}`;
+      if (note) msg += `\n\n用户说明：${note}`;
+      onSend(msg);
+      cleanup();
+    };
+    modal.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') modal.querySelector('#__doc_send').click();
+      if (e.key === 'Escape') cleanup();
+    });
   }
 
   input.onchange = async () => {
