@@ -69,7 +69,7 @@ async function parseFile(file) {
   const name = file.name.toLowerCase();
   let text;
   if (name.endsWith('.pdf')) text = await parsePDF(file);
-  else if (name.endsWith('.docx')) text = await parseDOCX(file);
+  else if (name.endsWith('.docx') || name.endsWith('.doc')) text = await parseDOCX(file);
   else if (name.endsWith('.xlsx') || name.endsWith('.xls')) text = await parseXLSX(file);
   else text = await parseText(file);
 
@@ -91,11 +91,12 @@ export function initFileUpload(onText) {
     }
     input.click();
   };
-  input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
-    input.value = '';
-
+  async function handleFile(file) {
+    if (!state.currentProjectId) { showProjectHint(); return; }
+    const allowed = ['.pdf', '.doc', '.docx', '.xlsx', '.xls', '.txt', '.md', '.csv'];
+    if (!allowed.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+      toast('不支持的文件格式'); return;
+    }
     toast(`解析 ${file.name}…`);
     try {
       const text = await parseFile(file);
@@ -104,5 +105,24 @@ export function initFileUpload(onText) {
     } catch (e) {
       toast(`解析失败：${e.message}`);
     }
+  }
+
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    await handleFile(file);
   };
+
+  // Drag-and-drop on assistant panel
+  const asst = $('#assistant');
+  if (asst) {
+    asst.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; asst.classList.add('file-drag-over'); });
+    asst.addEventListener('dragleave', (e) => { if (!asst.contains(e.relatedTarget)) asst.classList.remove('file-drag-over'); });
+    asst.addEventListener('drop', async (e) => {
+      e.preventDefault(); asst.classList.remove('file-drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) await handleFile(file);
+    });
+  }
 }
