@@ -2,6 +2,7 @@
 
 import { $, toast } from './core.js';
 import { _t } from './i18n.js';
+import { state } from './state.js';
 
 const MAX_CHARS = 15000;
 
@@ -62,7 +63,13 @@ export function initFileUpload(onText) {
   const input = $('#chatFileInput');
   if (!btn || !input) return;
 
-  btn.onclick = () => input.click();
+  btn.onclick = () => {
+    if (!state.currentProjectId) {
+      toast('请先在左侧选择一个项目');
+      return;
+    }
+    input.click();
+  };
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
