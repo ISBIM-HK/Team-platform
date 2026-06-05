@@ -78,7 +78,7 @@ async def log_manual_work(ctx: RunContext[AssistantDeps], content: str) -> str:
         occurred_at=utcnow(),
     )
     ctx.deps.session.add(event)
-    await ctx.deps.session.flush()
+    # flush deferred to outer commit (avoid "session already flushing")
     return f"已记录：{content}"
 
 
@@ -111,7 +111,7 @@ async def create_task_suggestion(
         status=SuggestionStatus.pending,
     )
     ctx.deps.session.add(suggestion)
-    await ctx.deps.session.flush()
+    # flush deferred to outer commit (avoid "session already flushing")
     return f"已创建任务建议「{title}」，请在建议列表中确认。"
 
 
@@ -166,7 +166,7 @@ async def decompose_into_project(ctx: RunContext[AssistantDeps], goal: str, proj
         status=SuggestionStatus.pending,
     )
     ctx.deps.session.add(suggestion)
-    await ctx.deps.session.flush()
+    # flush deferred to outer commit (avoid "session already flushing")
     return f"已把「{goal}」拆成 {len(plan.subtasks)} 个子任务的建议，去「AI 建议」确认后会落地到当前项目。"
 
 
@@ -194,7 +194,7 @@ async def update_task_impl_hint(ctx: RunContext[AssistantDeps], task_id: str, hi
     task.impl_hint = hint
     task.impl_hint_updated_at = utcnow()
     ctx.deps.session.add(task)
-    await ctx.deps.session.flush()
+    # flush deferred to outer commit (avoid "session already flushing")
     return f"已更新「{task.title}」的实现思路。"
 
 
@@ -479,7 +479,7 @@ async def notify_teammate(ctx: RunContext[AssistantDeps], recipient_name: str, m
             },
         )
     )
-    await ctx.deps.session.flush()
+    # flush deferred to outer commit (avoid "session already flushing")
     notify(target.id, {"type": "notification", "kind": "teammate_message", "title": n.title})
     return f"已发送给 {target.display_name}：{message}"
 
