@@ -21,4 +21,5 @@ class AssistantWorkspace(TimestampMixin, table=True):
     persona_md: str = Field(default="")  # SOUL — user-editable persona/system prompt
     memory_md: str = Field(default="")  # MEMORY — assistant-accumulated, tool-written
     profile_md: str = Field(default="")  # USER — what the assistant knows about the user
+    llm_model: str | None = Field(default=None, max_length=100)  # user-chosen model override
     updated_at: datetime = Field(default_factory=utcnow)

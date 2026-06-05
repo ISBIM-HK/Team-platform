@@ -15,6 +15,7 @@ from src.api.routes import (
     auth,
     chat,
     contributions,
+    cycles,
     decompose,
     health,
     integrations,
@@ -26,6 +27,7 @@ from src.api.routes import (
     tasks,
     tokens,
     users,
+    views,
     ws_chat,
 )
 from src.core.config import get_settings
@@ -94,10 +96,12 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(pm.router, prefix="/api/v1")
 app.include_router(integrations.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
+app.include_router(cycles.router, prefix="/api/v1")
 app.include_router(tokens.router, prefix="/api/v1")
 app.include_router(contributions.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(assistant.router, prefix="/api/v1")
+app.include_router(views.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ws_chat.router)
 

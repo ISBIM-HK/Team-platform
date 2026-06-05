@@ -178,6 +178,34 @@ async def update_task(
     return TaskResponse.model_validate(task)
 
 
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(
+    task_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("tasks:write")),
+):
+    repo = TaskRepository(session)
+    task = await repo.get_by_id(task_id)
+    if not task or task.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not _privileged(current_user):
+        member_repo = ProjectMemberRepository(session)
+        if not await member_repo.is_member(task.project_id, current_user.id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        role = await member_repo.role_of(task.project_id, current_user.id)
+        if role != "lead" and not current_user.is_pm:
+            raise HTTPException(status_code=403, detail="Only lead/PM/admin can delete tasks")
+    children = await repo.list_by_tenant(current_user.tenant_id, project_ids=[task.project_id], limit=500)
+    child_ids = [t.id for t in children if t.parent_task_id == task_id]
+    for cid in child_ids:
+        child = await repo.get_by_id(cid)
+        if child:
+            await session.delete(child)
+    await session.delete(task)
+    await session.commit()
+
+
 @router.post("/{task_id}/claim", response_model=TaskResponse)
 async def claim_task(
     task_id: uuid.UUID,

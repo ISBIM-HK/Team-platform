@@ -22,5 +22,6 @@ class Project(TimestampMixin, table=True):
     name: str = Field(max_length=255)
     description: str = Field(default="")
     status: str = Field(default="active", max_length=20)  # 'active' | 'archived' | 'deleted'
+    position: int = Field(default=0)
     created_by: uuid.UUID | None = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=utcnow)

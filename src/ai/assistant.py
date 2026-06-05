@@ -123,6 +123,7 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
     from gaining write capabilities through the assistant's tool chain).
     """
     from src.ai.tools import (
+        create_page,
         create_task_suggestion,
         decompose_into_project,
         fetch_url,
@@ -139,6 +140,7 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
         remember,
         rewrite_memory,
         save_skill,
+        update_page,
         update_project_workspace,
         update_task_impl_hint,
         update_task_status,
@@ -146,7 +148,7 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
     )
 
     agent = Agent(
-        resolve_model(get_settings().llm_model_strong),
+        resolve_model(get_settings().llm_model_cheap),
         system_prompt=ASSISTANT_SYSTEM_PROMPT,
         deps_type=AssistantDeps,
         output_type=str,
@@ -220,6 +222,8 @@ def get_assistant_agent(*, restricted: bool = False) -> Agent[AssistantDeps, str
         agent.tool(fetch_url)
         agent.tool(notify_teammate)
         agent.tool(update_project_workspace)
+        agent.tool(create_page)
+        agent.tool(update_page)
 
     return agent
 
@@ -231,28 +235,32 @@ async def chat_turn(
     record=None,
     *,
     restricted: bool = False,
+    user_model: str | None = None,
 ) -> str:
     """Run one chat turn: user message → assistant response.
 
     restricted=True uses a read-only tool set (for REST/PAT surface).
+    user_model: optional model override from user's assistant settings.
     """
     import time
 
     agent = get_assistant_agent(restricted=restricted)
-
-    # Build message history + new user message
     messages = history + [{"role": "user", "content": user_message}]
+
+    model_name = user_model or get_settings().llm_model_cheap
+    run_model = resolve_model(model_name)
 
     t0 = time.monotonic()
     result = await agent.run(
         user_prompt=user_message,
         message_history=_convert_history(messages[:-1]),
         deps=deps,
+        model=run_model,
     )
     if record is not None:
         from src.ai.usage import record_run
 
-        await record_run(record, result, get_settings().llm_model_strong, int((time.monotonic() - t0) * 1000))
+        await record_run(record, result, model_name, int((time.monotonic() - t0) * 1000))
     return result.output
 
 

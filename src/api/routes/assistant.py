@@ -21,6 +21,7 @@ class WorkspaceResponse(BaseModel):
     persona_md: str
     memory_md: str
     profile_md: str
+    llm_model: str | None = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}
@@ -30,6 +31,7 @@ class WorkspacePatch(BaseModel):
     persona_md: str | None = None
     memory_md: str | None = None
     profile_md: str | None = None
+    llm_model: str | None = None
 
 
 @router.get("", response_model=WorkspaceResponse)
@@ -52,7 +54,9 @@ async def patch_workspace(
     """Partial update — only provided fields change (附录 J.4)."""
     repo = AssistantWorkspaceRepository(session)
     ws = await repo.ensure(current_user.tenant_id, current_user.id)
-    ws = await repo.patch(ws, persona_md=req.persona_md, memory_md=req.memory_md, profile_md=req.profile_md)
+    ws = await repo.patch(
+        ws, persona_md=req.persona_md, memory_md=req.memory_md, profile_md=req.profile_md, llm_model=req.llm_model,
+    )
     return WorkspaceResponse.model_validate(ws)
 
 

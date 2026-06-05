@@ -153,12 +153,18 @@ async def _handle_user_message(
             current_project_id=current_pid,
         )
 
+        # Load user's model preference
+        from src.repositories.assistant_repo import AssistantWorkspaceRepository
+
+        aws = await AssistantWorkspaceRepository(db).ensure(user.tenant_id, user.id)
+        user_model = aws.llm_model if aws.llm_model else None
+
         # Call AI (record cost to llm_calls)
         rec = RecordCtx(
             session=db, tenant_id=user.tenant_id, user_id=user.id, trigger=LLMTrigger.chat, triggered_by_id=session_id
         )
         try:
-            response_text = await chat_turn(content, history, deps, record=rec)
+            response_text = await chat_turn(content, history, deps, record=rec, user_model=user_model)
         except Exception as e:
             await websocket.send_json({"type": "error", "message": f"AI error: {e}"})
             return
@@ -171,9 +177,9 @@ async def _handle_user_message(
             content=response_text,
         )
 
-        # Auto-title: first user message becomes session title
+        # Auto-title: use first user message as session title
         cs = await chat_repo.get_session(session_id)
-        if cs and (not cs.title or cs.title == "工作助手"):
+        if cs and not cs.title:
             summary = content.strip().replace("\n", " ")
             if len(summary) > 30:
                 summary = summary[:30] + "…"

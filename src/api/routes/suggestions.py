@@ -11,6 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from src.api.deps import CurrentUser, DBSession, require_scope
 from src.models.common import NotificationKind, SuggestionStatus, SuggestionType, TaskPriority
@@ -53,11 +54,16 @@ async def list_suggestions(
     )
 
 
+class AcceptOverride(BaseModel):
+    subtasks: list[dict] | None = None
+
+
 @router.post("/{suggestion_id}/accept", response_model=AcceptResponse)
 async def accept_suggestion(
     suggestion_id: uuid.UUID,
     current_user: CurrentUser,
     session: DBSession,
+    override: AcceptOverride | None = None,
     _scope: None = Depends(require_scope("suggestions:write")),
 ):
     repo = SuggestionRepository(session)
@@ -122,7 +128,6 @@ async def accept_suggestion(
     elif suggestion.suggestion_type == SuggestionType.decompose:
         ref = suggestion.target_ref or {}
         project_id = await _resolve_project(ref)
-        # Create parent task
         parent = Task(
             tenant_id=current_user.tenant_id,
             project_id=project_id,
@@ -135,8 +140,7 @@ async def accept_suggestion(
         await task_repo.create(parent)
         created_task_ids.append(parent.id)
 
-        # Create subtasks
-        subtasks = ref.get("subtasks", [])
+        subtasks = (override.subtasks if override and override.subtasks is not None else ref.get("subtasks", []))
         for st in subtasks:
             child = Task(
                 tenant_id=current_user.tenant_id,

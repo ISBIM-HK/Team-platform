@@ -14,8 +14,10 @@ from src.core.config import get_settings
 from src.models.audit_log import AuditLog
 from src.models.common import LLMTrigger, ReportKind, TaskStatus, utcnow
 from src.models.event_cache import EventCache
+from src.models.page import Page
 from src.models.project import INBOX_NAME, Project
 from src.models.report import Report
+from src.repositories.page_repo import PageRepository
 from src.repositories.project_member_repo import ProjectMemberRepository
 from src.repositories.project_repo import ProjectRepository
 from src.repositories.project_workspace_repo import ProjectWorkspaceRepository
@@ -39,6 +41,10 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None  # active | archived; deleted uses DELETE
+
+
+class ProjectReorder(BaseModel):
+    project_ids: list[str]
 
 
 class ProjectResponse(BaseModel):
@@ -116,6 +122,26 @@ async def list_projects(
             continue
         out.append(_summary(p, counts))
     return out
+
+
+@router.post("/reorder", status_code=204)
+async def reorder_projects(
+    req: ProjectReorder,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    prepo = ProjectRepository(session)
+    for i, pid_str in enumerate(req.project_ids):
+        try:
+            pid = uuid.UUID(pid_str)
+        except ValueError:
+            continue
+        proj = await prepo.get_by_id(pid)
+        if proj and proj.tenant_id == current_user.tenant_id:
+            proj.position = i
+            session.add(proj)
+    await session.commit()
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
@@ -567,3 +593,220 @@ async def patch_workspace(
         updated_by=str(ws.updated_by) if ws.updated_by else None,
         updated_at=ws.updated_at,
     )
+
+
+# ─── pages / wiki (project-scoped) ───
+
+
+class PageCreate(BaseModel):
+    title: str
+    content_md: str = ""
+    parent_page_id: uuid.UUID | None = None
+
+
+class PageUpdate(BaseModel):
+    title: str | None = None
+    content_md: str | None = None
+    parent_page_id: uuid.UUID | None = None
+    position: int | None = None
+    version: int  # required — optimistic lock
+
+
+class PageResponse(BaseModel):
+    id: str
+    tenant_id: str
+    project_id: str
+    parent_page_id: str | None
+    title: str
+    content_md: str
+    status: str
+    position: int
+    version: int
+    created_by: str
+    updated_by: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+def _page_response(page: Page) -> PageResponse:
+    return PageResponse(
+        id=str(page.id),
+        tenant_id=str(page.tenant_id),
+        project_id=str(page.project_id),
+        parent_page_id=str(page.parent_page_id) if page.parent_page_id else None,
+        title=page.title,
+        content_md=page.content_md,
+        status=page.status,
+        position=page.position,
+        version=page.version,
+        created_by=str(page.created_by),
+        updated_by=str(page.updated_by),
+        created_at=page.created_at,
+        updated_at=page.updated_at,
+    )
+
+
+async def _validate_parent_page(
+    parent_page_id: uuid.UUID,
+    project_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    session,
+    *,
+    current_page_id: uuid.UUID | None = None,
+) -> None:
+    """Ensure parent_page_id belongs to the same project/tenant and does not create a cycle."""
+    parent = await PageRepository(session).get_by_id(parent_page_id)
+    if not parent or parent.project_id != project_id or parent.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="parent_page_id not found in this project")
+    if parent.status == "deleted":
+        raise HTTPException(status_code=422, detail="Cannot set a deleted page as parent")
+    # Circular reference check: walk up the parent chain from the proposed parent
+    if current_page_id is not None:
+        visited: set[uuid.UUID] = {current_page_id}
+        node = parent
+        while node.parent_page_id is not None:
+            if node.parent_page_id in visited:
+                raise HTTPException(status_code=422, detail="Circular parent reference detected")
+            visited.add(node.parent_page_id)
+            node = await PageRepository(session).get_by_id(node.parent_page_id)
+            if node is None:
+                break
+
+
+@router.get("/{project_id}/pages", response_model=list[PageResponse])
+async def list_pages(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_any_scope("projects:read", "projects:write")),
+):
+    """List all non-deleted pages for the project (flat list; frontend builds tree from parent_page_id)."""
+    await _get_accessible(project_id, current_user, session)
+    pages = await PageRepository(session).list_by_project(current_user.tenant_id, project_id)
+    return [_page_response(p) for p in pages]
+
+
+@router.post("/{project_id}/pages", response_model=PageResponse, status_code=201)
+async def create_page(
+    project_id: uuid.UUID,
+    req: PageCreate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    """Create a wiki page in the project (any member)."""
+    proj = await _get_accessible(project_id, current_user, session)
+    if req.parent_page_id is not None:
+        await _validate_parent_page(req.parent_page_id, proj.id, current_user.tenant_id, session)
+    page = await PageRepository(session).create(
+        Page(
+            tenant_id=current_user.tenant_id,
+            project_id=proj.id,
+            parent_page_id=req.parent_page_id,
+            title=req.title,
+            content_md=req.content_md,
+            created_by=current_user.id,
+            updated_by=current_user.id,
+        )
+    )
+    return _page_response(page)
+
+
+@router.get("/{project_id}/pages/{page_id}", response_model=PageResponse)
+async def get_page(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_any_scope("projects:read", "projects:write")),
+):
+    """Get a single page by ID."""
+    await _get_accessible(project_id, current_user, session)
+    page = await PageRepository(session).get_by_id(page_id)
+    if not page or page.project_id != project_id or page.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Page not found")
+    return _page_response(page)
+
+
+@router.patch("/{project_id}/pages/{page_id}", response_model=PageResponse)
+async def update_page(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    req: PageUpdate,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    """Update a page (any member). version field required for optimistic locking; returns 409 on conflict."""
+    await _get_accessible(project_id, current_user, session)
+    repo = PageRepository(session)
+    page = await repo.get_by_id(page_id)
+    if not page or page.project_id != project_id or page.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Page not found")
+    if page.status == "deleted":
+        raise HTTPException(status_code=404, detail="Page not found")
+
+    # Validate parent_page_id if being changed
+    if req.parent_page_id is not None:
+        if req.parent_page_id == page_id:
+            raise HTTPException(status_code=422, detail="A page cannot be its own parent")
+        await _validate_parent_page(
+            req.parent_page_id, project_id, current_user.tenant_id, session, current_page_id=page_id
+        )
+        page.parent_page_id = req.parent_page_id
+
+    if req.title is not None:
+        page.title = req.title
+    if req.content_md is not None:
+        page.content_md = req.content_md
+    if req.position is not None:
+        page.position = req.position
+    page.updated_by = current_user.id
+
+    try:
+        page = await repo.update(page, expected_version=req.version)
+    except ValueError:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version conflict: expected {req.version}, current {page.version}",
+        )
+    return _page_response(page)
+
+
+@router.delete("/{project_id}/pages/{page_id}", status_code=204)
+async def delete_page(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    """Soft-delete a page (lead/PM/admin only)."""
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    repo = PageRepository(session)
+    page = await repo.get_by_id(page_id)
+    if not page or page.project_id != project_id or page.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Page not found")
+    await repo.soft_delete(page_id)
+
+
+@router.post("/{project_id}/pages/{page_id}/restore", response_model=PageResponse)
+async def restore_page(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    """Restore a soft-deleted page (lead/PM/admin only)."""
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    repo = PageRepository(session)
+    page = await repo.get_by_id(page_id)
+    if not page or page.project_id != project_id or page.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Page not found")
+    if page.status != "deleted":
+        raise HTTPException(status_code=422, detail="Page is not deleted")
+    page = await repo.restore(page_id)
+    return _page_response(page)

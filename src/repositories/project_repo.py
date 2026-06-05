@@ -24,7 +24,11 @@ class ProjectRepository:
         """Tenant-wide project list (privileged callers). The per-user Inbox is personal:
         when viewer_id is given, others' Inboxes are excluded so a pm/admin doesn't see
         a row of identical "未分类"; real projects are unaffected."""
-        stmt = select(Project).where(Project.tenant_id == tenant_id).order_by(Project.created_at.asc())
+        stmt = (
+            select(Project)
+            .where(Project.tenant_id == tenant_id)
+            .order_by(Project.position.asc(), Project.created_at.asc())
+        )
         statuses = ("active", "archived") if include_archived else ("active",)
         stmt = stmt.where(Project.status.in_(statuses))
         if viewer_id is not None:
@@ -41,7 +45,7 @@ class ProjectRepository:
             select(Project)
             .join(ProjectMember, ProjectMember.project_id == Project.id)
             .where(Project.tenant_id == tenant_id, ProjectMember.user_id == user_id)
-            .order_by(Project.created_at.asc())
+            .order_by(Project.position.asc(), Project.created_at.asc())
         )
         statuses = ("active", "archived") if include_archived else ("active",)
         stmt = stmt.where(Project.status.in_(statuses))

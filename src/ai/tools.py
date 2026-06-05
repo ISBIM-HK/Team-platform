@@ -482,3 +482,76 @@ async def notify_teammate(ctx: RunContext[AssistantDeps], recipient_name: str, m
     await ctx.deps.session.flush()
     notify(target.id, {"type": "notification", "kind": "teammate_message", "title": n.title})
     return f"已发送给 {target.display_name}：{message}"
+
+
+async def create_page(ctx: RunContext[AssistantDeps], title: str, content_md: str, parent_page_id: str = "") -> str:
+    """在当前项目的文档库中创建一个新文档。
+    用户说"帮我写一个会议纪要"、"把技术规范整理一下写进文档"时调用。
+    title: 文档标题。content_md: Markdown 正文。parent_page_id: 可选，父文档 ID（用于创建子文档）。"""
+    from src.models.common import utcnow
+    from src.models.page import Page
+    from src.repositories.page_repo import PageRepository
+    from src.repositories.project_member_repo import ProjectMemberRepository
+
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目。"
+
+    members = await ProjectMemberRepository(ctx.deps.session).list_by_project(pid)
+    if ctx.deps.user_id not in [m.user_id for m in members]:
+        return "你不是当前项目的成员。"
+
+    page = Page(
+        tenant_id=ctx.deps.tenant_id,
+        project_id=pid,
+        parent_page_id=uuid.UUID(parent_page_id) if parent_page_id else None,
+        title=title,
+        content_md=content_md,
+        created_by=ctx.deps.user_id,
+        updated_by=ctx.deps.user_id,
+        created_at=utcnow(),
+        updated_at=utcnow(),
+    )
+    repo = PageRepository(ctx.deps.session)
+    page = await repo.create(page)
+    return f"已创建文档「{title}」。"
+
+
+async def update_page(ctx: RunContext[AssistantDeps], page_title: str, content_md: str) -> str:
+    """更新当前项目文档库中已有文档的内容。通过标题匹配文档。
+    用户说"把技术规范里的评分标准改一下"、"更新会议纪要"时调用。
+    page_title: 要更新的文档标题（模糊匹配）。content_md: 新的完整 Markdown 正文。"""
+    from src.repositories.page_repo import PageRepository
+    from src.repositories.project_member_repo import ProjectMemberRepository
+
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目。"
+
+    members = await ProjectMemberRepository(ctx.deps.session).list_by_project(pid)
+    if ctx.deps.user_id not in [m.user_id for m in members]:
+        return "你不是当前项目的成员。"
+
+    repo = PageRepository(ctx.deps.session)
+    pages = await repo.list_by_project(ctx.deps.tenant_id, pid)
+    target = None
+    for p in pages:
+        if p.title == page_title:
+            target = p
+            break
+    if not target:
+        for p in pages:
+            if page_title.lower() in p.title.lower():
+                target = p
+                break
+    if not target:
+        titles = "、".join(p.title for p in pages[:10])
+        return f"找不到文档「{page_title}」。当前文档：{titles or '（空）'}"
+
+    try:
+        target.content_md = content_md
+        target.updated_by = ctx.deps.user_id
+        await repo.update(target, target.version)
+    except ValueError:
+        return "文档版本冲突，请稍后重试。"
+    return f"已更新文档「{target.title}」（v{target.version}）。"
