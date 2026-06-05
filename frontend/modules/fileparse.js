@@ -14,7 +14,7 @@ function showProjectHint() {
   modal.style.textAlign = 'center';
   modal.innerHTML = `
     <div class="mbody" style="padding:28px 24px">
-      <div style="font-size:36px;margin-bottom:12px;opacity:0.3">◇</div>
+      <div style="margin-bottom:12px;opacity:0.25"><svg width="40" height="40" viewBox="0 0 64 64" fill="none"><path fill="#1a1a1a" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/><rect x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/></svg></div>
       <div style="font-size:15px;font-weight:600;margin-bottom:6px">请先选择一个项目</div>
       <div style="font-size:13px;color:var(--text-2);line-height:1.6">在左侧项目列表中点击一个项目，<br>或点「+ 新建项目」创建一个新项目。<br>之后即可上传文档让 AI 助手处理。</div>
       <button class="btn btn-primary" style="margin-top:16px" id="__hint_ok">知道了</button>
