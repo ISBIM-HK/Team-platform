@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import utcnow
 from src.models.page import Page
 
@@ -34,7 +35,7 @@ class PageRepository:
 
     async def create(self, page: Page) -> Page:
         self.session.add(page)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(page)
         return page
 
@@ -47,7 +48,7 @@ class PageRepository:
         page.version += 1
         page.updated_at = utcnow()
         self.session.add(page)
-        await self.session.flush()
+        await safe_flush(self.session)
         return page
 
     async def soft_delete(self, page_id: uuid.UUID) -> None:
@@ -57,7 +58,7 @@ class PageRepository:
             page.status = "deleted"
             page.updated_at = utcnow()
             self.session.add(page)
-            await self.session.flush()
+            await safe_flush(self.session)
 
     async def restore(self, page_id: uuid.UUID) -> Page | None:
         """Set status='active' and update timestamp."""
@@ -66,5 +67,5 @@ class PageRepository:
             page.status = "active"
             page.updated_at = utcnow()
             self.session.add(page)
-            await self.session.flush()
+            await safe_flush(self.session)
         return page

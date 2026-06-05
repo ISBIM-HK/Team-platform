@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import TaskStatus, utcnow
 from src.models.cycle import Cycle, CycleTask
 from src.models.task import Task
@@ -28,14 +29,14 @@ class CycleRepository:
 
     async def create(self, cycle: Cycle) -> Cycle:
         self.session.add(cycle)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(cycle)
         return cycle
 
     async def update(self, cycle: Cycle) -> Cycle:
         cycle.updated_at = utcnow()
         self.session.add(cycle)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(cycle)
         return cycle
 
@@ -50,7 +51,7 @@ class CycleRepository:
 
     async def add_task(self, cycle_task: CycleTask) -> CycleTask:
         self.session.add(cycle_task)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(cycle_task)
         return cycle_task
 
@@ -64,7 +65,7 @@ class CycleRepository:
         if ct:
             ct.removed_at = utcnow()
             self.session.add(ct)
-            await self.session.flush()
+            await safe_flush(self.session)
 
     async def get_cycle_tasks(self, cycle_id: uuid.UUID) -> list[Task]:
         stmt = (

@@ -7,6 +7,7 @@ from sqlalchemy import String, and_, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from src.core.database import safe_flush
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import SuggestionStatus
 from src.models.project import Project
@@ -97,7 +98,7 @@ class SuggestionRepository:
 
     async def create(self, suggestion: AISuggestion) -> AISuggestion:
         self.session.add(suggestion)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(suggestion)
         return suggestion
 
@@ -106,7 +107,7 @@ class SuggestionRepository:
         suggestion.handled_by = user_id
         suggestion.handled_at = datetime.now(UTC).replace(tzinfo=None)
         self.session.add(suggestion)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(suggestion)
         return suggestion
 
@@ -116,6 +117,6 @@ class SuggestionRepository:
         suggestion.handled_at = datetime.now(UTC).replace(tzinfo=None)
         suggestion.reject_reason = reason
         self.session.add(suggestion)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(suggestion)
         return suggestion

@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.assistant_skill import AssistantSkill
 from src.models.common import utcnow
 
@@ -60,7 +61,7 @@ class AssistantSkillRepository:
 
     async def create(self, skill: AssistantSkill) -> AssistantSkill:
         self.session.add(skill)
-        await self.session.flush()
+        await safe_flush(self.session)
         return skill
 
     async def update(self, skill: AssistantSkill, **fields) -> AssistantSkill:
@@ -69,9 +70,9 @@ class AssistantSkillRepository:
                 setattr(skill, key, value)
         skill.updated_at = utcnow()
         self.session.add(skill)
-        await self.session.flush()
+        await safe_flush(self.session)
         return skill
 
     async def delete(self, skill: AssistantSkill) -> None:
         await self.session.delete(skill)
-        await self.session.flush()
+        await safe_flush(self.session)

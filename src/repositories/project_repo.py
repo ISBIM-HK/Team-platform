@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import TaskStatus
 from src.models.project import INBOX_NAME, Project
 from src.models.project_member import ProjectMember
@@ -80,20 +81,20 @@ class ProjectRepository:
             created_by=user_id,
         )
         self.session.add(inbox)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(inbox)
         await ProjectMemberRepository(self.session).add(tenant_id, inbox.id, user_id, role="lead")
         return inbox
 
     async def create(self, project: Project) -> Project:
         self.session.add(project)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(project)
         return project
 
     async def update(self, project: Project) -> Project:
         self.session.add(project)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(project)
         return project
 

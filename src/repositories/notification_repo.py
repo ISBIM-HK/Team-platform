@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import utcnow
 from src.models.notification import Notification
 
@@ -15,7 +16,7 @@ class NotificationRepository:
 
     async def create(self, notification: Notification) -> Notification:
         self.session.add(notification)
-        await self.session.flush()
+        await safe_flush(self.session)
         return notification
 
     async def list_for_user(
@@ -41,4 +42,4 @@ class NotificationRepository:
     async def mark_read(self, notification: Notification) -> None:
         notification.read_at = utcnow()
         self.session.add(notification)
-        await self.session.flush()
+        await safe_flush(self.session)

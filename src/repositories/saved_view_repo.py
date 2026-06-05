@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import utcnow
 from src.models.saved_view import SavedView
 
@@ -49,18 +50,18 @@ class SavedViewRepository:
 
     async def create(self, view: SavedView) -> SavedView:
         self.session.add(view)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(view)
         return view
 
     async def update(self, view: SavedView) -> SavedView:
         view.updated_at = utcnow()
         self.session.add(view)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(view)
         return view
 
     async def delete(self, view_id: uuid.UUID) -> None:
         stmt = delete(SavedView).where(SavedView.id == view_id)
         await self.session.execute(stmt)
-        await self.session.flush()
+        await safe_flush(self.session)

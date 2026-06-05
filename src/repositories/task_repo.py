@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import TaskStatus, utcnow
 from src.models.task import Task, TaskHistory
 
@@ -85,7 +86,7 @@ class TaskRepository:
 
     async def create(self, task: Task) -> Task:
         self.session.add(task)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(task)
         return task
 
@@ -102,7 +103,7 @@ class TaskRepository:
         )
         self.session.add(history)
         self.session.add(task)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(task)
         return task
 
@@ -117,6 +118,6 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         row = result.first()
         if row:
-            await self.session.flush()
+            await safe_flush(self.session)
             return row[0]
         return None

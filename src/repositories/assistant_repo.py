@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.assistant_workspace import AssistantWorkspace
 from src.models.common import utcnow
 
@@ -26,7 +27,7 @@ class AssistantWorkspaceRepository:
             return ws
         ws = AssistantWorkspace(tenant_id=tenant_id, user_id=user_id)
         self.session.add(ws)
-        await self.session.flush()
+        await safe_flush(self.session)
         return ws
 
     async def patch(
@@ -49,7 +50,7 @@ class AssistantWorkspaceRepository:
             ws.llm_model = llm_model if llm_model else None
         ws.updated_at = utcnow()
         self.session.add(ws)
-        await self.session.flush()
+        await safe_flush(self.session)
         return ws
 
     async def _append(
@@ -61,7 +62,7 @@ class AssistantWorkspaceRepository:
         setattr(ws, field, (cur + "\n" + line).strip() if cur else line)
         ws.updated_at = utcnow()
         self.session.add(ws)
-        await self.session.flush()
+        await safe_flush(self.session)
         return ws
 
     async def append_memory(self, ws: AssistantWorkspace, note: str) -> AssistantWorkspace:

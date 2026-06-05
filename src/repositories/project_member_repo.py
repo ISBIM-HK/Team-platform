@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.project_member import ProjectMember
 
 
@@ -50,11 +51,11 @@ class ProjectMemberRepository:
             if existing.role != role:
                 existing.role = role
                 self.session.add(existing)
-                await self.session.flush()
+                await safe_flush(self.session)
             return existing
         m = ProjectMember(tenant_id=tenant_id, project_id=project_id, user_id=user_id, role=role)
         self.session.add(m)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(m)
         return m
 
@@ -62,4 +63,4 @@ class ProjectMemberRepository:
         m = await self.get(project_id, user_id)
         if m:
             await self.session.delete(m)
-            await self.session.flush()
+            await safe_flush(self.session)

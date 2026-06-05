@@ -27,6 +27,14 @@ async_session_factory = sessionmaker(
 )
 
 
+async def safe_flush(session: AsyncSession) -> None:
+    """Flush session, silently skip if already flushing (tool-in-agent context)."""
+    sync = session.sync_session
+    if getattr(sync, '_flushing', False):
+        return
+    await session.flush()
+
+
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:
         try:

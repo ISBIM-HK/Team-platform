@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.user import User
 
 
@@ -32,12 +33,12 @@ class UserRepository:
 
     async def create(self, user: User) -> User:
         self.session.add(user)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(user)
         return user
 
     async def update(self, user: User) -> User:
         self.session.add(user)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(user)
         return user

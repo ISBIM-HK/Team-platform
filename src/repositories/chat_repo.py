@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.chat import ChatMessage, ChatSession
 from src.models.common import ChatRole, utcnow
 
@@ -24,7 +25,7 @@ class ChatRepository:
     ) -> ChatSession:
         cs = ChatSession(tenant_id=tenant_id, user_id=user_id, title=title, project_id=project_id)
         self.session.add(cs)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(cs)
         return cs
 
@@ -71,7 +72,7 @@ class ChatRepository:
         if cs:
             cs.last_active_at = utcnow()
             self.session.add(cs)
-        await self.session.flush()
+        await safe_flush(self.session)
         await self.session.refresh(msg)
         return msg
 

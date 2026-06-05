@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import safe_flush
 from src.models.common import utcnow
 from src.models.project_workspace import ProjectWorkspace
 
@@ -24,7 +25,7 @@ class ProjectWorkspaceRepository:
             return ws
         ws = ProjectWorkspace(tenant_id=tenant_id, project_id=project_id)
         self.session.add(ws)
-        await self.session.flush()
+        await safe_flush(self.session)
         return ws
 
     async def patch(
@@ -52,5 +53,5 @@ class ProjectWorkspaceRepository:
         ws.updated_by = updated_by
         ws.updated_at = utcnow()
         self.session.add(ws)
-        await self.session.flush()
+        await safe_flush(self.session)
         return ws
