@@ -124,9 +124,18 @@ function renderTaskDetail(t) {
     ? `<div class="td-field"><div class="lbl">${_t('subtasks')} (${children.length})</div>${children.map((c) => `<div class="td-sub"><span class="st-status">${getStatusName(c.status)}</span>${escapeHtml(c.title)}${c.estimated_hours ? ` · ${c.estimated_hours}h` : ''}</div>`).join('')}</div>` : '';
 
   if (editingTask) {
+    const memberOpts = Object.entries(state.userMap).map(([id, name]) =>
+      `<option value="${id}" ${t.owner_user_id === id ? 'selected' : ''}>${escapeHtml(name)}</option>`
+    ).join('');
     $('#tdTitle').innerHTML = `<input id="tdEditTitle" value="${escapeHtml(t.title)}" style="width:100%;font-size:16px;font-weight:600;border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;outline:none">`;
     $('#tdBody').innerHTML = `
       <div class="td-field"><div class="lbl">${_t('description')}</div><textarea id="tdEditDesc" rows="3" style="width:100%;font-size:13px;border:1px solid var(--border);border-radius:var(--radius);padding:6px 8px;outline:none;resize:vertical;font-family:inherit">${escapeHtml(t.description || '')}</textarea></div>
+      <div class="td-field"><div class="lbl">${_t('owner')}</div>
+        <select id="tdEditOwner" style="padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:100%">
+          <option value="">${_t('unclaimed')}</option>
+          ${memberOpts}
+        </select>
+      </div>
       <div class="td-field"><div class="lbl">${_t('priority_time')}</div>
         <div style="display:flex;gap:8px">
           <select id="tdEditPrio" style="padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
@@ -168,11 +177,13 @@ function renderTaskDetail(t) {
     const saveBtn = document.createElement('button'); saveBtn.className = 'btn btn-primary'; saveBtn.textContent = _t('ws_save');
     saveBtn.onclick = async () => {
       try {
+        const ownerVal = document.getElementById('tdEditOwner').value;
         await api(`/tasks/${t.id}`, { method: 'PATCH', body: {
           title: document.getElementById('tdEditTitle').value.trim() || t.title,
           description: document.getElementById('tdEditDesc').value,
           priority: parseInt(document.getElementById('tdEditPrio').value, 10),
           estimated_hours: parseFloat(document.getElementById('tdEditHours').value) || null,
+          owner_user_id: ownerVal || null,
         }});
         $('#taskOverlay').classList.remove('show');
         if (state.currentProjectId) loadBoard();
