@@ -1,4 +1,4 @@
-"""Notifications inbox (附录 I.3): claim/assign create self-notifications; owner-only."""
+"""Notifications inbox (附录 I.3): claim notifies leads; assign notifies target; owner-only."""
 
 import uuid
 
@@ -7,6 +7,7 @@ from sqlalchemy import select
 from src.models.ai_suggestion import AISuggestion
 from src.models.common import NotificationKind, SuggestionStatus, SuggestionType
 from src.models.notification import Notification
+from src.models.project_member import ProjectMember
 from src.models.task import Task
 from src.models.user import User
 
@@ -32,18 +33,33 @@ async def _unclaimed_task(session, user, project_id) -> Task:
     return t
 
 
-async def test_claim_creates_self_notification(auth_client, session):
+async def test_claim_notifies_other_leads(auth_client, session):
+    """Claiming a task notifies project leads (excluding the claimer)."""
     user = await _alice(session)
     pid = await _project(auth_client)
-    t = await _unclaimed_task(session, user, pid)
 
+    # Add a second lead who should receive the notification
+    bob = User(tenant_id=user.tenant_id, email="bob-lead@example.com", display_name="Bob Lead")
+    session.add(bob)
+    await session.flush()
+    session.add(ProjectMember(tenant_id=user.tenant_id, project_id=uuid.UUID(pid), user_id=bob.id, role="lead"))
+    await session.flush()
+
+    t = await _unclaimed_task(session, user, pid)
     r = await auth_client.post(f"/api/v1/tasks/{t.id}/claim")
     assert r.status_code == 200, r.text
 
+    # Bob (the other lead) should have the notification, not Alice (the claimer)
+    bobs_notifs = (await session.execute(
+        select(Notification).where(
+            Notification.recipient_user_id == bob.id, Notification.kind == NotificationKind.task_claimed,
+        )
+    )).scalars().all()
+    assert len(bobs_notifs) >= 1
+
+    # Alice (claimer) should NOT have a task_claimed notification for herself
     inbox = (await auth_client.get("/api/v1/me/notifications")).json()
-    assert any(n["kind"] == "task_claimed" for n in inbox["items"])
-    count = (await auth_client.get("/api/v1/me/notifications/unread-count")).json()
-    assert count["unread"] >= 1
+    assert not any(n["kind"] == "task_claimed" for n in inbox["items"])
 
 
 async def test_assign_accept_notifies_target(auth_client, session):
@@ -71,7 +87,6 @@ async def test_assign_accept_notifies_target(auth_client, session):
 
 async def test_notifications_are_owner_only(auth_client, session):
     user = await _alice(session)
-    # a notification addressed to a different real user must not show in alice's inbox
     other = User(tenant_id=user.tenant_id, email="bob@example.com", display_name="Bob")
     session.add(other)
     await session.flush()
@@ -87,12 +102,19 @@ async def test_notifications_are_owner_only(auth_client, session):
 
 
 async def test_mark_read_drops_unread_count(auth_client, session):
+    """Create a direct notification for Alice, then mark it read."""
     user = await _alice(session)
-    pid = await _project(auth_client)
-    t = await _unclaimed_task(session, user, pid)
-    await auth_client.post(f"/api/v1/tasks/{t.id}/claim")
+    session.add(Notification(
+        tenant_id=user.tenant_id,
+        recipient_user_id=user.id,
+        kind=NotificationKind.system,
+        title="测试通知",
+    ))
+    await session.flush()
+    await session.commit()
 
     inbox = (await auth_client.get("/api/v1/me/notifications")).json()
+    assert len(inbox["items"]) >= 1
     nid = inbox["items"][0]["id"]
     assert (await auth_client.post(f"/api/v1/me/notifications/{nid}/read")).status_code == 200
 

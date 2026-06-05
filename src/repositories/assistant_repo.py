@@ -36,6 +36,7 @@ class AssistantWorkspaceRepository:
         persona_md: str | None = None,
         memory_md: str | None = None,
         profile_md: str | None = None,
+        llm_model: str | None = None,
     ) -> AssistantWorkspace:
         """Partial update — only provided fields change (附录 J.4)."""
         if persona_md is not None:
@@ -44,6 +45,8 @@ class AssistantWorkspaceRepository:
             ws.memory_md = memory_md
         if profile_md is not None:
             ws.profile_md = profile_md
+        if llm_model is not None:
+            ws.llm_model = llm_model if llm_model else None
         ws.updated_at = utcnow()
         self.session.add(ws)
         await self.session.flush()
