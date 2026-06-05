@@ -21,10 +21,10 @@ function showTyping() {
         <clipPath id="clipB"><polygon points="0,38 31,38 40,26 64,26 64,64 0,64"/></clipPath>
       </defs>
       <g class="logo-part-a" clip-path="url(#clipA)">
-        <path fill="#1a1a1a" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
+        <path fill="#c8a951" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
       </g>
       <g class="logo-part-b" clip-path="url(#clipB)">
-        <path fill="#1a1a1a" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
+        <path fill="#c8a951" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
       </g>
       <rect class="logo-dot" x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/>
     </svg>
