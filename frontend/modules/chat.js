@@ -83,14 +83,20 @@ const SLASH_COMMANDS = {
   '/help': () => { addMsg('system', '可用指令：/new 新对话 · /clear 清屏 · /help 帮助'); return true; },
 };
 
+function sendText(text) {
+  if (!text || !state.chatSocket || state.chatSocket.readyState !== 1) return;
+  addMsg('user', text); showTyping();
+  state.chatSocket.send(JSON.stringify({ type: 'user_message', content: text, project_id: state.currentProjectId }));
+}
+
 function sendChat() {
   const inp = $('#chatInput'); const text = inp.value.trim(); if (!text) return;
   const cmd = SLASH_COMMANDS[text.toLowerCase().split(/\s/)[0]];
   if (cmd) { inp.value = ''; cmd(); return; }
-  if (!state.chatSocket || state.chatSocket.readyState !== 1) return;
-  addMsg('user', text); inp.value = ''; showTyping();
-  state.chatSocket.send(JSON.stringify({ type: 'user_message', content: text, project_id: state.currentProjectId }));
+  inp.value = ''; sendText(text);
 }
+
+export { sendText };
 
 export async function initChat() {
   try {

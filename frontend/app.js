@@ -11,8 +11,9 @@ import { loadBoard, openTaskDetail } from './modules/board.js';
 import { loadShare } from './modules/share.js';
 import { loadProjectWorkspace, initWorkspace } from './modules/workspace.js';
 import { loadSuggestions, renderSuggestionsView, renderPlanSuggestions, renderPlanImplHints, initDecompose } from './modules/suggestions.js';
-import { initChat } from './modules/chat.js';
+import { initChat, sendText } from './modules/chat.js';
 import { initAssistantSettings } from './modules/chat.js';
+import { initFileUpload } from './modules/fileparse.js';
 import { updateNotifBadge, connectNotifSSE, cleanupSSE, initNotifications } from './modules/notifications.js';
 import { initIntegrations } from './modules/integrations.js';
 import { initTokens } from './modules/tokens.js';
@@ -68,6 +69,7 @@ initAdmin();
 initMembers();
 initCost();
 initHelp();
+initFileUpload(sendText);
 initLangSwitcher(() => {
   applyLang(refreshStatusNames);
   if (state.currentProjectId) loadBoard();

@@ -372,6 +372,8 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 .msg.assistant { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px 8px 8px 2px; }
 .msg.system { align-self: center; font-size: 11px; color: var(--text-3); font-style: italic; }
 .composer-chat { border-top: 1px solid var(--border); padding: 10px 12px; display: flex; gap: 6px; }
+.file-btn { flex: 0 0 30px; width: 30px; height: 30px; border-radius: var(--radius); display: grid; place-items: center; color: var(--text-3); transition: color .1s, background .1s; }
+.file-btn:hover { color: var(--text); background: var(--surface-2); }
 .composer-chat input { flex: 1; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); outline: none; transition: border-color .12s; }
 .composer-chat input:focus { border-color: var(--accent); }
 .composer-chat .send { width: 34px; height: 34px; border-radius: var(--radius); background: var(--accent); color: #fff; display: grid; place-items: center; flex: 0 0 auto; transition: background .12s; }
