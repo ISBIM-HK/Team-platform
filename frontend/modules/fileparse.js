@@ -1,8 +1,29 @@
 'use strict';
 
-import { $, toast } from './core.js';
+import { $, toast, escapeHtml } from './core.js';
 import { _t } from './i18n.js';
 import { state } from './state.js';
+
+function showProjectHint() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay show';
+  overlay.style.zIndex = '90';
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.maxWidth = '360px';
+  modal.style.textAlign = 'center';
+  modal.innerHTML = `
+    <div class="mbody" style="padding:28px 24px">
+      <div style="font-size:36px;margin-bottom:12px;opacity:0.3">◇</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">请先选择一个项目</div>
+      <div style="font-size:13px;color:var(--text-2);line-height:1.6">在左侧项目列表中点击一个项目，<br>或点「+ 新建项目」创建一个新项目。<br>之后即可上传文档让 AI 助手处理。</div>
+      <button class="btn btn-primary" style="margin-top:16px" id="__hint_ok">知道了</button>
+    </div>`;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  modal.querySelector('#__hint_ok').onclick = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
 
 const MAX_CHARS = 15000;
 
@@ -65,7 +86,7 @@ export function initFileUpload(onText) {
 
   btn.onclick = () => {
     if (!state.currentProjectId) {
-      toast('请先在左侧选择一个项目');
+      showProjectHint();
       return;
     }
     input.click();
