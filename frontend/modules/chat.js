@@ -12,7 +12,11 @@ function addMsg(role, text) {
   return m;
 }
 
-function showTyping() { typingEl = document.createElement('div'); typingEl.className = 'msg assistant'; typingEl.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>'; $('#msgs').appendChild(typingEl); $('#msgs').scrollTop = $('#msgs').scrollHeight; }
+function showTyping() {
+  typingEl = document.createElement('div'); typingEl.className = 'msg assistant typing-msg';
+  typingEl.innerHTML = '<svg class="typing-logo" width="20" height="20" viewBox="0 0 64 64" fill="none"><path fill="#c8a951" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/><rect x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/></svg>';
+  $('#msgs').appendChild(typingEl); $('#msgs').scrollTop = $('#msgs').scrollHeight;
+}
 function removeTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
 
 const WELCOME = () => _t('welcome')(state.me.display_name);

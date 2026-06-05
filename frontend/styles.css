@@ -379,9 +379,9 @@ input, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 .composer-chat input:focus { border-color: var(--accent); }
 .composer-chat .send { width: 34px; height: 34px; border-radius: var(--radius); background: var(--accent); color: #fff; display: grid; place-items: center; flex: 0 0 auto; transition: background .12s; }
 .composer-chat .send:hover { background: var(--accent-hover); }
-.typing { display: inline-flex; gap: 3px; }
-.typing i { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); animation: blink 1.2s infinite; }
-.typing i:nth-child(2){ animation-delay: .2s } .typing i:nth-child(3){ animation-delay: .4s }
+.typing-msg { background: transparent !important; border: none !important; padding: 4px 12px !important; }
+.typing-logo { animation: logoPulse 1.8s ease-in-out infinite; }
+@keyframes logoPulse { 0%, 100% { opacity: 0.3; transform: scale(0.95); } 50% { opacity: 0.8; transform: scale(1.05); } }
 #app.active.asst-collapsed { grid-template-columns: 240px 1fr 0px; }
 #app.active.asst-collapsed .assistant { width: 0; min-width: 0; border-left-width: 0; opacity: 0; pointer-events: none; }
 #app.active.asst-collapsed #asstToggle { display: flex; }

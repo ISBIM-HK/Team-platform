@@ -31,10 +31,9 @@ from src.repositories.user_repo import UserRepository
 
 
 async def _auto_process_doc(db, user, project_id, content: str) -> str:
-    """Auto-save uploaded doc to wiki + fill project workspace. Returns summary."""
+    """Auto-save uploaded doc to wiki. Returns summary."""
     from src.models.common import utcnow
     from src.models.page import Page
-    from src.repositories.project_workspace_repo import ProjectWorkspaceRepository
 
     lines = content.split("\n", 2)
     filename = lines[0].replace("📄", "").strip()
@@ -42,9 +41,6 @@ async def _auto_process_doc(db, user, project_id, content: str) -> str:
     if not body:
         return ""
 
-    done = []
-
-    # 1. Save to wiki
     page = Page(
         tenant_id=user.tenant_id,
         project_id=project_id,
@@ -56,24 +52,7 @@ async def _auto_process_doc(db, user, project_id, content: str) -> str:
         updated_at=utcnow(),
     )
     db.add(page)
-    done.append(f"文档已存入项目Wiki「{page.title}」")
-
-    # 2. Auto-fill project workspace background (first 2000 chars as initial background)
-    pws_repo = ProjectWorkspaceRepository(db)
-    ws = await pws_repo.ensure(user.tenant_id, project_id)
-    if not ws.background_md or not ws.background_md.strip():
-        preview = body[:2000]
-        if len(body) > 2000:
-            preview += "\n\n...(已截断)"
-        await pws_repo.patch(
-            ws,
-            background_md=preview,
-            updated_by=user.id,
-            expected_version=ws.version,
-        )
-        done.append("项目背景已自动填写")
-
-    return "；".join(done)
+    return f"原文已存入项目Wiki「{page.title}」"
 
 router = APIRouter(tags=["ws"])
 
@@ -216,7 +195,12 @@ async def _handle_user_message(
         )
         ai_content = content
         if doc_note:
-            ai_content = content + f"\n\n[系统已自动完成：{doc_note}。请基于文档内容分析需求并拆解成子任务。]"
+            ai_content = (
+                f"[指令：用户上传了文档。{doc_note}。请你：\n"
+                "1. 用 update_project_workspace 将文档中的项目背景、目标写入 background 字段（精炼摘要，不要原文）\n"
+                "2. 用 decompose_into_project 将文档中的需求拆解成子任务\n"
+                "3. 简要告诉用户你完成了什么]\n\n" + content
+            )
         try:
             response_text = await chat_turn(ai_content, history, deps, record=rec, user_model=user_model)
         except Exception as e:
