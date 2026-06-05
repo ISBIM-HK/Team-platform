@@ -160,13 +160,18 @@ export function initFileUpload(onText) {
     await handleFile(file);
   };
 
+  // Prevent browser from opening dropped files
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => e.preventDefault());
+
   // Drag-and-drop on assistant panel
-  const asst = $('#assistant');
+  const asst = document.getElementById('assistant');
   if (asst) {
-    asst.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; asst.classList.add('file-drag-over'); });
-    asst.addEventListener('dragleave', (e) => { if (!asst.contains(e.relatedTarget)) asst.classList.remove('file-drag-over'); });
+    asst.addEventListener('dragenter', (e) => { e.preventDefault(); e.stopPropagation(); asst.classList.add('file-drag-over'); });
+    asst.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; });
+    asst.addEventListener('dragleave', (e) => { e.preventDefault(); if (!asst.contains(e.relatedTarget)) asst.classList.remove('file-drag-over'); });
     asst.addEventListener('drop', async (e) => {
-      e.preventDefault(); asst.classList.remove('file-drag-over');
+      e.preventDefault(); e.stopPropagation(); asst.classList.remove('file-drag-over');
       const file = e.dataTransfer.files[0];
       if (file) await handleFile(file);
     });
