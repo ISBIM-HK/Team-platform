@@ -14,7 +14,13 @@ function addMsg(role, text) {
 
 function showTyping() {
   typingEl = document.createElement('div'); typingEl.className = 'msg assistant typing-msg';
-  typingEl.innerHTML = '<svg class="typing-logo" width="20" height="20" viewBox="0 0 64 64" fill="none"><path fill="#c8a951" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/><rect x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/></svg>';
+  typingEl.innerHTML = `<div class="logo-anim">
+    <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+      <path class="logo-part-a" d="M8 34L56 10L31 38Z" fill="#c8a951"/>
+      <path class="logo-part-b" d="M31 38L56 10L42 54L8 34ZM31 38L40 26L42 54Z" fill-rule="evenodd" fill="#c8a951"/>
+      <rect class="logo-dot" x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/>
+    </svg>
+  </div>`;
   $('#msgs').appendChild(typingEl); $('#msgs').scrollTop = $('#msgs').scrollHeight;
 }
 function removeTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
