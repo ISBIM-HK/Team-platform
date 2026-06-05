@@ -93,10 +93,15 @@ async def create_task_suggestion(
     from src.models.ai_suggestion import AISuggestion
     from src.models.common import SuggestionStatus, SuggestionType
 
+    pid = ctx.deps.current_project_id
+    if not pid:
+        return "请先打开一个项目。"
+
     target_ref = {
         "title": title,
         "description": description,
         "priority": priority,
+        "project_id": str(pid),
     }
     if estimated_hours:
         target_ref["estimated_hours"] = estimated_hours
