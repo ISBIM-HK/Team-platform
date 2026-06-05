@@ -17,8 +17,8 @@ function showTyping() {
   typingEl.innerHTML = `<div class="logo-anim">
     <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
       <defs>
-        <clipPath id="clipA"><rect x="0" y="0" width="64" height="30"/></clipPath>
-        <clipPath id="clipB"><rect x="0" y="30" width="64" height="34"/></clipPath>
+        <clipPath id="clipA"><polygon points="0,0 64,0 64,26 40,26 31,38 0,38"/></clipPath>
+        <clipPath id="clipB"><polygon points="0,38 31,38 40,26 64,26 64,64 0,64"/></clipPath>
       </defs>
       <g class="logo-part-a" clip-path="url(#clipA)">
         <path fill="#1a1a1a" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
