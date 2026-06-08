@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -84,7 +84,7 @@ def parse_update(update: dict) -> dict | None:
         "sender_name": _format_name(sender),
         "sender_username": sender.get("username", ""),
         "text": msg["text"],
-        "date": datetime.fromtimestamp(msg.get("date", 0), tz=timezone.utc),
+        "date": datetime.fromtimestamp(msg.get("date", 0), tz=UTC),
         "entities": msg.get("entities", []),
     }
 

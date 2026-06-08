@@ -564,7 +564,7 @@ async def query_my_emails(ctx: RunContext[AssistantDeps], days: int = 7) -> str:
     """查询当前用户最近的企业微信邮件摘要。days 控制查询天数，默认 7 天。"""
     from sqlalchemy import select
 
-    from src.models.common import EventSource
+    from src.models.common import EventSource, utcnow
     from src.models.event_cache import EventCache
 
     since = utcnow() - __import__("datetime").timedelta(days=days)
@@ -635,7 +635,7 @@ async def summarize_group_chat(ctx: RunContext[AssistantDeps], chat_name: str, h
     """
     from sqlalchemy import select
 
-    from src.models.common import EventSource
+    from src.models.common import EventSource, utcnow
     from src.models.event_cache import EventCache
 
     since = utcnow() - __import__("datetime").timedelta(hours=hours)

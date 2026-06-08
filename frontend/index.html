@@ -325,7 +325,27 @@
     <!-- admin: team management (附录 L, admin-only) -->
     <div class="center-view" id="adminView" style="display:none">
       <div class="ws-header"><div class="ws-title"><h1 data-i18n="admin_title">团队管理</h1><span class="ws-meta" data-i18n="set_roles">设置成员角色(admin / pm)</span></div></div>
-      <div id="adminBody"></div>
+      <div class="admin-tabs">
+        <button class="admin-tab active" id="adminTabRoles" data-i18n="admin_roles">角色</button>
+        <button class="admin-tab" id="adminTabGroups" data-i18n="admin_groups">组别</button>
+      </div>
+      <div id="adminRolesPane">
+        <div id="adminBody"></div>
+      </div>
+      <div id="adminGroupsPane" style="display:none">
+        <div class="groups-layout">
+          <div class="groups-tree-panel">
+            <div class="groups-tree-header">
+              <b data-i18n="admin_groups">组别</b>
+              <button class="btn btn-primary btn-sm" id="addRootGroupBtn">+</button>
+            </div>
+            <div id="groupTree"></div>
+          </div>
+          <div class="groups-detail-panel">
+            <div id="groupDetail"><span class="ws-meta" data-i18n="group_select_hint">选择左侧组别查看成员</span></div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="center-view" id="helpView" style="display:none">
       <div class="ws-header"><div class="ws-title"><h1 data-i18n="help">帮助</h1></div></div>

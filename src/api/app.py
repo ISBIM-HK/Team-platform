@@ -17,6 +17,7 @@ from src.api.routes import (
     contributions,
     cycles,
     decompose,
+    groups,
     health,
     integrations,
     notifications,
@@ -105,6 +106,7 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(assistant.router, prefix="/api/v1")
 app.include_router(views.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(groups.router, prefix="/api/v1")
 app.include_router(ws_chat.router)
 
 # Serve the bundled SPA last (same-origin → cookies work, no CORS).

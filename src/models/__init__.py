@@ -10,6 +10,7 @@ from src.models.event_cache import EventCache
 from src.models.integration import Integration
 from src.models.llm_call import LLMCall
 from src.models.notification import Notification
+from src.models.org_group import OrgGroup, OrgGroupMember
 from src.models.page import Page
 from src.models.pat import PersonalAccessToken
 from src.models.project import Project
@@ -40,6 +41,8 @@ __all__ = [
     "LLMCall",
     "ScheduledJob",
     "Notification",
+    "OrgGroup",
+    "OrgGroupMember",
     "PersonalAccessToken",
     "AssistantWorkspace",
     "AssistantSkill",

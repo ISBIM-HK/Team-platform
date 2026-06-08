@@ -472,6 +472,37 @@ async def add_member(
     return payload
 
 
+class GroupInvite(BaseModel):
+    group_ids: list[str]
+    role: str = "member"
+
+
+@router.post("/{project_id}/members/invite-groups", response_model=list[MemberResponse], status_code=201)
+async def invite_groups(
+    project_id: uuid.UUID,
+    req: GroupInvite,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("projects:write")),
+):
+    await _get_accessible(project_id, current_user, session, need_lead=True)
+    _validate_role(req.role)
+    from src.repositories.org_group_repo import OrgGroupRepository
+
+    group_repo = OrgGroupRepository(session)
+    member_repo = ProjectMemberRepository(session)
+    all_user_ids: set[uuid.UUID] = set()
+    for gid_str in req.group_ids:
+        gid = uuid.UUID(gid_str)
+        user_ids = await group_repo.expand_group_user_ids(current_user.tenant_id, gid)
+        all_user_ids.update(user_ids)
+    for uid in all_user_ids:
+        target = await UserRepository(session).get_by_id(uid)
+        if target and target.tenant_id == current_user.tenant_id:
+            await member_repo.add(current_user.tenant_id, project_id, uid, role=req.role)
+    return await _members_payload(project_id, current_user, session)
+
+
 @router.patch("/{project_id}/members/{user_id}", response_model=list[MemberResponse])
 async def update_member_role(
     project_id: uuid.UUID,

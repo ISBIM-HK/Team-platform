@@ -50,6 +50,62 @@ export function loadingHint(label) {
   return `<div class="plan-hint loading-hint">${logoLoader({ size: 22, label })}</div>`;
 }
 
+export function dropdownMultiSelect(placeholder, items, { indent } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dms';
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'dms-trigger';
+  const triggerText = document.createElement('span');
+  triggerText.textContent = placeholder;
+  const arrow = document.createElement('span');
+  arrow.className = 'dms-arrow';
+  arrow.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="#c8a951" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  trigger.appendChild(triggerText);
+  trigger.appendChild(arrow);
+  const panel = document.createElement('div');
+  panel.className = 'dms-panel';
+  panel.innerHTML = items.map(item => {
+    const pad = indent && item.depth ? item.depth * 18 : 0;
+    const sub = item.sub ? ` <span class="ws-meta">(${item.sub})</span>` : '';
+    return `<label class="dms-item" style="padding-left:${pad}px">
+      <input type="checkbox" value="${escapeHtml(item.value)}"> ${escapeHtml(item.label)}${sub}
+    </label>`;
+  }).join('');
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    const isOpen = panel.classList.toggle('open');
+    wrap.classList.toggle('open', isOpen);
+    if (isOpen) {
+      const rect = trigger.getBoundingClientRect();
+      panel.style.left = rect.left + 'px';
+      panel.style.width = rect.width + 'px';
+      const spaceBelow = window.innerHeight - rect.bottom - 10;
+      const spaceAbove = rect.top - 10;
+      if (spaceBelow >= 280 || spaceBelow >= spaceAbove) {
+        panel.style.top = rect.bottom + 4 + 'px';
+        panel.style.bottom = '';
+        panel.style.maxHeight = Math.min(280, spaceBelow) + 'px';
+      } else {
+        panel.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+        panel.style.top = '';
+        panel.style.maxHeight = Math.min(280, spaceAbove) + 'px';
+      }
+    }
+  };
+  const closePanel = () => { panel.classList.remove('open'); wrap.classList.remove('open'); };
+  panel.onclick = (e) => { e.stopPropagation(); };
+  document.addEventListener('click', (e) => { if (!wrap.contains(e.target) && !panel.contains(e.target)) closePanel(); });
+  wrap.appendChild(trigger);
+  document.body.appendChild(panel);
+  wrap.getSelected = () => [...panel.querySelectorAll('input:checked')].map(c => c.value);
+  panel.addEventListener('change', () => {
+    const count = panel.querySelectorAll('input:checked').length;
+    triggerText.textContent = count ? `${placeholder} (${count})` : placeholder;
+  });
+  return wrap;
+}
+
 export function inputModal(title, fields) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
