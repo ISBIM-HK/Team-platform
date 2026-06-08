@@ -3,6 +3,7 @@ docs/specs/*
 !docs/specs/team-platform-design.html
 !docs/specs/assets/
 !docs/specs/assets/*.js
+docs/superpowers/
 CLAUDE.md
 
 # ─── Secrets ───
