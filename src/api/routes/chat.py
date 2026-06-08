@@ -73,6 +73,7 @@ async def delete_session(
 
     cs.archived_at = utcnow()
     session.add(cs)
+    await session.commit()
 
 
 class ChatMessageRequest(BaseModel):

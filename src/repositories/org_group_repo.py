@@ -41,10 +41,41 @@ class OrgGroupRepository:
         return group
 
     async def update(self, group: OrgGroup) -> OrgGroup:
+        if group.parent_group_id:
+            if group.parent_group_id == group.id:
+                raise ValueError("A group cannot be its own parent")
+            parent = await self.get_by_id(group.parent_group_id)
+            if not parent or parent.tenant_id != group.tenant_id:
+                raise ValueError("Parent group not found or wrong tenant")
+            if parent.archived_at:
+                raise ValueError("Cannot set archived group as parent")
+            await self._check_no_cycle(group.id, group.parent_group_id)
+            parent_depth = await self._depth_of(group.parent_group_id)
+            subtree_height = await self._subtree_height(group.id)
+            if parent_depth + 1 + subtree_height > MAX_DEPTH:
+                raise ValueError(f"Move would exceed max depth of {MAX_DEPTH}")
         self.session.add(group)
         await safe_flush(self.session)
         await self.session.refresh(group)
         return group
+
+    async def _check_no_cycle(self, group_id: uuid.UUID, new_parent_id: uuid.UUID) -> None:
+        current = new_parent_id
+        while current:
+            if current == group_id:
+                raise ValueError("Circular parent reference detected")
+            g = await self.get_by_id(current)
+            if not g:
+                break
+            current = g.parent_group_id
+
+    async def _subtree_height(self, group_id: uuid.UUID) -> int:
+        children = (await self.session.execute(
+            select(OrgGroup).where(OrgGroup.parent_group_id == group_id, OrgGroup.archived_at.is_(None))
+        )).scalars().all()
+        if not children:
+            return 0
+        return 1 + max(await self._subtree_height(c.id) for c in children)
 
     async def delete(self, group: OrgGroup) -> None:
         members = await self.get_members(group.id)

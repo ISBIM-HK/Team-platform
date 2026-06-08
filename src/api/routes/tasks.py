@@ -196,9 +196,19 @@ async def delete_task(
         role = await member_repo.role_of(task.project_id, current_user.id)
         if role != "lead" and not current_user.is_pm:
             raise HTTPException(status_code=403, detail="Only lead/PM/admin can delete tasks")
+    from sqlalchemy import delete as sa_delete
+
+    from src.models.cycle import CycleTask
+    from src.models.task import TaskHistory, TaskLink
+
     children = await repo.list_by_tenant(current_user.tenant_id, project_ids=[task.project_id], limit=500)
-    child_ids = [t.id for t in children if t.parent_task_id == task_id]
-    for cid in child_ids:
+    all_ids = [t.id for t in children if t.parent_task_id == task_id]
+    all_ids.append(task_id)
+    for tid in all_ids:
+        await session.execute(sa_delete(CycleTask).where(CycleTask.task_id == tid))
+        await session.execute(sa_delete(TaskHistory).where(TaskHistory.task_id == tid))
+        await session.execute(sa_delete(TaskLink).where((TaskLink.task_id == tid) | (TaskLink.target_task_id == tid)))
+    for cid in all_ids[:-1]:
         child = await repo.get_by_id(cid)
         if child:
             await session.delete(child)

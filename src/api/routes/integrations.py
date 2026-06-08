@@ -59,6 +59,19 @@ async def _get_user_integration(session, user_id, provider) -> Integration | Non
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def _ensure_syncable(session, integ: Integration, provider_name: str) -> None:
+    from src.models.common import utcnow
+
+    if not integ or not integ.enabled:
+        raise HTTPException(status_code=404, detail=f"No enabled {provider_name} integration")
+    if integ.expires_at and integ.expires_at < utcnow():
+        integ.status = IntegrationStatus.expired
+        integ.last_error = "credential expired"
+        session.add(integ)
+        await session.flush()
+        raise HTTPException(status_code=422, detail=f"{provider_name} credential expired — please reconnect")
+
+
 @router.post("/gitlab/connect", response_model=IntegrationResponse)
 async def connect_gitlab(
     req: GitlabConnectRequest,
@@ -109,8 +122,7 @@ async def sync_now(
     _scope: None = Depends(require_scope("integrations:write")),
 ):
     integ = await _get_user_integration(session, current_user.id, IntegrationProvider.gitlab)
-    if not integ or not integ.enabled:
-        raise HTTPException(status_code=404, detail="No enabled GitLab integration")
+    await _ensure_syncable(session, integ, "GitLab")
     try:
         n = await sync_gitlab(session, integ)
     except Exception as e:
@@ -157,8 +169,7 @@ async def github_sync_now(
     _scope: None = Depends(require_scope("integrations:write")),
 ):
     integ = await _get_user_integration(session, current_user.id, IntegrationProvider.github)
-    if not integ or not integ.enabled:
-        raise HTTPException(status_code=404, detail="No enabled GitHub integration")
+    await _ensure_syncable(session, integ, "GitHub")
     try:
         n = await sync_github(session, integ)
     except Exception as e:
@@ -253,8 +264,7 @@ async def wecom_mail_sync_now(
     _scope: None = Depends(require_scope("integrations:write")),
 ):
     integ = await _get_user_integration(session, current_user.id, IntegrationProvider.wecom_mail)
-    if not integ or not integ.enabled:
-        raise HTTPException(status_code=404, detail="No enabled WeCom Mail integration")
+    await _ensure_syncable(session, integ, "WeCom Mail")
     try:
         n = await sync_wecom_mail(session, integ)
     except Exception as e:
