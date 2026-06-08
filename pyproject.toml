@@ -1,7 +1,7 @@
 [project]
-name = "team-platform"
+name = "onyx"
 version = "0.1.0"
-description = "团队内部 AI 原生协作平台"
+description = "Onyx — AI 原生团队协作平台"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -36,8 +36,8 @@ clients = [
 ]
 
 [project.scripts]
-teamplat = "src.clients.cli:main"
-teamplat-mcp = "src.clients.mcp_server:main"
+onyx = "src.clients.cli:main"
+onyx-mcp = "src.clients.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=75"]

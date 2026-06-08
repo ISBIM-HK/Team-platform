@@ -1,9 +1,8 @@
 'use strict';
 
-import { $, api, toast, escapeHtml, fmtBriefTime, App } from './core.js';
+import { $, api, toast, escapeHtml, fmtBriefTime, App, initials, loadingHint } from './core.js';
 import { _t, currentLang } from './i18n.js';
 import { state, getStatuses, getStatusName } from './state.js';
-import { initials } from './core.js';
 
 function briefSections(b) {
   const list = (title, items, cls) => items && items.length
@@ -17,7 +16,7 @@ function briefSections(b) {
 }
 
 export async function loadShare() {
-  const body = $('#shareBody'); body.innerHTML = '<div class="plan-hint">' + _t('loading') + '</div>';
+  const body = $('#shareBody'); body.innerHTML = loadingHint(_t('loading'));
 
   let s, activeCycle = null, recentPages = [];
   try { s = await api(`/projects/${state.currentProjectId}/share`); } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }

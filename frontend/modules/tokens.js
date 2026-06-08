@@ -1,6 +1,6 @@
 'use strict';
 
-import { $, api, toast, escapeHtml, fmtBriefTime, App } from './core.js';
+import { $, api, toast, escapeHtml, fmtBriefTime, App, loadingHint } from './core.js';
 import { _t } from './i18n.js';
 import { getScopeLabel } from './i18n.js';
 import { SCOPE_KEYS, DEFAULT_TOKEN_SCOPES } from './state.js';
@@ -28,7 +28,7 @@ function scopeTags(scopes) {
 export async function loadTokens() {
   App.showView('tokenView');
   renderTokenScopePicker();
-  const body = $('#tokensBody'); body.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
+  const body = $('#tokensBody'); body.innerHTML = loadingHint(_t('loading'));
   let items;
   try { items = await api('/me/tokens'); } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   if (!items.length) { body.innerHTML = `<div class="empty-hint">${_t('no_data')}</div>`; return; }

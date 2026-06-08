@@ -30,7 +30,7 @@ async function loadHelp() {
   if (loaded) return;
   const body = $('#helpBody');
   try {
-    const resp = await fetch('/docs/user-guide.md');
+    const resp = await fetch('/docs/user-guide.md', { cache: 'no-cache' });
     if (!resp.ok) throw new Error('Not found');
     const md = await resp.text();
     body.innerHTML = `<div class="help-md">${renderMd(md)}</div>`;

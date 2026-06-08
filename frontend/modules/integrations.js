@@ -29,6 +29,11 @@ export async function loadIntegrations() {
     _renderIntegCard(items, 'github', $('#integGithubStatus'), $('#integGithubMeta'), $('#integGithubSync'));
     _renderIntegCard(items, 'dingtalk', $('#integDingtalkStatus'), $('#integDingtalkMeta'), null);
     _renderIntegCard(items, 'wecom_mail', $('#integWecomStatus'), $('#integWecomMeta'), $('#integWecomSync'));
+    // Telegram: show/hide connect vs disconnect
+    const tgInteg = items.find((i) => i.provider === 'telegram');
+    _renderIntegCard(items, 'telegram', $('#integTelegramStatus'), $('#integTelegramMeta'), null);
+    $('#integTgConnect').style.display = tgInteg ? 'none' : '';
+    $('#integTgDisconnect').style.display = tgInteg ? '' : 'none';
   } catch (e) { toast(e.message); }
 }
 
@@ -84,5 +89,19 @@ export function initIntegrations() {
     const btn = $('#integWecomSync'); btn.disabled = true; btn.textContent = _t('integ_syncing');
     try { const r = await api('/integrations/wecom-mail/sync-now', { method: 'POST' }); toast(_t('integ_synced')(r.synced)); loadIntegrations(); } catch (e) { toast(e.message); }
     btn.disabled = false; btn.textContent = _t('integ_sync');
+  };
+
+  // Telegram
+  $('#integTgConnect').onclick = async () => {
+    const token = $('#integTgToken').value.trim();
+    if (!token) { toast('Bot Token required'); return; }
+    const btn = $('#integTgConnect'); btn.disabled = true; btn.textContent = _t('loading');
+    try { await api('/integrations/telegram/connect', { method: 'POST', body: { bot_token: token } }); toast(_t('integ_connected')); $('#integTgToken').value = ''; loadIntegrations(); } catch (e) { toast(e.message); }
+    btn.disabled = false; btn.textContent = _t('integ_connect');
+  };
+  $('#integTgDisconnect').onclick = async () => {
+    const btn = $('#integTgDisconnect'); btn.disabled = true;
+    try { await api('/integrations/telegram/disconnect', { method: 'POST' }); toast(_t('integ_disconnected')); loadIntegrations(); } catch (e) { toast(e.message); }
+    btn.disabled = false;
   };
 }

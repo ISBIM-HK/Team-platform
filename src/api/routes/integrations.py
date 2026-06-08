@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from src.api.deps import CurrentUser, DBSession, require_scope
 from src.capture.sync import sync_github, sync_gitlab, sync_wecom_mail
-from src.core.crypto import encrypt_credential
+from src.core.crypto import decrypt_credential, encrypt_credential
 from src.models.common import IntegrationProvider, IntegrationStatus
 from src.models.integration import Integration
 
@@ -34,6 +34,10 @@ class WecomMailConnectRequest(BaseModel):
     password: str
     host: str = "imap.exmail.qq.com"
     port: int = 993
+
+
+class TelegramConnectRequest(BaseModel):
+    bot_token: str
 
 
 class IntegrationResponse(BaseModel):
@@ -256,6 +260,93 @@ async def wecom_mail_sync_now(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"WeCom Mail sync failed: {e}")
     return SyncResponse(synced=n)
+
+
+@router.post("/telegram/connect", response_model=IntegrationResponse)
+async def connect_telegram(
+    req: TelegramConnectRequest,
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    """Connect Telegram bot. Verifies token, registers webhook."""
+    from src.capture.telegram import get_bot_info, set_webhook, webhook_secret_token
+    from src.core.config import get_settings
+
+    try:
+        bot_info = await get_bot_info(req.bot_token)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid bot token: {e}")
+
+    settings = get_settings()
+    base_url = settings.app_base_url
+    if not base_url:
+        raise HTTPException(status_code=400, detail="APP_BASE_URL not configured on server")
+
+    webhook_url = f"{base_url.rstrip('/')}/api/v1/telegram/webhook"
+    secret = webhook_secret_token(req.bot_token)
+
+    try:
+        result = await set_webhook(req.bot_token, webhook_url, secret)
+        if not result.get("ok"):
+            raise ValueError(result.get("description", "setWebhook failed"))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to register webhook: {e}")
+
+    cred = encrypt_credential({
+        "bot_token": req.bot_token,
+        "bot_username": bot_info.get("username", ""),
+        "bot_id": bot_info.get("id"),
+        "monitor_all": False,
+    })
+
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.telegram)
+    if integ:
+        integ.credential = cred
+        integ.enabled = True
+        integ.status = IntegrationStatus.active
+        integ.consecutive_failures = 0
+        integ.last_error = None
+    else:
+        integ = Integration(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            provider=IntegrationProvider.telegram,
+            credential=cred,
+            scope="group_messages",
+            enabled=True,
+            consecutive_failures=0,
+        )
+    session.add(integ)
+    await session.flush()
+    await session.refresh(integ)
+    return _to_response(integ)
+
+
+@router.post("/telegram/disconnect")
+async def disconnect_telegram(
+    current_user: CurrentUser,
+    session: DBSession,
+    _scope: None = Depends(require_scope("integrations:write")),
+):
+    """Disconnect Telegram bot and remove webhook."""
+    from src.capture.telegram import delete_webhook
+
+    integ = await _get_user_integration(session, current_user.id, IntegrationProvider.telegram)
+    if not integ:
+        raise HTTPException(status_code=404, detail="No Telegram integration")
+
+    cred = decrypt_credential(integ.credential)
+    try:
+        await delete_webhook(cred["bot_token"])
+    except Exception:
+        pass
+
+    integ.enabled = False
+    integ.status = IntegrationStatus.disabled
+    session.add(integ)
+    await session.flush()
+    return {"ok": True}
 
 
 def _to_response(i: Integration) -> IntegrationResponse:

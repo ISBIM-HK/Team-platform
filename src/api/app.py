@@ -25,6 +25,7 @@ from src.api.routes import (
     sso,
     suggestions,
     tasks,
+    telegram_webhook,
     tokens,
     users,
     views,
@@ -48,7 +49,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Team Platform API",
+    title="Onyx API",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -95,6 +96,7 @@ app.include_router(decompose.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(pm.router, prefix="/api/v1")
 app.include_router(integrations.router, prefix="/api/v1")
+app.include_router(telegram_webhook.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(cycles.router, prefix="/api/v1")
 app.include_router(tokens.router, prefix="/api/v1")

@@ -2,7 +2,7 @@
 
 import httpx
 
-_HEADERS = {"User-Agent": "TeamPlatform/1.0"}
+_HEADERS = {"User-Agent": "Onyx/1.0"}
 _TIMEOUT = 10
 
 

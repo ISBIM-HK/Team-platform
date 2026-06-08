@@ -1,10 +1,10 @@
-"""teamplat CLI — push work to the platform from any shell.
+"""Onyx CLI — push work to the platform from any shell.
 
-export TEAMPLAT_URL=https://teamplat.internal   # 默认 http://localhost:3137
-export TEAMPLAT_TOKEN=pat_xxx
-teamplat contribute "用 Claude Code 写完了登录回调" --project "Tender AI"
-teamplat projects
-teamplat contributions --kind commit
+export ONYX_URL=https://onyx.yourdomain.com   # 默认 http://localhost:3137
+export ONYX_TOKEN=pat_xxx
+onyx contribute "用 Claude Code 写完了登录回调" --project "Tender AI"
+onyx projects
+onyx contributions --kind commit
 """
 
 from __future__ import annotations

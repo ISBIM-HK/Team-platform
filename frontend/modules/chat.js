@@ -1,6 +1,6 @@
 'use strict';
 
-import { $, api, toast, App } from './core.js';
+import { $, api, toast, App, logoLoader, loadingHint, escapeHtml } from './core.js';
 import { _t } from './i18n.js';
 import { state } from './state.js';
 
@@ -14,21 +14,7 @@ function addMsg(role, text) {
 
 function showTyping() {
   typingEl = document.createElement('div'); typingEl.className = 'msg assistant typing-msg';
-  typingEl.innerHTML = `<div class="logo-anim">
-    <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
-      <defs>
-        <clipPath id="clipA"><polygon points="0,0 64,0 64,26 40,26 31,38 0,38"/></clipPath>
-        <clipPath id="clipB"><polygon points="0,38 31,38 40,26 64,26 64,64 0,64"/></clipPath>
-      </defs>
-      <g class="logo-part-a" clip-path="url(#clipA)">
-        <path fill="#c8a951" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
-      </g>
-      <g class="logo-part-b" clip-path="url(#clipB)">
-        <path fill="#c8a951" fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
-      </g>
-      <rect class="logo-dot" x="47" y="12" width="7" height="7" rx="1.5" fill="#c8a951"/>
-    </svg>
-  </div>`;
+  typingEl.innerHTML = logoLoader({ size: 24, className: 'logo-loader-typing' });
   $('#msgs').appendChild(typingEl); $('#msgs').scrollTop = $('#msgs').scrollHeight;
 }
 function removeTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
@@ -101,6 +87,52 @@ const SLASH_COMMANDS = {
   '/help': () => { addMsg('system', '可用指令：/new 新对话 · /clear 清屏 · /help 帮助'); return true; },
 };
 
+const SLASH_SUGGESTIONS = [
+  { cmd: '/new', desc: '新建对话' },
+  { cmd: '/clear', desc: '清屏（对话历史保留）' },
+  { cmd: '/help', desc: '查看可用指令' },
+  { cmd: '我有哪些任务', desc: '查看个人任务列表' },
+  { cmd: '项目进度怎么样', desc: '查看当前项目进度' },
+  { cmd: '总结一下群聊', desc: '总结 Telegram 群聊消息并提取任务' },
+  { cmd: '看看我最近的邮件', desc: '查询企业微信邮件摘要' },
+  { cmd: '有哪些群聊', desc: '列出已收录的 Telegram 群聊' },
+  { cmd: '帮我拆解这个需求', desc: '将目标拆解为子任务' },
+];
+
+let slashActiveIdx = -1;
+
+function showSlashMenu(filter) {
+  const menu = $('#slashMenu');
+  const q = filter.toLowerCase();
+  const items = SLASH_SUGGESTIONS.filter(s => s.cmd.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q));
+  if (!items.length) { menu.style.display = 'none'; return; }
+  slashActiveIdx = 0;
+  menu.innerHTML = items.map((s, i) =>
+    `<div class="slash-item${i === 0 ? ' active' : ''}" data-idx="${i}" data-cmd="${s.cmd}">` +
+    `<span class="slash-item-cmd">${s.cmd}</span>` +
+    `<span class="slash-item-desc">${s.desc}</span></div>`
+  ).join('');
+  menu.style.display = 'block';
+  menu.querySelectorAll('.slash-item').forEach(el => {
+    el.onmouseenter = () => { slashActiveIdx = +el.dataset.idx; updateSlashActive(menu); };
+    el.onclick = () => { pickSlash(el.dataset.cmd); };
+  });
+}
+
+function updateSlashActive(menu) {
+  menu.querySelectorAll('.slash-item').forEach((el, i) => el.classList.toggle('active', i === slashActiveIdx));
+}
+
+function pickSlash(cmd) {
+  const inp = $('#chatInput');
+  inp.value = cmd.startsWith('/') ? cmd : cmd;
+  $('#slashMenu').style.display = 'none';
+  inp.focus();
+  if (!cmd.startsWith('/')) { sendChat(); }
+}
+
+function hideSlashMenu() { $('#slashMenu').style.display = 'none'; slashActiveIdx = -1; }
+
 function sendText(text) {
   if (!text || !state.chatSocket || state.chatSocket.readyState !== 1) return;
   addMsg('user', text); showTyping();
@@ -149,7 +181,25 @@ export async function initChat() {
   };
   $('#newChatBtn').onclick = startNewChat;
   $('#chatSend').onclick = sendChat;
-  $('#chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  const chatInp = $('#chatInput');
+  chatInp.addEventListener('keydown', (e) => {
+    const menu = $('#slashMenu');
+    if (menu.style.display !== 'none') {
+      const items = menu.querySelectorAll('.slash-item');
+      if (e.key === 'ArrowDown') { e.preventDefault(); slashActiveIdx = Math.min(slashActiveIdx + 1, items.length - 1); updateSlashActive(menu); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); slashActiveIdx = Math.max(slashActiveIdx - 1, 0); updateSlashActive(menu); return; }
+      if (e.key === 'Enter' && slashActiveIdx >= 0 && items[slashActiveIdx]) { e.preventDefault(); pickSlash(items[slashActiveIdx].dataset.cmd); return; }
+      if (e.key === 'Escape') { hideSlashMenu(); return; }
+    }
+    if (e.key === 'Enter') sendChat();
+  });
+  chatInp.addEventListener('input', () => {
+    const v = chatInp.value;
+    if (v === '/') { showSlashMenu(''); }
+    else if (v.startsWith('/')) { showSlashMenu(v); }
+    else { hideSlashMenu(); }
+  });
+  chatInp.addEventListener('blur', () => { setTimeout(hideSlashMenu, 150); });
   initModelQuickSelect();
 }
 
@@ -206,8 +256,8 @@ export function initAssistantSettings() {
 let awEditingSkill = null;
 function resetSkillForm() { awEditingSkill = null; $('#awSkillName').value = ''; $('#awSkillDesc').value = ''; $('#awSkillInstr').value = ''; $('#awSkillSave').textContent = _t('add_skill'); }
 async function renderSkills() {
-  const box = $('#awSkills'); box.innerHTML = '<div class="plan-hint">' + _t('loading') + '</div>';
-  let items; try { items = (await api('/me/assistant/skills')).items || []; } catch (e) { box.innerHTML = `<div class="plan-hint">${e.message}</div>`; return; }
+  const box = $('#awSkills'); box.innerHTML = loadingHint(_t('loading'));
+  let items; try { items = (await api('/me/assistant/skills')).items || []; } catch (e) { box.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   if (!items.length) { box.innerHTML = `<div class="plan-hint">${_t('no_skills')}</div>`; return; }
   box.innerHTML = '';
   items.forEach((s) => {

@@ -1,14 +1,13 @@
 'use strict';
 
-import { $, api, toast, escapeHtml } from './core.js';
+import { $, api, toast, escapeHtml, initials, loadingHint } from './core.js';
 import { _t } from './i18n.js';
 import { state } from './state.js';
-import { initials } from './core.js';
 
 export async function openMembers(pid) {
   $('#membersOverlay').classList.add('show');
   const body = $('#membersBody'); const addRow = $('#membersAddRow');
-  body.innerHTML = '<div class="plan-hint">' + _t('loading') + '</div>'; addRow.innerHTML = '';
+  body.innerHTML = loadingHint(_t('loading')); addRow.innerHTML = '';
   let members;
   try { members = await api(`/projects/${pid}/members`); } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   const myRole = (members.find((m) => m.user_id === state.me.id) || {}).role;

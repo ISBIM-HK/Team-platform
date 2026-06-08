@@ -1,13 +1,12 @@
 'use strict';
 
-import { $, api, toast, escapeHtml, App } from './core.js';
+import { $, api, toast, escapeHtml, App, initials, loadingHint } from './core.js';
 import { _t } from './i18n.js';
 import { state } from './state.js';
-import { initials } from './core.js';
 
 export async function loadAdmin() {
   App.showView('adminView');
-  const body = $('#adminBody'); body.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
+  const body = $('#adminBody'); body.innerHTML = loadingHint(_t('loading'));
   let items;
   try { items = (await api('/admin/users')).items || []; } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   body.innerHTML = '';

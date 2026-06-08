@@ -32,6 +32,24 @@ export function fmtBriefTime(iso) {
   return isNaN(d.getTime()) ? '' : d.toLocaleString();
 }
 
+export function logoLoader({ size = 24, label = '', className = '' } = {}) {
+  const text = label ? `<span class="logo-loader-label">${escapeHtml(label)}</span>` : '';
+  return `<span class="logo-loader ${className}" role="status" aria-label="${escapeHtml(label || 'Loading')}">
+    <svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path class="logo-loader-outline" pathLength="1" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
+      <g class="logo-loader-wing logo-loader-wing-a">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M8 34L56 10L42 54L31 38L8 34ZM31 38L40 26L42 54L31 38Z"/>
+      </g>
+      <rect class="logo-loader-node" x="47" y="12" width="7" height="7" rx="1.5"/>
+    </svg>
+    ${text}
+  </span>`;
+}
+
+export function loadingHint(label) {
+  return `<div class="plan-hint loading-hint">${logoLoader({ size: 22, label })}</div>`;
+}
+
 export function inputModal(title, fields) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');

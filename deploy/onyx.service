@@ -1,0 +1,15 @@
+[Unit]
+Description=Onyx API Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=limbo
+WorkingDirectory=/home/limbo/code/team-platform
+ExecStart=/home/limbo/miniconda/envs/team-platform/bin/uvicorn src.api.app:app --host 0.0.0.0 --port 3137
+Restart=always
+RestartSec=3
+EnvironmentFile=/home/limbo/code/team-platform/.env
+
+[Install]
+WantedBy=multi-user.target

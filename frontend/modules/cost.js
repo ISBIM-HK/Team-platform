@@ -1,12 +1,12 @@
 'use strict';
 
-import { $, api, escapeHtml, App } from './core.js';
+import { $, api, escapeHtml, App, loadingHint } from './core.js';
 import { _t } from './i18n.js';
 
 export function initCost() {
   $('#navCost').onclick = async () => {
     App.showView('costView');
-    const body = $('#costBody'); body.innerHTML = '<div class="plan-hint">' + _t('loading') + '</div>';
+    const body = $('#costBody'); body.innerHTML = loadingHint(_t('loading'));
     try {
       const d = await api('/pm/llm-usage');
       const rows = d.by_trigger.map((t) => `<div class="cost-row"><span class="ctrigger">${t.trigger}</span><span class="cnums">${t.calls} ${_t('calls')} · ${t.tokens_in + t.tokens_out} tokens</span><span class="ccost">$${t.cost_usd.toFixed(4)}</span></div>`).join('');

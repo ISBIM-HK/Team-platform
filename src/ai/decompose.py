@@ -25,6 +25,8 @@ def resolve_model(model_str: str) -> Model | str:
     if model_str.startswith("deepseek:") and settings.llm_api_key:
         name = model_str.split(":", 1)[1]
         return OpenAIChatModel(name, provider=DeepSeekProvider(api_key=settings.llm_api_key))
+    if model_str.startswith("deepseek-") and settings.llm_api_key:
+        return OpenAIChatModel(model_str, provider=DeepSeekProvider(api_key=settings.llm_api_key))
     return model_str
 
 

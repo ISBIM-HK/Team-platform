@@ -1,10 +1,10 @@
-"""teamplat MCP server — the cross-agent entry point for contributing work.
+"""Onyx MCP server — the cross-agent entry point for contributing work.
 
 Any MCP-capable agent (Claude Code, Codex, Cursor, …) can register this and
 call `contribute_work` / `list_projects` / `my_contributions`.
 
-    TEAMPLAT_URL    平台地址(默认 http://localhost:3137)
-    TEAMPLAT_TOKEN  个人访问令牌(PAT)
+    ONYX_URL    平台地址(默认 http://localhost:3137)
+    ONYX_TOKEN  个人访问令牌(PAT)
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from src.clients.core import ClientError, contribute
 from src.clients.core import list_contributions as _list_contributions
 from src.clients.core import list_projects as _list_projects
 
-mcp = FastMCP("teamplat")
+mcp = FastMCP("onyx")
 
 
 @mcp.tool()

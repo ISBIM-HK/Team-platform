@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     llm_model_cheap: str = "deepseek:deepseek-v4-flash"
     llm_model_strong: str = "deepseek:deepseek-v4-pro"
 
+    # App URL (for Telegram webhook registration etc.)
+    app_base_url: str = ""  # e.g. https://app.example.com
+
     # Budget
     batch_budget_per_user_per_day: int = 60_000
     chat_budget_per_user_per_day: int = 80_000

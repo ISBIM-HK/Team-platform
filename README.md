@@ -1,31 +1,32 @@
-# Team Platform
+# Onyx
 
-> AI-native team collaboration platform for BIM teams — task decomposition, kanban, project wiki, sprint cycles, personal AI assistant, and real-time notifications.
+> AI-native team collaboration platform — task decomposition, kanban, project wiki, sprint cycles, personal AI assistant, integrations, and real-time notifications.
 
 ## What is this
 
-A collaboration platform built for BIM (Building Information Modeling) teams. The core idea: **give AI a goal, it breaks it into assignable subtasks** — you review, edit, confirm, and tasks land on the kanban. Team members pull what they can.
+Onyx is an AI-native collaboration platform for teams. The core idea: **give AI a goal, it breaks it into assignable subtasks** — you review, edit, confirm, and tasks land on the kanban.
 
-Beyond task management, each user gets a **personal AI assistant** (小T) with 23 tools that can search the web, update tasks, write project documents, send messages to teammates, and remember context across sessions.
+Beyond task management, each user gets a **personal AI assistant** (小T) with 25 tools, dynamic tool routing, project context, memory, and integrations across code, email, and group chat.
 
 ### Key Features
 
 - **AI Task Decomposition** — describe a goal, AI splits it into subtasks with suggested owners and time estimates. Review and edit each subtask before accepting.
 - **Kanban Board** — drag-and-drop task cards across status columns (todo → in_progress → blocked → review → done). Click to edit, delete, or generate AI implementation hints.
-- **Personal AI Assistant** — per-user chat agent with 23 tools. Supports model selection (DeepSeek Flash/Pro). Persona, memory, and skills are customizable per user.
+- **Personal AI Assistant** — per-user chat agent with 25 tools, dynamic tool routing, slash-command recommendations, model selection, project context, memory, and skills.
 - **Project Wiki/Pages** — markdown documents with tree hierarchy per project. AI assistant can create and update docs ("write a meeting summary").
-- **Sprint Cycles** — time-boxed iterations (方案 → 初设 → 施工图 → 竣工). Add tasks, track progress, close with incomplete task review.
+- **Sprint Cycles** — time-boxed iterations. Add tasks, track progress, close with incomplete task review.
 - **Saved Views** — personal task filter/sort presets for quick access to custom perspectives.
 - **Progress Sharing** — project stats + active cycle progress + AI brief + recent docs + grouped clickable task flow.
 - **Real-time Notifications** — SSE push for task changes, workspace edits, teammate messages, brief generation.
-- **JarvisBIM SSO** — proxy authentication against JarvisBIM enterprise accounts, auto-provisioning users.
-- **Integrations** — GitLab, GitHub, DingTalk (skeleton), WeCom Mail (IMAP).
-- **Contribution Tracking** — MCP server + CLI for local AI agents (Claude Code, Codex, Cursor) to push work summaries.
+- **Enterprise SSO** — proxy authentication against enterprise accounts, auto-provisioning users.
+- **Integrations** — GitLab, GitHub, Telegram group chat, DingTalk (skeleton), WeCom Mail (IMAP).
+- **Telegram Group Chat** — bot webhook stores group messages; assistant can summarize recent chats and generate task suggestions for human confirmation.
+- **Contribution Tracking** — MCP server + CLI for local AI agents (Claude Code, Codex, Cursor) to push structured work summaries.
 - **3-Language i18n** — 简体中文 / 繁體中文 / English.
 
 ## Current Status
 
-**In use by team.** 4 users, running on `localhost:3137` with WSL port forwarding.
+**In internal demo use.** Deployed at `https://onyxplat.top` via Cloudflare Tunnel, with local development on `http://localhost:3137`.
 
 | Area | Status |
 |---|---|
@@ -33,7 +34,7 @@ Beyond task management, each user gets a **personal AI assistant** (小T) with 2
 | Projects (CRUD, archive, members, ACL, drag reorder, batch delete) | ✅ |
 | Kanban (task cards, drag-and-drop, state machine, inline edit) | ✅ |
 | AI Decomposition (goal → editable subtasks → confirm) | ✅ |
-| Personal AI Assistant (chat, 23 tools, model selector, project context) | ✅ |
+| Personal AI Assistant (chat, 25 tools, dynamic tool router, slash commands, model selector) | ✅ |
 | Project Wiki/Pages (tree hierarchy, markdown, AI create/update) | ✅ |
 | Sprint Cycles (time-boxed, task linkage, progress stats, close) | ✅ |
 | Saved Views (personal filter presets) | ✅ |
@@ -43,7 +44,7 @@ Beyond task management, each user gets a **personal AI assistant** (小T) with 2
 | Chat Sessions (multi-session, auto-title from first message) | ✅ |
 | MCP Server + CLI (contribution ingest) | ✅ |
 | PAT (scoped personal access tokens) | ✅ |
-| Integrations (GitLab ✅, GitHub ✅, DingTalk 🔧, WeCom Mail ✅) | ✅ |
+| Integrations (GitLab ✅, GitHub ✅, Telegram ✅, DingTalk 🔧, WeCom Mail ✅) | ✅ |
 | Help page (in-app user guide) | ✅ |
 | BYOK LLM keys (per-user API keys for other providers) | Planned |
 | Report automation (scheduler) | Planned |
@@ -54,13 +55,13 @@ Beyond task management, each user gets a **personal AI assistant** (小T) with 2
 | Layer | Choice |
 |---|---|
 | Backend | Python 3.12 + FastAPI + SQLModel + Alembic |
-| AI Agent | PydanticAI (structured outputs, 23 tool functions) |
+| AI Agent | PydanticAI (structured outputs, 25 tools, dynamic tool router) |
 | LLM | DeepSeek V4 Flash (default) / V4 Pro (user-selectable) |
-| Database | Postgres 16 (Docker), 7 migrations |
+| Database | Postgres 16 (Docker) + Alembic migrations |
 | Frontend | Vanilla JS ES modules (21 files, zero build tool) |
 | Design | Slate+Gold theme (Inter font, #1a1a1a + #c8a951) |
-| Deploy | docker compose (app + postgres + caddy) |
-| Auth | JarvisBIM proxy SSO + cookie sessions (7-day, httpOnly) |
+| Deploy | docker compose + Caddy + Cloudflare Tunnel + systemd |
+| Auth | Enterprise SSO + cookie sessions (7-day, httpOnly) |
 
 ## Getting Started
 
@@ -86,7 +87,11 @@ make lint      # ruff check + format
 - `CRYPTO_KEY` — Fernet key for credential encryption (required)
 - `ALLOWED_EMAIL_DOMAINS` — comma-separated domains for self-registration (empty = closed)
 
-**Access:** http://localhost:3137 → click "企业账号登录 (SSO)" → enter JarvisBIM credentials
+**Local access:** http://localhost:3137
+
+**Demo access:** https://onyxplat.top
+
+For production deployment, run the Docker Compose stack behind Caddy and Cloudflare Tunnel, managed by systemd services.
 
 ## Architecture
 
@@ -94,18 +99,19 @@ make lint      # ruff check + format
 ┌─────────────┐   ┌──────────────┐   ┌─────────────────┐
 │  Frontend    │   │  FastAPI     │   │  Postgres 16    │
 │  (21 ES     │──▶│  Monolith    │──▶│  (all state)    │
-│   modules)  │   │  (14 routers)│   │                 │
+│   modules)  │   │  (15 routers)│   │                 │
 │             │   │              │   │  20+ tables     │
 │  - Kanban   │   │  - REST API  │   │  - tasks/projects│
 │  - Chat WS  │   │  - WebSocket │   │  - pages/cycles │
 │  - Pages    │   │  - SSE push  │   │  - chat/notifs  │
 │  - Cycles   │   │  - PydanticAI│   │  - views/tokens │
-│  - SSE      │   │  - 23 tools  │   │  - workspaces   │
+│  - SSE      │   │  - 25 tools  │   │  - workspaces   │
+│             │   │  - tool router│  │  - events_cache │
 └─────────────┘   └──────────────┘   └─────────────────┘
 
 ┌─────────────┐
-│  MCP Server  │
-│  (local CLI) │── PAT auth ──▶ POST /me/contributions
+│  MCP / CLI   │
+│  (onyx-mcp)  │── scoped PAT ──▶ POST /me/contributions
 └─────────────┘
 ```
 
@@ -116,8 +122,9 @@ make lint      # ruff check + format
 3. **Privacy floor** — PMs can't read others' chat; `llm_calls` stores metadata only
 4. **Multi-tenant day 1** — every table has `tenant_id`, every query filters by it
 5. **404 over 403** — don't leak resource existence to unauthorized callers
+6. **Tool routing by intent** — assistant loads only relevant tool groups per turn to keep context lean and identity rules strong
 
-## AI Assistant Tools (23)
+## AI Assistant Tools (25, dynamically routed)
 
 | Category | Tools |
 |---|---|
@@ -127,7 +134,20 @@ make lint      # ruff check + format
 | Memory | remember, note_about_user, rewrite_memory |
 | Skills | save_skill, improve_skill |
 | Communication | notify_teammate, log_manual_work |
-| External | web_search, fetch_url |
+| Search | web_search, fetch_url |
+| Email | query_my_emails |
+| Group Chat | query_telegram_chats, summarize_group_chat |
+
+## CLI / MCP
+
+The `onyx` CLI and `onyx-mcp` MCP server let local AI agents push work summaries:
+
+```bash
+export ONYX_URL=https://onyxplat.top
+export ONYX_TOKEN=tp_xxx
+onyx contribute "finished login callback" --project "My Project"
+onyx projects
+```
 
 ## Design Documents
 
@@ -136,6 +156,7 @@ make lint      # ruff check + format
 - `docs/superpowers/specs/2026-05-28-projects-redesign-design.md` — Projects redesign
 - `docs/user-guide.md` — User-facing feature guide
 - `docs/specs/team-platform-design.html` — Interactive design doc (ER diagrams, state machines)
+- `frontend/docs/user-guide.md` — In-app help page
 
 ## License
 

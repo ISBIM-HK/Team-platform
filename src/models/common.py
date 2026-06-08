@@ -77,6 +77,7 @@ class EventSource(str, Enum):
     dingtalk = "dingtalk"
     notion = "notion"
     wecom_mail = "wecom_mail"
+    telegram = "telegram"
     meeting = "meeting"
     user_chat = "user_chat"
     agent = "agent"  # 本地 AI 投送(Claude Code/Cursor/Codex…)
@@ -99,6 +100,7 @@ class IntegrationProvider(str, Enum):
     dingtalk = "dingtalk"
     notion = "notion"
     wecom_mail = "wecom_mail"
+    telegram = "telegram"
 
 
 class IntegrationStatus(str, Enum):

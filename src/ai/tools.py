@@ -360,7 +360,7 @@ async def fetch_url(ctx: RunContext[AssistantDeps], url: str) -> str:
 
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "TeamPlatform/1.0"})
+            resp = await client.get(url, headers={"User-Agent": "Onyx/1.0"})
         if resp.status_code != 200:
             return f"无法访问该页面（HTTP {resp.status_code}）。"
         import re
@@ -558,3 +558,117 @@ async def update_page(ctx: RunContext[AssistantDeps], page_title: str, content_m
     target.updated_at = utcnow()
     ctx.deps.session.add(target)
     return f"已更新文档「{target.title}」（v{target.version}）。"
+
+
+async def query_my_emails(ctx: RunContext[AssistantDeps], days: int = 7) -> str:
+    """查询当前用户最近的企业微信邮件摘要。days 控制查询天数，默认 7 天。"""
+    from sqlalchemy import select
+
+    from src.models.common import EventSource
+    from src.models.event_cache import EventCache
+
+    since = utcnow() - __import__("datetime").timedelta(days=days)
+    rows = (
+        await ctx.deps.session.execute(
+            select(EventCache)
+            .where(
+                EventCache.actor_user_id == ctx.deps.user_id,
+                EventCache.source == EventSource.wecom_mail,
+                EventCache.occurred_at >= since,
+            )
+            .order_by(EventCache.occurred_at.desc())
+            .limit(30)
+        )
+    ).scalars().all()
+
+    if not rows:
+        return f"最近 {days} 天没有邮件记录。请先在「集成」页面连接企业微信邮箱并同步。"
+
+    lines = []
+    for e in rows:
+        p = e.payload or {}
+        date = e.occurred_at.strftime("%m-%d %H:%M") if e.occurred_at else "?"
+        subject = p.get("subject", "(无主题)")
+        sender = p.get("from", "")
+        lines.append(f"- {date}  {subject}  ← {sender}")
+    return f"最近 {days} 天有 {len(rows)} 封邮件：\n" + "\n".join(lines)
+
+
+async def query_telegram_chats(ctx: RunContext[AssistantDeps]) -> str:
+    """列出所有已收录的 Telegram 群聊名称和消息数量，供用户选择要总结的群。"""
+    from sqlalchemy import func, select
+
+    from src.models.common import EventSource
+    from src.models.event_cache import EventCache
+
+    rows = (
+        await ctx.deps.session.execute(
+            select(
+                EventCache.payload["chat_title"].as_string().label("title"),
+                EventCache.payload["chat_id"].as_string().label("chat_id"),
+                func.count().label("cnt"),
+                func.max(EventCache.occurred_at).label("latest"),
+            )
+            .where(
+                EventCache.tenant_id == ctx.deps.tenant_id,
+                EventCache.source == EventSource.telegram,
+            )
+            .group_by("title", "chat_id")
+        )
+    ).all()
+
+    if not rows:
+        return "没有收录到 Telegram 群聊消息。请先在「集成」页面连接 Telegram Bot 并将其加入群聊。"
+
+    lines = []
+    for r in rows:
+        latest = r.latest.strftime("%m-%d %H:%M") if r.latest else "?"
+        lines.append(f"- {r.title}（{r.cnt} 条消息，最新: {latest}）")
+    return "已收录的 Telegram 群聊：\n" + "\n".join(lines)
+
+
+async def summarize_group_chat(ctx: RunContext[AssistantDeps], chat_name: str, hours: int = 24) -> str:
+    """总结指定 Telegram 群聊最近的消息，提取需求和任务。
+
+    chat_name: 群聊名称（模糊匹配）。
+    hours: 读取最近多少小时的消息，默认 24 小时。
+    """
+    from sqlalchemy import select
+
+    from src.models.common import EventSource
+    from src.models.event_cache import EventCache
+
+    since = utcnow() - __import__("datetime").timedelta(hours=hours)
+    rows = (
+        await ctx.deps.session.execute(
+            select(EventCache)
+            .where(
+                EventCache.tenant_id == ctx.deps.tenant_id,
+                EventCache.source == EventSource.telegram,
+                EventCache.occurred_at >= since,
+            )
+            .order_by(EventCache.occurred_at.asc())
+            .limit(200)
+        )
+    ).scalars().all()
+
+    matched = [r for r in rows if chat_name.lower() in (r.payload.get("chat_title", "")).lower()]
+
+    if not matched:
+        return f"最近 {hours} 小时没有找到群「{chat_name}」的消息。"
+
+    lines = []
+    for e in matched:
+        p = e.payload or {}
+        time_str = e.occurred_at.strftime("%H:%M") if e.occurred_at else "?"
+        lines.append(f"[{time_str}] {p.get('sender_name', '?')}: {p.get('text', '')}")
+
+    conversation = "\n".join(lines)
+    return (
+        f"以下是群「{matched[0].payload.get('chat_title', chat_name)}」最近 {hours} 小时的 {len(matched)} 条消息：\n\n"
+        f"{conversation}\n\n"
+        "请根据以上对话内容：\n"
+        "1. 总结讨论的主要话题\n"
+        "2. 提取出具体的需求或待办事项\n"
+        "3. 对于每个提取出的任务，调用 create_task_suggestion 创建任务建议"
+    )

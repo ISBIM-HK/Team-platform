@@ -16,10 +16,10 @@ class ClientError(Exception):
 
 
 def _config() -> tuple[str, str]:
-    token = os.environ.get("TEAMPLAT_TOKEN", "").strip()
+    token = os.environ.get("ONYX_TOKEN", "").strip()
     if not token:
-        raise ClientError("缺少 TEAMPLAT_TOKEN(在平台「设置 → 个人访问令牌」创建后,设到环境变量里)。")
-    base = os.environ.get("TEAMPLAT_URL", DEFAULT_URL).rstrip("/") + API_PREFIX
+        raise ClientError("缺少 ONYX_TOKEN(在平台「设置 → 个人访问令牌」创建后,设到环境变量里)。")
+    base = os.environ.get("ONYX_URL", DEFAULT_URL).rstrip("/") + API_PREFIX
     return base, token
 
 

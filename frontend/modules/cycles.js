@@ -1,6 +1,6 @@
 'use strict';
 
-import { $, api, toast, escapeHtml, fmtBriefTime, inputModal } from './core.js';
+import { $, api, toast, escapeHtml, fmtBriefTime, inputModal, loadingHint } from './core.js';
 import { _t } from './i18n.js';
 import { state, getStatusName } from './state.js';
 
@@ -62,7 +62,7 @@ function renderCycleList() {
 
 async function loadCycleDetail(cycleId) {
   const detail = $('#cycleDetail'); if (!detail) return;
-  detail.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
+  detail.innerHTML = loadingHint(_t('loading'));
   let cycle;
   try { cycle = await api(`/projects/${state.currentProjectId}/cycles/${cycleId}`); } catch (e) { detail.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
 

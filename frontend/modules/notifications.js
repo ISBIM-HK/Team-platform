@@ -1,6 +1,6 @@
 'use strict';
 
-import { $, api, toast, escapeHtml, fmtBriefTime, API, App } from './core.js';
+import { $, api, toast, escapeHtml, fmtBriefTime, API, App, loadingHint } from './core.js';
 import { _t, currentLang } from './i18n.js';
 import { state } from './state.js';
 
@@ -37,7 +37,7 @@ export function cleanupSSE() {
 
 export async function loadNotifications() {
   App.showView('notificationsView');
-  const body = $('#notificationsBody'); body.innerHTML = `<div class="plan-hint">${_t('loading')}</div>`;
+  const body = $('#notificationsBody'); body.innerHTML = loadingHint(_t('loading'));
   let items; try { items = (await api('/me/notifications')).items || []; } catch (e) { body.innerHTML = `<div class="plan-hint">${escapeHtml(e.message)}</div>`; return; }
   $('#notifMeta').textContent = `${items.length}`;
   if (!items.length) { body.innerHTML = `<div class="empty-hint">${_t('no_notifs')}</div>`; return; }
