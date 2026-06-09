@@ -12,8 +12,11 @@ from src.repositories.assistant_repo import AssistantWorkspaceRepository
 
 def test_prompt_section_injects_set_docs():
     ws = AssistantWorkspace(
-        tenant_id=uuid.uuid4(), user_id=uuid.uuid4(),
-        persona_md="你简洁", profile_md="偏好中文", memory_md="项目用 DeepSeek",
+        tenant_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        persona_md="你简洁",
+        profile_md="偏好中文",
+        memory_md="项目用 DeepSeek",
     )
     s = workspace_prompt_section(ws)
     assert "## 人格" in s and "你简洁" in s

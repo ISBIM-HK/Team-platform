@@ -570,17 +570,21 @@ async def query_my_emails(ctx: AssistantDeps, days: int = 7) -> str:
 
     since = utcnow() - __import__("datetime").timedelta(days=days)
     rows = (
-        await ctx.session.execute(
-            select(EventCache)
-            .where(
-                EventCache.actor_user_id == ctx.user_id,
-                EventCache.source == EventSource.wecom_mail,
-                EventCache.occurred_at >= since,
+        (
+            await ctx.session.execute(
+                select(EventCache)
+                .where(
+                    EventCache.actor_user_id == ctx.user_id,
+                    EventCache.source == EventSource.wecom_mail,
+                    EventCache.occurred_at >= since,
+                )
+                .order_by(EventCache.occurred_at.desc())
+                .limit(30)
             )
-            .order_by(EventCache.occurred_at.desc())
-            .limit(30)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not rows:
         return f"最近 {days} 天没有邮件记录。请先在「集成」页面连接企业微信邮箱并同步。"
@@ -641,17 +645,21 @@ async def summarize_group_chat(ctx: AssistantDeps, chat_name: str, hours: int = 
 
     since = utcnow() - __import__("datetime").timedelta(hours=hours)
     rows = (
-        await ctx.session.execute(
-            select(EventCache)
-            .where(
-                EventCache.tenant_id == ctx.tenant_id,
-                EventCache.source == EventSource.telegram,
-                EventCache.occurred_at >= since,
+        (
+            await ctx.session.execute(
+                select(EventCache)
+                .where(
+                    EventCache.tenant_id == ctx.tenant_id,
+                    EventCache.source == EventSource.telegram,
+                    EventCache.occurred_at >= since,
+                )
+                .order_by(EventCache.occurred_at.asc())
+                .limit(200)
             )
-            .order_by(EventCache.occurred_at.asc())
-            .limit(200)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     matched = [r for r in rows if chat_name.lower() in (r.payload.get("chat_title", "")).lower()]
 

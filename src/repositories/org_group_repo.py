@@ -70,9 +70,15 @@ class OrgGroupRepository:
             current = g.parent_group_id
 
     async def _subtree_height(self, group_id: uuid.UUID) -> int:
-        children = (await self.session.execute(
-            select(OrgGroup).where(OrgGroup.parent_group_id == group_id, OrgGroup.archived_at.is_(None))
-        )).scalars().all()
+        children = (
+            (
+                await self.session.execute(
+                    select(OrgGroup).where(OrgGroup.parent_group_id == group_id, OrgGroup.archived_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
         if not children:
             return 0
         return 1 + max(await self._subtree_height(c.id) for c in children)
@@ -81,9 +87,7 @@ class OrgGroupRepository:
         members = await self.get_members(group.id)
         for m in members:
             await self.session.delete(m)
-        children = await self.session.execute(
-            select(OrgGroup).where(OrgGroup.parent_group_id == group.id)
-        )
+        children = await self.session.execute(select(OrgGroup).where(OrgGroup.parent_group_id == group.id))
         for child in children.scalars().all():
             child.parent_group_id = group.parent_group_id
             self.session.add(child)
@@ -105,9 +109,7 @@ class OrgGroupRepository:
 
     async def get_members(self, group_id: uuid.UUID) -> list[OrgGroupMember]:
         stmt = (
-            select(OrgGroupMember)
-            .where(OrgGroupMember.group_id == group_id)
-            .order_by(OrgGroupMember.created_at.asc())
+            select(OrgGroupMember).where(OrgGroupMember.group_id == group_id).order_by(OrgGroupMember.created_at.asc())
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
@@ -130,9 +132,7 @@ class OrgGroupRepository:
             await safe_flush(self.session)
 
     async def _get_membership(self, group_id: uuid.UUID, user_id: uuid.UUID) -> OrgGroupMember | None:
-        stmt = select(OrgGroupMember).where(
-            OrgGroupMember.group_id == group_id, OrgGroupMember.user_id == user_id
-        )
+        stmt = select(OrgGroupMember).where(OrgGroupMember.group_id == group_id, OrgGroupMember.user_id == user_id)
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def expand_group_user_ids(self, tenant_id: uuid.UUID, group_id: uuid.UUID) -> set[uuid.UUID]:

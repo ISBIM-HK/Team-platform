@@ -17,8 +17,12 @@ async def _integ(session) -> Integration:
     session.add(u)
     await session.flush()
     integ = Integration(
-        tenant_id=t.id, user_id=u.id, provider=IntegrationProvider.gitlab,
-        credential={"enc": "x"}, scope="", consecutive_failures=0,
+        tenant_id=t.id,
+        user_id=u.id,
+        provider=IntegrationProvider.gitlab,
+        credential={"enc": "x"},
+        scope="",
+        consecutive_failures=0,
     )
     session.add(integ)
     await session.flush()

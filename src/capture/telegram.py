@@ -96,7 +96,7 @@ def is_bot_mentioned(parsed: dict, bot_username: str) -> bool:
             text = parsed["text"]
             offset = entity["offset"]
             length = entity["length"]
-            mention = text[offset:offset + length].lstrip("@").lower()
+            mention = text[offset : offset + length].lstrip("@").lower()
             if mention == bot_username.lower():
                 return True
     return False

@@ -303,12 +303,14 @@ async def connect_telegram(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to register webhook: {e}")
 
-    cred = encrypt_credential({
-        "bot_token": req.bot_token,
-        "bot_username": bot_info.get("username", ""),
-        "bot_id": bot_info.get("id"),
-        "monitor_all": False,
-    })
+    cred = encrypt_credential(
+        {
+            "bot_token": req.bot_token,
+            "bot_username": bot_info.get("username", ""),
+            "bot_id": bot_info.get("id"),
+            "monitor_all": False,
+        }
+    )
 
     integ = await _get_user_integration(session, current_user.id, IntegrationProvider.telegram)
     if integ:

@@ -236,7 +236,6 @@ def _get_all_tools() -> dict:
     }
 
 
-
 async def _build_system_prompt(deps: AssistantDeps, model_name: str) -> str:
     """Assemble the full system prompt: identity + rules + workspace + project context."""
     from sqlalchemy import select
@@ -292,5 +291,3 @@ async def _build_system_prompt(deps: AssistantDeps, model_name: str) -> str:
     sections.append(identity_suffix)
 
     return "\n\n".join(p for p in sections if p)
-
-

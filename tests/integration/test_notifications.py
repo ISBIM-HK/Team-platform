@@ -50,11 +50,18 @@ async def test_claim_notifies_other_leads(auth_client, session):
     assert r.status_code == 200, r.text
 
     # Bob (the other lead) should have the notification, not Alice (the claimer)
-    bobs_notifs = (await session.execute(
-        select(Notification).where(
-            Notification.recipient_user_id == bob.id, Notification.kind == NotificationKind.task_claimed,
+    bobs_notifs = (
+        (
+            await session.execute(
+                select(Notification).where(
+                    Notification.recipient_user_id == bob.id,
+                    Notification.kind == NotificationKind.task_claimed,
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(bobs_notifs) >= 1
 
     # Alice (claimer) should NOT have a task_claimed notification for herself
@@ -90,12 +97,14 @@ async def test_notifications_are_owner_only(auth_client, session):
     other = User(tenant_id=user.tenant_id, email="bob@example.com", display_name="Bob")
     session.add(other)
     await session.flush()
-    session.add(Notification(
-        tenant_id=user.tenant_id,
-        recipient_user_id=other.id,
-        kind=NotificationKind.system,
-        title="别人的",
-    ))
+    session.add(
+        Notification(
+            tenant_id=user.tenant_id,
+            recipient_user_id=other.id,
+            kind=NotificationKind.system,
+            title="别人的",
+        )
+    )
     await session.flush()
     inbox = (await auth_client.get("/api/v1/me/notifications")).json()
     assert all(n["title"] != "别人的" for n in inbox["items"])
@@ -104,12 +113,14 @@ async def test_notifications_are_owner_only(auth_client, session):
 async def test_mark_read_drops_unread_count(auth_client, session):
     """Create a direct notification for Alice, then mark it read."""
     user = await _alice(session)
-    session.add(Notification(
-        tenant_id=user.tenant_id,
-        recipient_user_id=user.id,
-        kind=NotificationKind.system,
-        title="测试通知",
-    ))
+    session.add(
+        Notification(
+            tenant_id=user.tenant_id,
+            recipient_user_id=user.id,
+            kind=NotificationKind.system,
+            title="测试通知",
+        )
+    )
     await session.flush()
     await session.commit()
 

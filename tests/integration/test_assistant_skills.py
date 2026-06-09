@@ -18,12 +18,19 @@ class _Ctx:
 def test_skills_section_injects_enabled_only():
     skills = [
         AssistantSkill(
-            workspace_id=uuid.uuid4(), tenant_id=uuid.uuid4(),
-            name="代码评审", description="d", instruction_md="逐行看 diff,关注边界", enabled=True,
+            workspace_id=uuid.uuid4(),
+            tenant_id=uuid.uuid4(),
+            name="代码评审",
+            description="d",
+            instruction_md="逐行看 diff,关注边界",
+            enabled=True,
         ),
         AssistantSkill(
-            workspace_id=uuid.uuid4(), tenant_id=uuid.uuid4(),
-            name="禁用的", instruction_md="不该出现", enabled=False,
+            workspace_id=uuid.uuid4(),
+            tenant_id=uuid.uuid4(),
+            name="禁用的",
+            instruction_md="不该出现",
+            enabled=False,
         ),
     ]
     s = skills_prompt_section(skills)

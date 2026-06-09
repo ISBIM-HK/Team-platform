@@ -14,9 +14,7 @@ class PageRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def list_by_project(
-        self, tenant_id: uuid.UUID, project_id: uuid.UUID
-    ) -> list[Page]:
+    async def list_by_project(self, tenant_id: uuid.UUID, project_id: uuid.UUID) -> list[Page]:
         """All non-deleted pages for a project, ordered by position then created_at."""
         stmt = (
             select(Page)
@@ -42,9 +40,7 @@ class PageRepository:
     async def update(self, page: Page, expected_version: int) -> Page:
         """Update with optimistic lock — raises ValueError on version mismatch."""
         if page.version != expected_version:
-            raise ValueError(
-                f"Version conflict: expected {expected_version}, current {page.version}"
-            )
+            raise ValueError(f"Version conflict: expected {expected_version}, current {page.version}")
         page.version += 1
         page.updated_at = utcnow()
         self.session.add(page)

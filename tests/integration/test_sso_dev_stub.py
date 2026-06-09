@@ -33,9 +33,7 @@ async def test_dev_login_idempotent(client, session, monkeypatch):
     u = await UserRepository(session).get_by_email("dup@example.com")
     assert u is not None and u.sso_subject == "devstub:dup@example.com"
     n = (
-        await session.execute(
-            select(func.count()).select_from(User).where(User.email == "dup@example.com")
-        )
+        await session.execute(select(func.count()).select_from(User).where(User.email == "dup@example.com"))
     ).scalar_one()
     assert n == 1  # no duplicate account on re-login
 

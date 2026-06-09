@@ -10,18 +10,14 @@ async def test_first_registrant_is_admin_pm(client):
         "/api/v1/auth/register",
         json={"email": "first@example.com", "display_name": "F", "password": "pw12345678"},
     )
-    l1 = await client.post(
-        "/api/v1/auth/login", json={"email": "first@example.com", "password": "pw12345678"}
-    )
+    l1 = await client.post("/api/v1/auth/login", json={"email": "first@example.com", "password": "pw12345678"})
     assert l1.json()["is_admin"] is True and l1.json()["is_pm"] is True
 
     await client.post(
         "/api/v1/auth/register",
         json={"email": "second@example.com", "display_name": "S", "password": "pw12345678"},
     )
-    l2 = await client.post(
-        "/api/v1/auth/login", json={"email": "second@example.com", "password": "pw12345678"}
-    )
+    l2 = await client.post("/api/v1/auth/login", json={"email": "second@example.com", "password": "pw12345678"})
     assert l2.json()["is_admin"] is False and l2.json()["is_pm"] is False
 
 
@@ -54,7 +50,5 @@ async def test_admin_endpoints_require_admin(client):
         json={"email": "second@example.com", "display_name": "S", "password": "pw12345678"},
     )
     # log in as the non-admin second user
-    await client.post(
-        "/api/v1/auth/login", json={"email": "second@example.com", "password": "pw12345678"}
-    )
+    await client.post("/api/v1/auth/login", json={"email": "second@example.com", "password": "pw12345678"})
     assert (await client.get("/api/v1/admin/users")).status_code == 403

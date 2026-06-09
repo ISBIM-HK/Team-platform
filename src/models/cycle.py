@@ -11,9 +11,7 @@ from src.models.common import new_uuid, utcnow
 
 class Cycle(SQLModel, table=True):
     __tablename__ = "cycles"
-    __table_args__ = (
-        CheckConstraint("end_date > start_date", name="ck_cycle_dates"),
-    )
+    __table_args__ = (CheckConstraint("end_date > start_date", name="ck_cycle_dates"),)
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
@@ -31,9 +29,7 @@ class Cycle(SQLModel, table=True):
 
 class CycleTask(SQLModel, table=True):
     __tablename__ = "cycle_tasks"
-    __table_args__ = (
-        UniqueConstraint("cycle_id", "task_id", name="uq_cycle_task"),
-    )
+    __table_args__ = (UniqueConstraint("cycle_id", "task_id", name="uq_cycle_task"),)
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)

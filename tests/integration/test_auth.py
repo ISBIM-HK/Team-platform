@@ -4,8 +4,9 @@ from tests.conftest import register_and_login
 
 
 async def test_register_rejects_foreign_domain(client):
-    r = await client.post("/api/v1/auth/register",
-                          json={"email": "bob@other.com", "display_name": "Bob", "password": "pw12345678"})
+    r = await client.post(
+        "/api/v1/auth/register", json={"email": "bob@other.com", "display_name": "Bob", "password": "pw12345678"}
+    )
     assert r.status_code == 403
 
 
@@ -16,8 +17,9 @@ async def test_register_then_duplicate_conflicts(client):
 
 
 async def test_login_wrong_password(client):
-    await client.post("/api/v1/auth/register",
-                      json={"email": "alice@example.com", "display_name": "Alice", "password": "pw12345678"})
+    await client.post(
+        "/api/v1/auth/register", json={"email": "alice@example.com", "display_name": "Alice", "password": "pw12345678"}
+    )
     r = await client.post("/api/v1/auth/login", json={"email": "alice@example.com", "password": "nope"})
     assert r.status_code == 401
 

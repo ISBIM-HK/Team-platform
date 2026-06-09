@@ -115,8 +115,10 @@ async def main() -> int:
         r = await run_case(p)
         results.append(r)
         mark = "✅" if r["pass"] else "❌"
-        print(f"  {mark} {r['name']}: {r['subtasks']} 子任务 | conf={r['confidence']:.2f} | "
-              f"judge={r['judge_score']:.2f} 覆盖全={r['judge_covers_all']}")
+        print(
+            f"  {mark} {r['name']}: {r['subtasks']} 子任务 | conf={r['confidence']:.2f} | "
+            f"judge={r['judge_score']:.2f} 覆盖全={r['judge_covers_all']}"
+        )
         if r["hard_issues"]:
             print(f"    硬断言问题: {r['hard_issues']}")
         print(f"    评审: {r['judge_notes']}")

@@ -54,6 +54,7 @@ async def session():
 @pytest_asyncio.fixture
 async def client(session):
     """httpx client wired to the app, sharing the rolled-back test session."""
+
     async def _override_get_db():
         yield session
 
@@ -65,8 +66,7 @@ async def client(session):
 
 
 async def register_and_login(client, email="alice@example.com", name="Alice", password="pw12345678"):
-    await client.post("/api/v1/auth/register",
-                      json={"email": email, "display_name": name, "password": password})
+    await client.post("/api/v1/auth/register", json={"email": email, "display_name": name, "password": password})
     r = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return r.json()

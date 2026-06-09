@@ -55,6 +55,7 @@ async def _auto_process_doc(db, user, project_id, content: str) -> str:
     db.add(page)
     return f"原文已存入项目Wiki「{page.title}」"
 
+
 router = APIRouter(tags=["ws"])
 
 

@@ -23,17 +23,18 @@ NONCE = "nonce-abc"
 _KEY = JsonWebKey.generate_key("RSA", 2048, options={"kid": "test-key"}, is_private=True)
 
 
-def _make_idp(*, sub="oidc-sub-1", email="ssotester@example.com", name="SSO Tester",
-              nonce=NONCE, sign_key=_KEY):
+def _make_idp(*, sub="oidc-sub-1", email="ssotester@example.com", name="SSO Tester", nonce=NONCE, sign_key=_KEY):
     """A minimal OIDC IdP: discovery + JWKS (public _KEY) + token (signs an id_token)."""
 
     async def discovery(request):
-        return JSONResponse({
-            "issuer": ISSUER,
-            "authorization_endpoint": f"{ISSUER}/auth",
-            "token_endpoint": f"{ISSUER}/token",
-            "jwks_uri": f"{ISSUER}/jwks",
-        })
+        return JSONResponse(
+            {
+                "issuer": ISSUER,
+                "authorization_endpoint": f"{ISSUER}/auth",
+                "token_endpoint": f"{ISSUER}/token",
+                "jwks_uri": f"{ISSUER}/jwks",
+            }
+        )
 
     async def jwks(request):
         return JSONResponse({"keys": [_KEY.as_dict(is_private=False)]})
@@ -42,17 +43,25 @@ def _make_idp(*, sub="oidc-sub-1", email="ssotester@example.com", name="SSO Test
         await request.form()
         now = int(time.time())
         payload = {
-            "iss": ISSUER, "aud": CLIENT_ID, "sub": sub, "email": email,
-            "name": name, "nonce": nonce, "iat": now, "exp": now + 300,
+            "iss": ISSUER,
+            "aud": CLIENT_ID,
+            "sub": sub,
+            "email": email,
+            "name": name,
+            "nonce": nonce,
+            "iat": now,
+            "exp": now + 300,
         }
         id_token = jwt.encode({"alg": "RS256", "kid": "test-key"}, payload, sign_key).decode()
         return JSONResponse({"id_token": id_token, "access_token": "at", "token_type": "Bearer"})
 
-    return Starlette(routes=[
-        Route("/.well-known/openid-configuration", discovery),
-        Route("/jwks", jwks),
-        Route("/token", token, methods=["POST"]),
-    ])
+    return Starlette(
+        routes=[
+            Route("/.well-known/openid-configuration", discovery),
+            Route("/jwks", jwks),
+            Route("/token", token, methods=["POST"]),
+        ]
+    )
 
 
 def _wire(monkeypatch, idp_app):
@@ -62,9 +71,7 @@ def _wire(monkeypatch, idp_app):
     monkeypatch.setattr(s, "oidc_client_secret", "shh")
     monkeypatch.setattr(s, "oidc_redirect_uri", "http://localhost:3137/api/v1/auth/sso/callback")
     transport = httpx.ASGITransport(app=idp_app)
-    monkeypatch.setattr(
-        "src.core.sso._http_client", lambda: httpx.AsyncClient(transport=transport, timeout=5)
-    )
+    monkeypatch.setattr("src.core.sso._http_client", lambda: httpx.AsyncClient(transport=transport, timeout=5))
 
 
 async def test_full_handshake_provisions_and_sets_session(client, monkeypatch):

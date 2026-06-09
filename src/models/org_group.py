@@ -11,9 +11,7 @@ from src.models.common import TimestampMixin, new_uuid
 
 class OrgGroup(TimestampMixin, table=True):
     __tablename__ = "org_groups"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "parent_group_id", "name", name="uq_org_group_name"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "parent_group_id", "name", name="uq_org_group_name"),)
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)
@@ -27,9 +25,7 @@ class OrgGroup(TimestampMixin, table=True):
 
 class OrgGroupMember(TimestampMixin, table=True):
     __tablename__ = "org_group_members"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "group_id", "user_id", name="uq_org_group_member"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "group_id", "user_id", name="uq_org_group_member"),)
 
     id: uuid.UUID = Field(default_factory=new_uuid, primary_key=True)
     tenant_id: uuid.UUID = Field(foreign_key="tenants.id", index=True)

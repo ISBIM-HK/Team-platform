@@ -140,7 +140,7 @@ async def accept_suggestion(
         await task_repo.create(parent)
         created_task_ids.append(parent.id)
 
-        subtasks = (override.subtasks if override and override.subtasks is not None else ref.get("subtasks", []))
+        subtasks = override.subtasks if override and override.subtasks is not None else ref.get("subtasks", [])
         for st in subtasks:
             child = Task(
                 tenant_id=current_user.tenant_id,

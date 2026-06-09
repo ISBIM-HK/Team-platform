@@ -55,7 +55,11 @@ async def patch_workspace(
     repo = AssistantWorkspaceRepository(session)
     ws = await repo.ensure(current_user.tenant_id, current_user.id)
     ws = await repo.patch(
-        ws, persona_md=req.persona_md, memory_md=req.memory_md, profile_md=req.profile_md, llm_model=req.llm_model,
+        ws,
+        persona_md=req.persona_md,
+        memory_md=req.memory_md,
+        profile_md=req.profile_md,
+        llm_model=req.llm_model,
     )
     return WorkspaceResponse.model_validate(ws)
 

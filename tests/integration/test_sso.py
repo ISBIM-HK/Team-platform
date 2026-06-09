@@ -19,8 +19,11 @@ async def _seed_user(session, email, *, sub=None, password=True):
     session.add(t)
     await session.flush()
     u = User(
-        tenant_id=t.id, email=email, display_name="Seed",
-        password_hash="hashed" if password else None, sso_subject=sub,
+        tenant_id=t.id,
+        email=email,
+        display_name="Seed",
+        password_hash="hashed" if password else None,
+        sso_subject=sub,
     )
     session.add(u)
     await session.flush()
