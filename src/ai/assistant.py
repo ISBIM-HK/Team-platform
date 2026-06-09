@@ -1,16 +1,12 @@
-"""Personal AI assistant agent.
+"""Personal AI assistant — system prompts, tool registry, and routing.
 
-Single PydanticAI agent with tools for each user.
-Invoked per WebSocket message turn.
+LLM calls are handled by the Pi sidecar. This module provides the
+system prompt assembly and tool function registry.
 """
 
 from __future__ import annotations
 
-from pydantic_ai import Agent, RunContext
-
-from src.ai.decompose import resolve_model
-from src.ai.tools import AssistantDeps
-from src.core.config import get_settings
+from src.ai.tools import AssistantDeps  # noqa: F401 — re-exported for ws_chat/chat imports
 
 
 def workspace_prompt_section(ws) -> str:
@@ -110,9 +106,8 @@ async def _project_context(deps) -> str:
 
     pws = await ProjectWorkspaceRepository(deps.session).get_by_project(project.id)
 
-    # live task stats
     tasks = await TaskRepository(deps.session).list_by_tenant(deps.tenant_id, project_ids=[project.id], limit=200)
-    status_counts = {}
+    status_counts: dict[str, int] = {}
     for t in tasks:
         status_counts[t.status.value] = status_counts.get(t.status.value, 0) + 1
     total = len(tasks)
@@ -266,7 +261,6 @@ def _get_all_tools() -> dict:
     }
 
 
-# Read-only tools that can be loaded in restricted mode
 _READ_ONLY_TOOLS = {
     "query_my_tasks", "query_team_tasks", "query_project_tasks",
     "list_my_projects", "get_project_members", "get_task_impl_hint",
@@ -274,136 +268,60 @@ _READ_ONLY_TOOLS = {
 }
 
 
-def get_assistant_agent(*, restricted: bool = False, tool_names: set[str] | None = None) -> Agent[AssistantDeps, str]:
-    """Create the personal assistant agent with only the requested tools.
+async def _build_system_prompt(deps: AssistantDeps, model_name: str) -> str:
+    """Assemble the full system prompt: identity + rules + workspace + project context."""
+    from sqlalchemy import select
 
-    restricted=True: only read-only tools (for REST/PAT surface).
-    tool_names: set of tool function names to register. None = all tools (legacy).
-    """
-    all_tools = _get_all_tools()
+    from src.models.common import EventSource
+    from src.models.event_cache import EventCache
+    from src.repositories.assistant_repo import AssistantWorkspaceRepository
+    from src.repositories.assistant_skill_repo import AssistantSkillRepository
 
-    agent = Agent(
-        resolve_model(get_settings().llm_model_cheap),
-        system_prompt=ASSISTANT_SYSTEM_PROMPT,
-        deps_type=AssistantDeps,
-        output_type=str,
-        retries=1,
-    )
+    sections = [ASSISTANT_SYSTEM_PROMPT]
 
-    @agent.system_prompt
-    async def _inject_workspace(ctx: RunContext[AssistantDeps]) -> str:
-        from sqlalchemy import select
+    ws = await AssistantWorkspaceRepository(deps.session).ensure(deps.tenant_id, deps.user_id)
+    skills = await AssistantSkillRepository(deps.session).list_enabled(ws.id)
+    ws_section = workspace_prompt_section(ws)
+    skills_section = skills_prompt_section(skills)
+    if ws_section:
+        sections.append(ws_section)
+    if skills_section:
+        sections.append(skills_section)
 
-        from src.models.common import EventSource
-        from src.models.event_cache import EventCache
-        from src.repositories.assistant_repo import AssistantWorkspaceRepository
-        from src.repositories.assistant_skill_repo import AssistantSkillRepository
+    if deps.current_project_id:
+        sections.append(await _project_context(deps))
 
-        ws = await AssistantWorkspaceRepository(ctx.deps.session).ensure(ctx.deps.tenant_id, ctx.deps.user_id)
-        skills = await AssistantSkillRepository(ctx.deps.session).list_enabled(ws.id)
-        sections = [workspace_prompt_section(ws), skills_prompt_section(skills)]
-
-        if ctx.deps.current_project_id:
-            sections.append(await _project_context(ctx.deps))
-
-        recent = (
-            (
-                await ctx.deps.session.execute(
-                    select(EventCache)
-                    .where(
-                        EventCache.actor_user_id == ctx.deps.user_id,
-                        EventCache.source == EventSource.agent,
-                    )
-                    .order_by(EventCache.occurred_at.desc())
-                    .limit(5)
+    recent = (
+        (
+            await deps.session.execute(
+                select(EventCache)
+                .where(
+                    EventCache.actor_user_id == deps.user_id,
+                    EventCache.source == EventSource.agent,
                 )
+                .order_by(EventCache.occurred_at.desc())
+                .limit(5)
             )
-            .scalars()
-            .all()
         )
-        if recent:
-            lines = ["[最近投送的工作]"]
-            for e in recent:
-                p = e.payload or {}
-                t = e.occurred_at.strftime("%m-%d %H:%M") if e.occurred_at else "?"
-                a = f" (via {p['source_agent']})" if p.get("source_agent") else ""
-                sha = f" [{p['sha'][:7]}]" if p.get("sha") else ""
-                lines.append(f"- {t}{sha} {p.get('content', '')}{a}")
-            sections.append("\n".join(lines))
-
-        return "\n\n".join(p for p in sections if p)
-
-    # Register only the selected tools
-    names_to_load = tool_names if tool_names is not None else set(all_tools.keys())
-
-    for name in names_to_load:
-        fn = all_tools.get(name)
-        if not fn:
-            continue
-        if restricted and name not in _READ_ONLY_TOOLS:
-            continue
-        agent.tool(fn)
-
-    return agent
-
-
-async def chat_turn(
-    user_message: str,
-    history: list[dict],
-    deps: AssistantDeps,
-    record=None,
-    *,
-    restricted: bool = False,
-    user_model: str | None = None,
-) -> str:
-    """Run one chat turn: user message → assistant response.
-
-    restricted=True uses a read-only tool set (for REST/PAT surface).
-    user_model: optional model override from user's assistant settings.
-    """
-    import logging
-    import time
-
-    logger = logging.getLogger(__name__)
-
-    tool_names = route_tools(user_message)
-    logger.info("tool_router selected %d tools: %s", len(tool_names), tool_names)
-
-    agent = get_assistant_agent(restricted=restricted, tool_names=tool_names)
-    messages = history + [{"role": "user", "content": user_message}]
-
-    model_name = user_model or get_settings().llm_model_cheap
-    run_model = resolve_model(model_name)
-
-    identity_prefix = (
-        "[系统指令 — 必须遵守]\n"
-        f"你叫小T，是 Onyx 平台的 AI 工作助手。只能自称小T。当前使用的底层模型是 {model_name}。\n\n"
-        "用户消息：\n"
+        .scalars()
+        .all()
     )
-    prefixed_message = identity_prefix + user_message
+    if recent:
+        lines = ["[最近投送的工作]"]
+        for e in recent:
+            p = e.payload or {}
+            t = e.occurred_at.strftime("%m-%d %H:%M") if e.occurred_at else "?"
+            a = f" (via {p['source_agent']})" if p.get("source_agent") else ""
+            sha = f" [{p['sha'][:7]}]" if p.get("sha") else ""
+            lines.append(f"- {t}{sha} {p.get('content', '')}{a}")
+        sections.append("\n".join(lines))
 
-    t0 = time.monotonic()
-    result = await agent.run(
-        user_prompt=prefixed_message,
-        message_history=_convert_history(messages[:-1]),
-        deps=deps,
-        model=run_model,
+    identity_suffix = (
+        f"\n\n[系统指令 — 必须遵守]\n"
+        f"你叫小T，是 Onyx 平台的 AI 工作助手。只能自称小T。当前使用的底层模型是 {model_name}。"
     )
-    if record is not None:
-        from src.ai.usage import record_run
+    sections.append(identity_suffix)
 
-        await record_run(record, result, model_name, int((time.monotonic() - t0) * 1000))
-    return result.output
+    return "\n\n".join(p for p in sections if p)
 
 
-def _convert_history(messages: list[dict]) -> list:
-    """Convert simple dict history to PydanticAI message format."""
-    from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
-
-    converted = []
-    for m in messages:
-        if m["role"] == "user":
-            converted.append(ModelRequest(parts=[UserPromptPart(content=m["content"])]))
-        elif m["role"] == "assistant":
-            converted.append(ModelResponse(parts=[TextPart(content=m["content"])]))
-    return converted

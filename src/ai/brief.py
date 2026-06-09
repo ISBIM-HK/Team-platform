@@ -3,12 +3,11 @@ colleague-readable summary (on-demand, for the share page)."""
 
 from __future__ import annotations
 
+import json
 import time
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent
 
-from src.ai.decompose import resolve_model
 from src.core.config import get_settings
 
 BRIEF_SYSTEM_PROMPT = """你是项目负责人,给同事写一份简洁的项目进展简报。
@@ -27,20 +26,31 @@ class ProgressBrief(BaseModel):
     next_steps: list[str] = Field(default_factory=list, description="下一步")
 
 
-def _agent() -> Agent[None, ProgressBrief]:
-    return Agent(
-        resolve_model(get_settings().llm_model_strong),
-        system_prompt=BRIEF_SYSTEM_PROMPT,
-        output_type=ProgressBrief,
-        retries=1,
+def _schema_instruction() -> str:
+    schema = ProgressBrief.model_json_schema()
+    return (
+        "\n\n请严格按以下 JSON Schema 返回，不要包含任何其他文字：\n"
+        f"```json\n{json.dumps(schema, ensure_ascii=False, indent=2)}\n```"
     )
 
 
 async def generate_brief(context: str, record=None) -> ProgressBrief:
-    t0 = time.monotonic()
-    result = await _agent().run(context)
-    if record is not None:
-        from src.ai.usage import record_run
+    from src.ai.runtime import pi_completion
 
-        await record_run(record, result, get_settings().llm_model_strong, int((time.monotonic() - t0) * 1000))
-    return result.output
+    model_name = get_settings().llm_model_strong
+    messages = [
+        {"role": "system", "content": BRIEF_SYSTEM_PROMPT + _schema_instruction()},
+        {"role": "user", "content": context},
+    ]
+
+    t0 = time.monotonic()
+    content = await pi_completion(messages, model=model_name)
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    brief = ProgressBrief.model_validate_json(content)
+
+    if record is not None:
+        from src.ai.usage import record_usage
+
+        await record_usage(record, model_name, 0, 0, latency_ms)
+    return brief

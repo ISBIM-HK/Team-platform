@@ -39,20 +39,24 @@ class RecordCtx:
     triggered_by_id: uuid.UUID | None = None
 
 
-async def record_run(ctx: RecordCtx, result, model: str, latency_ms: int, status: LLMStatus = LLMStatus.ok) -> LLMCall:
-    """Record one PydanticAI run's usage. `result` is an AgentRunResult."""
-    usage = result.usage  # pydantic-ai 1.x: property, not a method
-    tin = usage.input_tokens or 0
-    tout = usage.output_tokens or 0
+async def record_usage(
+    ctx: RecordCtx,
+    model: str,
+    tokens_in: int,
+    tokens_out: int,
+    latency_ms: int,
+    status: LLMStatus = LLMStatus.ok,
+) -> LLMCall:
+    """Record one LLM call's usage (framework-agnostic)."""
     call = LLMCall(
         tenant_id=ctx.tenant_id,
         triggered_by=ctx.trigger,
         triggered_by_id=ctx.triggered_by_id,
         user_id=ctx.user_id,
         model=model,
-        tokens_in=tin,
-        tokens_out=tout,
-        cost_usd=estimate_cost(model, tin, tout),
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        cost_usd=estimate_cost(model, tokens_in, tokens_out),
         latency_ms=latency_ms,
         status=status,
     )

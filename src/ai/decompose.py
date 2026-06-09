@@ -1,4 +1,4 @@
-"""Task decomposition agent using PydanticAI.
+"""Task decomposition — structured output via Pi sidecar.
 
 Takes a goal/requirement text + optional team context,
 outputs a structured DecompositionPlan.
@@ -6,31 +6,11 @@ outputs a structured DecompositionPlan.
 
 from __future__ import annotations
 
-from pydantic_ai import Agent
-from pydantic_ai.models import Model
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.deepseek import DeepSeekProvider
+import json
 
 from src.ai.schemas import DecompositionPlan
 from src.core.config import get_settings
 
-
-def resolve_model(model_str: str) -> Model | str:
-    """Wire the configured API key to the provider.
-
-    'deepseek:<name>' → explicit DeepSeekProvider with settings.llm_api_key.
-    Anything else → pass through to PydanticAI's own inference (reads env).
-    """
-    settings = get_settings()
-    if model_str.startswith("deepseek:") and settings.llm_api_key:
-        name = model_str.split(":", 1)[1]
-        return OpenAIChatModel(name, provider=DeepSeekProvider(api_key=settings.llm_api_key))
-    if model_str.startswith("deepseek-") and settings.llm_api_key:
-        return OpenAIChatModel(model_str, provider=DeepSeekProvider(api_key=settings.llm_api_key))
-    return model_str
-
-
-# System prompt for the decomposition agent
 DECOMPOSE_SYSTEM_PROMPT = """你是一个资深技术项目经理，擅长将复杂目标拆解为可执行的子任务。
 
 ## 规则
@@ -53,17 +33,11 @@ DECOMPOSE_SYSTEM_PROMPT = """你是一个资深技术项目经理，擅长将复
 """
 
 
-def get_decompose_agent(model: str | None = None) -> Agent[None, DecompositionPlan]:
-    """Create a decomposition agent.
-
-    Decomposition is reasoning-heavy → use the strong model by default
-    (设计 §5.1 + R1：拆解用 Pro 不省钱).
-    """
-    return Agent(
-        resolve_model(model or get_settings().llm_model_strong),
-        system_prompt=DECOMPOSE_SYSTEM_PROMPT,
-        output_type=DecompositionPlan,
-        retries=2,
+def _schema_instruction() -> str:
+    schema = DecompositionPlan.model_json_schema()
+    return (
+        "\n\n请严格按以下 JSON Schema 返回，不要包含任何其他文字：\n"
+        f"```json\n{json.dumps(schema, ensure_ascii=False, indent=2)}\n```"
     )
 
 
@@ -73,30 +47,30 @@ async def decompose_goal(
     model: str | None = None,
     record=None,
 ) -> DecompositionPlan:
-    """Decompose a goal into a plan with subtasks.
-
-    Args:
-        goal: The high-level goal or requirement text.
-        team_context: Optional context about team members, skills, current workload.
-        model: Override model string; defaults to settings.llm_model_strong.
-        record: Optional usage.RecordCtx; when given, the LLM call is logged to llm_calls.
-
-    Returns:
-        DecompositionPlan with parent task info + list of subtasks.
-    """
+    """Decompose a goal into a plan with subtasks."""
     import time
 
+    from src.ai.runtime import pi_completion
+
     model_name = model or get_settings().llm_model_strong
-    agent = get_decompose_agent(model)
 
     user_prompt = f"## 目标\n{goal}"
     if team_context:
         user_prompt += f"\n\n## 团队上下文\n{team_context}"
 
-    t0 = time.monotonic()
-    result = await agent.run(user_prompt)
-    if record is not None:
-        from src.ai.usage import record_run
+    messages = [
+        {"role": "system", "content": DECOMPOSE_SYSTEM_PROMPT + _schema_instruction()},
+        {"role": "user", "content": user_prompt},
+    ]
 
-        await record_run(record, result, model_name, int((time.monotonic() - t0) * 1000))
-    return result.output
+    t0 = time.monotonic()
+    content = await pi_completion(messages, model=model_name)
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    plan = DecompositionPlan.model_validate_json(content)
+
+    if record is not None:
+        from src.ai.usage import record_usage
+
+        await record_usage(record, model_name, 0, 0, latency_ms)
+    return plan

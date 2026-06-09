@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     # App URL (for Telegram webhook registration etc.)
     app_base_url: str = ""  # e.g. https://app.example.com
 
+    # Internal secret for Pi sidecar → Python tool bridge
+    internal_secret: str = "dev-internal-secret"
+
+    # Agent runtime: "pydantic" (default) or "pi" (Pi sidecar)
+    agent_runtime: str = "pydantic"
+    pi_sidecar_url: str = "http://localhost:3200"
+
     # Budget
     batch_budget_per_user_per_day: int = 60_000
     chat_budget_per_user_per_day: int = 80_000

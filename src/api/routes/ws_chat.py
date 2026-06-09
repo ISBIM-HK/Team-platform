@@ -21,7 +21,8 @@ import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from src.ai.assistant import AssistantDeps, chat_turn
+from src.ai.assistant import AssistantDeps
+from src.ai.runtime import chat_turn_dispatch
 from src.ai.usage import RecordCtx
 from src.core.database import async_session_factory
 from src.core.security import read_session_token
@@ -202,7 +203,7 @@ async def _handle_user_message(
                 "3. 简要告诉用户你完成了什么]\n\n" + content
             )
         try:
-            response_text = await chat_turn(ai_content, history, deps, record=rec, user_model=user_model)
+            response_text = await chat_turn_dispatch(ai_content, history, deps, record=rec, user_model=user_model)
         except Exception as e:
             await websocket.send_json({"type": "error", "message": f"AI error: {e}"})
             return

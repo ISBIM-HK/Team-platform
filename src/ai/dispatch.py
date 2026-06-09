@@ -1,7 +1,6 @@
-"""Smart dispatch agent — recommend an owner for a task.
+"""Smart dispatch — recommend an owner for a task.
 
-Given a task + team members (with current load), suggests the most suitable
-assignee. Advisory only: the route wraps the result in an `assign` suggestion;
+Advisory only: the route wraps the result in an `assign` suggestion;
 nothing is auto-assigned (pull mode preserved).
 """
 
@@ -9,9 +8,6 @@ from __future__ import annotations
 
 import json
 
-from pydantic_ai import Agent
-
-from src.ai.decompose import resolve_model
 from src.ai.schemas import AssignmentSuggestion
 from src.core.config import get_settings
 
@@ -26,12 +22,11 @@ DISPATCH_SYSTEM_PROMPT = """你是技术团队负责人，为一个待办任务�
 """
 
 
-def get_dispatch_agent() -> Agent[None, AssignmentSuggestion]:
-    return Agent(
-        resolve_model(get_settings().llm_model_strong),
-        system_prompt=DISPATCH_SYSTEM_PROMPT,
-        output_type=AssignmentSuggestion,
-        retries=2,
+def _schema_instruction() -> str:
+    schema = AssignmentSuggestion.model_json_schema()
+    return (
+        "\n\n请严格按以下 JSON Schema 返回，不要包含任何其他文字：\n"
+        f"```json\n{json.dumps(schema, ensure_ascii=False, indent=2)}\n```"
     )
 
 
@@ -41,26 +36,30 @@ async def suggest_assignment(
     members: list[dict],
     record=None,
 ) -> AssignmentSuggestion:
-    """Recommend an assignee for a task.
-
-    Args:
-        task_title / task_description: the task to assign.
-        members: [{"user_id": str, "name": str, "open_tasks": int}, ...]
-        record: Optional usage.RecordCtx; when given, logs the call to llm_calls.
-
-    Returns:
-        AssignmentSuggestion (user_id picked from members + rationale + confidence).
-    """
+    """Recommend an assignee for a task."""
     import time
 
+    from src.ai.runtime import pi_completion
+
+    model_name = get_settings().llm_model_strong
     prompt = (
         f"## 待分配任务\n标题：{task_title}\n描述：{task_description or '（无）'}\n\n"
         f"## 候选成员（含当前未完成任务数）\n{json.dumps(members, ensure_ascii=False, indent=2)}"
     )
-    t0 = time.monotonic()
-    result = await get_dispatch_agent().run(prompt)
-    if record is not None:
-        from src.ai.usage import record_run
 
-        await record_run(record, result, get_settings().llm_model_strong, int((time.monotonic() - t0) * 1000))
-    return result.output
+    messages = [
+        {"role": "system", "content": DISPATCH_SYSTEM_PROMPT + _schema_instruction()},
+        {"role": "user", "content": prompt},
+    ]
+
+    t0 = time.monotonic()
+    content = await pi_completion(messages, model=model_name)
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    suggestion = AssignmentSuggestion.model_validate_json(content)
+
+    if record is not None:
+        from src.ai.usage import record_usage
+
+        await record_usage(record, model_name, 0, 0, latency_ms)
+    return suggestion

@@ -101,7 +101,7 @@ async def send_message(
     Uses a restricted tool set (read-only) when called via scoped PAT to prevent
     privilege escalation through the assistant's tool chain.
     """
-    from src.ai.assistant import chat_turn
+    from src.ai.runtime import chat_turn_dispatch
     from src.ai.tools import AssistantDeps
     from src.ai.usage import RecordCtx
     from src.models.common import ChatRole, LLMTrigger
@@ -134,7 +134,7 @@ async def send_message(
         triggered_by_id=sid,
     )
 
-    reply_text = await chat_turn(req.content, history, deps, record=rec, restricted=True)
+    reply_text = await chat_turn_dispatch(req.content, history, deps, record=rec, restricted=True)
 
     await repo.add_message(
         session_id=sid, tenant_id=current_user.tenant_id, role=ChatRole.assistant, content=reply_text

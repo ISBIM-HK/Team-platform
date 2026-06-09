@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.api.routes import (
     admin,
+    agent_tools,
     assistant,
     auth,
     chat,
@@ -108,6 +109,7 @@ app.include_router(views.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(groups.router, prefix="/api/v1")
 app.include_router(ws_chat.router)
+app.include_router(agent_tools.router, prefix="/api/v1")
 
 # Serve the bundled SPA last (same-origin → cookies work, no CORS).
 # Explicit API/docs/ws routes above are matched first.

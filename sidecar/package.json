@@ -1,0 +1,14 @@
+{
+  "name": "onyx-agent-sidecar",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.79.0",
+    "@earendil-works/pi-agent-core": "^0.79.0"
+  }
+}

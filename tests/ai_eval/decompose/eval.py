@@ -20,12 +20,12 @@ from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from src.ai.decompose import decompose_goal, resolve_model  # noqa: E402
+from src.ai.decompose import decompose_goal  # noqa: E402
+from src.ai.runtime import pi_completion  # noqa: E402
 from src.ai.schemas import DecompositionPlan  # noqa: E402
 from src.core.config import get_settings  # noqa: E402
 
@@ -46,13 +46,18 @@ JUDGE_SYSTEM = (
 )
 
 
-def _judge_agent() -> Agent[None, JudgeResult]:
-    return Agent(
-        resolve_model(get_settings().llm_model_strong),
-        system_prompt=JUDGE_SYSTEM,
-        output_type=JudgeResult,
-        retries=1,
+async def _judge(prompt: str) -> JudgeResult:
+    schema = JudgeResult.model_json_schema()
+    schema_instr = (
+        "\n\n请严格按以下 JSON Schema 返回，不要包含任何其他文字：\n"
+        f"```json\n{json.dumps(schema, ensure_ascii=False, indent=2)}\n```"
     )
+    messages = [
+        {"role": "system", "content": JUDGE_SYSTEM + schema_instr},
+        {"role": "user", "content": prompt},
+    ]
+    content = await pi_completion(messages, model=get_settings().llm_model_strong)
+    return JudgeResult.model_validate_json(content)
 
 
 def hard_checks(plan: DecompositionPlan, expect: dict) -> list[str]:
@@ -80,7 +85,7 @@ async def run_case(path: Path) -> dict:
         f"## 目标\n{case['goal']}\n\n## 评分标准\n{case.get('judge_rubric', '')}\n\n"
         f"## 待评拆解\n{json.dumps(plan.model_dump(), ensure_ascii=False, indent=2)}"
     )
-    jr = (await _judge_agent().run(judge_input)).output
+    jr = await _judge(judge_input)
 
     hard_pass = not issues
     judge_pass = jr.score >= PASS_SCORE and jr.covers_all
