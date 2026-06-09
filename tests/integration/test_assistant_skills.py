@@ -8,13 +8,6 @@ from src.models.tenant import Tenant
 from src.models.user import User
 
 
-class _Ctx:
-    """Minimal stand-in for RunContext — tools only touch ctx.deps."""
-
-    def __init__(self, deps):
-        self.deps = deps
-
-
 def test_skills_section_injects_enabled_only():
     skills = [
         AssistantSkill(
@@ -98,7 +91,7 @@ async def test_save_and_improve_skill_tools(session):
     u = User(tenant_id=t.id, email="skilltool@example.com", display_name="S")
     session.add(u)
     await session.flush()
-    ctx = _Ctx(AssistantDeps(session=session, user_id=u.id, tenant_id=t.id))
+    ctx = AssistantDeps(session=session, user_id=u.id, tenant_id=t.id)
 
     await save_skill(ctx, "代码评审", "看 diff", "逐行看 diff")
     ws = await AssistantWorkspaceRepository(session).ensure(t.id, u.id)
