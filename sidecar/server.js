@@ -28,6 +28,22 @@ async function callPythonTool(toolName, args, meta) {
 
 let _activeMeta = {};
 
+/**
+ * Build the tool-search query from recent conversation context, not just the
+ * latest message. Follow-up turns ("现在好了" / "在这个项目") carry no tool
+ * keywords, so searching them alone drops the tool the actionable intent —
+ * stated a turn or two earlier ("通知eason开会") — actually needs. Including the
+ * last couple of user turns keeps that intent inside the retrieval window.
+ */
+function buildToolSearchQuery(message, history) {
+  const recentUser = (history || [])
+    .filter((m) => m && m.role === "user" && typeof m.content === "string")
+    .slice(-2)
+    .map((m) => m.content)
+    .join(" ");
+  return `${recentUser} ${message}`.trim();
+}
+
 // --- Dynamic tool loading from Python ---
 
 function makeBridgeTool(name, description, parameters) {
@@ -275,9 +291,12 @@ const server = http.createServer(async (req, res) => {
 
       _activeMeta = { user_id: user_id || "", tenant_id: tenant_id || "", project_id: project_id || "" };
 
-      // Tool search: select relevant tools for this message
-      const selected = TOOL_INDEX.length > 0 ? selectTools(message, TOOL_INDEX) : TOOLS;
-      console.log(`[tool-search] "${message.slice(0, 30)}..." → ${selected.map(t => t.name).join(", ")} (${selected.length}/${TOOLS.length})`);
+      // Tool search: select relevant tools using recent conversation context
+      // (last few user turns + this message), so follow-up confirmations don't
+      // drop the tool the earlier-stated intent needs.
+      const searchQuery = buildToolSearchQuery(message, history);
+      const selected = TOOL_INDEX.length > 0 ? selectTools(searchQuery, TOOL_INDEX) : TOOLS;
+      console.log(`[tool-search] "${searchQuery.slice(0, 40)}..." → ${selected.map(t => t.name).join(", ")} (${selected.length}/${TOOLS.length})`);
 
       const model = resolveModel(provider, model_id);
       const prompt = system_prompt || BASE_SYSTEM_PROMPT || "你是小T，Onyx 平台的 AI 工作助手。";
@@ -322,7 +341,9 @@ const server = http.createServer(async (req, res) => {
 
       _activeMeta = { user_id: user_id || "", tenant_id: tenant_id || "", project_id: project_id || "" };
 
-      const selected = TOOL_INDEX.length > 0 ? selectTools(message, TOOL_INDEX) : TOOLS;
+      const searchQuery = buildToolSearchQuery(message, history);
+      const selected = TOOL_INDEX.length > 0 ? selectTools(searchQuery, TOOL_INDEX) : TOOLS;
+      console.log(`[tool-search] "${searchQuery.slice(0, 40)}..." → ${selected.map(t => t.name).join(", ")} (${selected.length}/${TOOLS.length})`);
 
       const model = resolveModel(provider, model_id);
       const prompt = system_prompt || BASE_SYSTEM_PROMPT || "你是小T，Onyx 平台的 AI 工作助手。";
