@@ -28,20 +28,28 @@ async function callPythonTool(toolName, args, meta) {
 
 let _activeMeta = {};
 
+// How many recent user turns feed the tool-search query. Wide enough to span a
+// whole "task episode" — the actionable intent ("通知eason开会") can sit several
+// clarification turns ("是不是CICdemo" → "是的" → "ok") before the user clears the
+// blocker, and a narrow window drops the tool that intent needs.
+const TOOL_SEARCH_USER_TURNS = 8;
+
 /**
  * Build the tool-search query from recent conversation context, not just the
- * latest message. Follow-up turns ("现在好了" / "在这个项目") carry no tool
- * keywords, so searching them alone drops the tool the actionable intent —
- * stated a turn or two earlier ("通知eason开会") — actually needs. Including the
- * last couple of user turns keeps that intent inside the retrieval window.
+ * latest message. Short follow-ups ("现在好了" / "ok") carry no tool keywords, so
+ * searching them alone drops the tool the earlier-stated intent actually needs.
+ * Note: the frontend's `history` already includes the current message, so we
+ * derive the query from history's user turns and only append `message` if it
+ * isn't already the last one (avoids double-counting / shrinking the window).
  */
 function buildToolSearchQuery(message, history) {
-  const recentUser = (history || [])
+  const userTurns = (history || [])
     .filter((m) => m && m.role === "user" && typeof m.content === "string")
-    .slice(-2)
-    .map((m) => m.content)
-    .join(" ");
-  return `${recentUser} ${message}`.trim();
+    .map((m) => m.content);
+  if (message && userTurns[userTurns.length - 1] !== message) {
+    userTurns.push(message);
+  }
+  return userTurns.slice(-TOOL_SEARCH_USER_TURNS).join(" ").trim() || (message || "");
 }
 
 // --- Dynamic tool loading from Python ---
